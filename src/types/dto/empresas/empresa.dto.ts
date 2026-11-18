@@ -59,10 +59,12 @@ export interface EmpresaDTO {
   partidaElectronica: string | null;
   /** Codigo SIE del representante en servicio-persona (null = aun no sincronizado). */
   representanteSieCode: string | null;
+  /** Cuenta local vinculada al representante legal (user_role.user_id). */
+  representanteUserId?: string | null;
   /** Representantes adicionales activos. */
   representantesAdicionales: EmpresaRepresentanteAdicionalDTO[];
   /** Configuracion personalizada de cuotas (Modalidad 4); null = cronograma estandar. */
-  configCuotas: { maxCuotas: number; fechas: string[] } | null;
+  configCuotas: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null;
   tipoComprobante: string;
   sitioWeb: string | null;
   estado: string;

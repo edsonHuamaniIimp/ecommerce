@@ -5,11 +5,19 @@ import { ESTADOS_STAND } from "@/lib/shared/constants";
 
 export class GessPrismaRepository implements IGessRepository {
   async findAllPaginated(eventoId: string, params: GessPaginationParams): Promise<GessPaginatedResult> {
-    const where: Record<string, unknown> = { eventoId };
+    const where: Record<string, unknown> = { eventoId, flgActivo: true };
     if (params.estado) where.estado = params.estado;
     if (params.tipo) where.tipoStand = params.tipo;
-    if (params.sinPabellon) where.bloqueId = null;
-    else if (params.bloqueIds && params.bloqueIds.length > 0) where.bloqueId = { in: params.bloqueIds };
+    if (params.sinPabellon) {
+      where.bloqueId = null;
+    } else if (params.bloqueIds && params.bloqueIds.length > 0) {
+      where.bloqueId = { in: params.bloqueIds };
+      if (params.soloVinculados) {
+        where.AND = [{ bloqueId: { not: null } }];
+      }
+    } else if (params.soloVinculados) {
+      where.bloqueId = { not: null };
+    }
     if (params.search) {
       const q = params.search.trim();
       where.OR = ["standCode", "tipoStand", "estado", "empresa", "bloqueId"].map((f) => ({ [f]: { contains: q, mode: "insensitive" } }));
@@ -34,7 +42,7 @@ export class GessPrismaRepository implements IGessRepository {
 
   async tiposDistintos(eventoId: string): Promise<string[]> {
     const rows = await prisma.gessStand.findMany({
-      where: { eventoId, tipoStand: { not: null } },
+      where: { eventoId, flgActivo: true, tipoStand: { not: null } },
       distinct: ["tipoStand"],
       select: { tipoStand: true },
       orderBy: { tipoStand: "asc" },
@@ -43,7 +51,7 @@ export class GessPrismaRepository implements IGessRepository {
   }
 
   async findByBloque(bloqueId: string) {
-    const row = await prisma.gessStand.findFirst({ where: { bloqueId }, orderBy: { updatedAt: "desc" } });
+    const row = await prisma.gessStand.findFirst({ where: { bloqueId, flgActivo: true }, orderBy: { updatedAt: "desc" } });
     return row;
   }
 
@@ -58,7 +66,7 @@ export class GessPrismaRepository implements IGessRepository {
   }
 
   async findByEvento(eventoId: string) {
-    const rows = await prisma.gessStand.findMany({ where: { eventoId }, orderBy: { standCode: "asc" } });
+    const rows = await prisma.gessStand.findMany({ where: { eventoId, flgActivo: true }, orderBy: { standCode: "asc" } });
     return rows;
   }
 
@@ -220,6 +228,6 @@ export class GessPrismaRepository implements IGessRepository {
   }
 
   async countByEvento(eventoId: string) {
-    return prisma.gessStand.count({ where: { eventoId } });
+    return prisma.gessStand.count({ where: { eventoId, flgActivo: true } });
   }
 }

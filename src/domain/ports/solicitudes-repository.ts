@@ -1,5 +1,6 @@
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "../models/entities";
 import type { AlertaClave, AlertaDatos } from "@/lib/shared/alert-templates";
+import type { SolicitudesFiltroTipo } from "@/lib/shared/constants";
 
 export interface PaisConteo {
   /** Pais ISO alpha-2; null cuando la empresa no tiene pais. */
@@ -27,10 +28,14 @@ export interface SolicitudesListParams {
   areaPendiente?: string;
   /** Situacion del expediente SGC. */
   sgc?: "con" | "sin" | "observado" | "rechazado";
+  /** Contrato generado/firmado: solo solicitudes que aun no lo tienen. */
+  contrato?: "sin_generado" | "sin_firmado";
   /** Solo solicitudes con documentos observados por el revisor. */
   docsObservados?: boolean;
   /** Origen de la observacion cuando el estado es OBSERVADO. */
   observadoPor?: "asociado" | "legal";
+  /** Origen de la solicitud: regular (tipo nulo) o reserva administrativa. */
+  tipo?: SolicitudesFiltroTipo;
   /** Rango por fecha de creacion (YYYY-MM-DD, hora Lima). */
   desde?: string;
   hasta?: string;
@@ -47,6 +52,8 @@ export interface SolicitudesPaginatedResult {
 
 export interface ISolicitudesRepository {
   listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult>;
+  /** IDs de las solicitudes de una empresa (por usuarios vinculados o RUC/SIE), para regenerar contratos. */
+  listarIdsPorEmpresa(empresaId: string, ruc: string | null, sieCode: string | null): Promise<string[]>;
   /** Conteo por pais para ordenar el filtro sin alterar la paginacion de la bandeja. */
   paisesConteo?(params: { eventoId: string; incluirInactivas?: boolean }): Promise<PaisConteo[]>;
   detalle(solicitudId: string): Promise<SolicitudRow | null>;
@@ -58,7 +65,15 @@ export interface ISolicitudesRepository {
     reviewerEmail: string;
   }): Promise<RevisionEntity>;
   crearRevisionInicial(solicitudId: string, area: string): Promise<RevisionEntity>;
-    crearSolicitud(standIds: string[], userId?: string, email?: string, datosFacturacion?: DatosFacturacionSolicitud | null, auditoria?: { actor?: string | null; ip?: string | null }): Promise<string>;
+    crearSolicitud(
+      standIds: string[],
+      userId?: string,
+      email?: string,
+      datosFacturacion?: DatosFacturacionSolicitud | null,
+      auditoria?: { actor?: string | null; ip?: string | null },
+      moneda?: { moneda: string; tipoCambio: number | null },
+      tipo?: string | null,
+    ): Promise<string>;
   touchAuditoria(solicitudId: string, actor: string | null, ip: string | null): Promise<void>;
   crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string }): Promise<void>;
   crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity>;
@@ -73,7 +88,7 @@ export interface ISolicitudesRepository {
     /** Tracking del expediente SGC para la linea de tiempo general. */
     sgcEventos: Array<{ id: string; tipo: string; detalle: string; actor: string | null; createdAt: Date }>;
   }>;
-  crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>>;
+  crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }, origen?: string | null): Promise<Record<string, unknown>>;
   findDocumento(docId: string): Promise<{ id: string; userId: string | null; solicitudId: string; createdAt: Date; estado: string | null; flgActivo: boolean } | null>;
   /** SHA-256 de un contrato firmado ya adjunto a OTRA solicitud (anti-reutilizacion). */
   findDocumentoPorHashEnOtraSolicitud(sha256: string, solicitudId: string): Promise<{ solicitudId: string } | null>;
@@ -95,6 +110,19 @@ export interface ISolicitudesRepository {
   /** RF-10/11: persiste el plan de cuotas configurado por el cliente (snapshot). */
   guardarPlanCuotas(solicitudId: string, plan: PlanCuotasSolicitud): Promise<void>;
   /**
+   * Cambia la moneda de una solicitud sin cobranza, actualizando el snapshot del plan,
+   * reemplazando contratos/firmas locales y devolviendo las revisiones a pendiente.
+   */
+  cambiarMonedaSolicitud(
+    solicitudId: string,
+    data: {
+      moneda: string;
+      tipoCambio: number;
+      plan: PlanCuotasSolicitud;
+      actor: string | null;
+    },
+  ): Promise<void>;
+  /**
    * RF-11: crea o actualiza el contrato generado por el sistema (categoria `contrato`,
    * `uploadedBy = "sistema"`), garantizando un unico contrato vigente por solicitud.
    */
@@ -109,11 +137,14 @@ export interface ISolicitudesRepository {
     /** Declaracion de requisitos de facturacion del cliente (checklist por solicitud). */
     requisitos: unknown | null;
   }): Promise<void>;
+  /** Actualiza la declaracion de requisitos de facturacion de una solicitud ya registrada. */
+  actualizarRequisitosFacturacion(solicitudId: string, requisitos: unknown): Promise<void>;
   /** Datos para armar el payload de `POST /stands/reserva` del IIMP. */
-  datosReservaIImp(solicitudId: string): Promise<{
-    iimpContrato: string | null;
+  datosReservaIImp(solicitudId: string): Promise<{    iimpContrato: string | null;
     iimpCuentaCorriente: string | null;
     email: string | null;
+    moneda: string;
+    tipoCambio: number | null;
     tipoEvento: number | null;
     codigoEvento: number | null;
     stands: string[];

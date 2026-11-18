@@ -1,0 +1,1 @@
+ALTER TABLE "solicitud" ADD COLUMN IF NOT EXISTS "tipo" VARCHAR(30);

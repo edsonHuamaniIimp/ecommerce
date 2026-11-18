@@ -5,10 +5,15 @@ import { DomainError } from "@/lib/server/router";
 import { validarIntegracionM2M } from "@/lib/server/integracion-m2m";
 import { SolicitudesPrismaRepository } from "@/infrastructure/persistence/solicitudes-repository";
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
+import { AuthPrismaRepository } from "@/infrastructure/persistence/auth-repository";
 import { NotificacionFacturaApplicationService } from "@/application/facturacion-iimp/notificacion-factura-service";
 import type { NotificacionFacturaRequestDTO } from "@/types/dto/facturacion";
 
-const service = new NotificacionFacturaApplicationService(new SolicitudesPrismaRepository(), facturacionRepo);
+const service = new NotificacionFacturaApplicationService(
+  new SolicitudesPrismaRepository(),
+  facturacionRepo,
+  new AuthPrismaRepository(),
+);
 
 /**
  * API entrante (M2M) del sistema de facturacion: registra contra una cuota de la

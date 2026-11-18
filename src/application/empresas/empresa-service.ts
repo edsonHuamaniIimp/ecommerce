@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, FOTO_PERSONA_MAX_BYTES, IDIOMA_DEFAULT, PAIS_DEFAULT, PERMISSIONS, REGEX_DNI, REGEX_EMAIL, REGEX_PAIS, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CARGA_MASIVA_MAX_FILAS, ESTADOS_EMPRESA, ESTADOS_FILA_CARGA, FOTO_PERSONA_MAX_BYTES, IDIOMA_DEFAULT, PAIS_DEFAULT, PERMISSIONS, REGEX_EMAIL, REGEX_PAIS, REGEX_RUC, ROLES, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, UBIGEO_PAIS_PERU } from "@/lib/shared/constants";
 import type { TipoComprobante } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import { hashPassword, generarPasswordTemporal } from "@/lib/server/utils/password";
@@ -233,24 +233,40 @@ export class EmpresaApplicationService {
   }
 
   /**
-   * Asegura al representante legal como persona en la fuente (misma logica que las
-   * empresas): con RENIEC se obtienen nombres/apellidos oficiales; si ya existe por
-   * documento se reutiliza (y se actualiza si difiere); si no, se crea. Direccion,
-   * correo, celular y foto viajan a servicio-persona. Best-effort.
+   * Asegura al representante legal en la fuente con su tipo de documento.
+   * - DNI: RENIEC obtiene los nombres oficiales y se crea/actualiza la persona.
+   * - Carné/pasaporte: solo se busca una persona existente; no se consulta RENIEC.
+   * Valida tipo, documento y nombre antes de actualizar o vincular.
    */
   private async asegurarRepresentanteEnFuente(
-    dni: string,
+    tipoDocumento: string,
+    documento: string,
     email: string | null,
     telefono: string | null,
     direccion: string | null,
     fotoUrl: string | null,
   ): Promise<string | null> {
     try {
-      const datos = await this.consultaDocumento.consultarDni(dni).catch(() => null);
+      const existente = await this.personaClient.buscarPorDocumento(documento, tipoDocumento);
+      if (existente) {
+        if (existente.id_tipo_documento && existente.id_tipo_documento !== tipoDocumento) {
+          throw new DomainError(
+            `El documento ${documento} existe en la fuente con otro tipo (${existente.id_tipo_documento}); no se puede sincronizar como ${tipoDocumento}.`,
+            API_ERROR_CODES.CONFLICT,
+            409,
+          );
+        }
+      }
+
+      if (tipoDocumento !== TIPOS_DOCUMENTO_PERSONA.DNI) {
+        return existente?.sie_code ?? null;
+      }
+
+      const datos = await this.consultaDocumento.consultarDni(documento).catch(() => null);
       if (!datos?.apellidoPaterno || !datos.nombres) return null;
       const deseada = {
         tipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
-        documento: dni,
+        documento,
         apellidoPaterno: datos.apellidoPaterno,
         apellidoMaterno: datos.apellidoMaterno ?? null,
         nombres: datos.nombres,
@@ -258,7 +274,6 @@ export class EmpresaApplicationService {
         celular: telefono,
         direccion,
       };
-      const existente = await this.personaClient.buscarPorDocumento(dni, TIPOS_DOCUMENTO_PERSONA.DNI);
       let sieCode = existente?.sie_code ?? null;
       if (sieCode) {
         await actualizarPersonaSiDifiere(this.personaClient, existente ?? {}, deseada);
@@ -268,7 +283,7 @@ export class EmpresaApplicationService {
           apellido_materno: deseada.apellidoMaterno,
           nombres: deseada.nombres,
           id_tipo_documento: deseada.tipoDocumento,
-          documento: dni,
+          documento,
           direccion,
           correo: email,
           celular: telefono,
@@ -284,7 +299,8 @@ export class EmpresaApplicationService {
         }
       }
       return sieCode;
-    } catch {
+    } catch (error) {
+      if (error instanceof DomainError && error.status < 500) throw error;
       /* best-effort: la ficha contractual local no depende de la fuente */
       return null;
     }
@@ -570,8 +586,16 @@ export class EmpresaApplicationService {
    * Autorizacion (la decide la capa de aplicacion, no el controlador):
    * lectura de empresas (empresas:view).
    */
-  autorizarLectura(userPermissions: string[]): void {
-    if (!userPermissions.includes(PERMISSIONS.ADMIN_FULL) && !userPermissions.includes(PERMISSIONS.EMPRESAS_VIEW)) {
+  autorizarLectura(userPermissions: string[], opciones?: { permitirPreReserva?: boolean }): void {
+    const puedePreReservar = Boolean(
+      opciones?.permitirPreReserva
+      && (userPermissions.includes(PERMISSIONS.STANDS_PRE_RESERVAR) || userPermissions.includes(PERMISSIONS.STANDS_MANAGE)),
+    );
+    if (
+      !userPermissions.includes(PERMISSIONS.ADMIN_FULL)
+      && !userPermissions.includes(PERMISSIONS.EMPRESAS_VIEW)
+      && !puedePreReservar
+    ) {
       throw new DomainError("Sin permiso para ver empresas", API_ERROR_CODES.FORBIDDEN, 403);
     }
   }
@@ -592,13 +616,14 @@ export class EmpresaApplicationService {
   /**
    * Configura el cronograma personalizado de cuotas de una empresa (Modalidad 4).
    * `null` elimina la configuracion y devuelve la empresa al cronograma estandar.
-   * Las fechas deben ser futuras, estar en orden y coincidir con la cantidad.
+   * Las fechas deben ser futuras, estar en orden y coincidir con la cantidad; si se
+   * envian porcentajes, deben sumar 100% y quedan fijos para el cliente.
    */
   async configurarCuotas(id: string, config: ConfigCuotasEmpresa | null): Promise<EmpresaEntity> {
     await this.obtener(id);
     if (config !== null && !configCuotasValida(config)) {
       throw new DomainError(
-        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas futuras, validas y en orden ascendente.",
+        "Configuracion de cuotas invalida: indica entre 1 y 9 cuotas con fechas posteriores a hoy, validas y en orden ascendente; los porcentajes deben sumar 100%.",
         API_ERROR_CODES.VALIDATION,
         400,
       );
@@ -662,12 +687,18 @@ export class EmpresaApplicationService {
       pais: UBIGEO_PAIS_PERU,
     }) : null);
 
-    /* Misma logica para el representante legal: reutilizar/actualizar o crear en la fuente. */
-    const dniRepresentante = limpiar(input.representanteLegalDni);
+    /* Misma logica para el representante legal: valida su tipo y lo reutiliza/crea en la fuente. */
+    const tipoRepresentante = normalizarTipoDocumentoPersona(input.representanteLegalTipoDocumento);
+    const documentoRepresentante = limpiar(input.representanteLegalDni);
     let representanteSieCode: string | null = null;
-    if (sincronizarFuente && dniRepresentante && REGEX_DNI.test(dniRepresentante)) {
+    if (
+      sincronizarFuente &&
+      documentoRepresentante &&
+      validarDocumentoPersona(tipoRepresentante, documentoRepresentante) === null
+    ) {
       representanteSieCode = await this.asegurarRepresentanteEnFuente(
-        dniRepresentante,
+        tipoRepresentante,
+        documentoRepresentante,
         limpiar(input.representanteCorreo) ?? limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion),
         limpiar(input.representanteCelular) ?? limpiar(input.telefono),
         limpiar(input.representanteDireccion) ?? limpiar(input.direccionFiscal),
@@ -805,6 +836,21 @@ export class EmpresaApplicationService {
       if (input[campo] !== undefined) cambios[campo] = limpiar(input[campo]);
     }
 
+    /* Si cambia la identidad del representante, el SIE anterior deja de ser confiable. */
+    const nombreRepresentanteCambio =
+      input.representanteLegalNombre !== undefined &&
+      limpiar(input.representanteLegalNombre) !== actual.representanteLegalNombre;
+    const tipoRepresentanteCambio =
+      input.representanteLegalTipoDocumento !== undefined &&
+      normalizarTipoDocumentoPersona(input.representanteLegalTipoDocumento) !==
+        normalizarTipoDocumentoPersona(actual.representanteLegalTipoDocumento);
+    const documentoRepresentanteCambio =
+      input.representanteLegalDni !== undefined &&
+      limpiar(input.representanteLegalDni) !== actual.representanteLegalDni;
+    if (nombreRepresentanteCambio || tipoRepresentanteCambio || documentoRepresentanteCambio) {
+      cambios.representanteSieCode = null;
+    }
+
     const actualizada = await this.repo.update(id, cambios);
 
     /*
@@ -835,25 +881,37 @@ export class EmpresaApplicationService {
   }
 
   /**
-   * Sincroniza al representante legal con servicio-persona (admin): reutiliza/actualiza
-   * la persona por DNI o la crea si no existe, y guarda su codigo SIE en la ficha local.
-   * Sin respuesta de RENIEC no se puede crear la persona (nombres/apellidos oficiales).
+   * Sincroniza al representante legal con servicio-persona (admin) usando el tipo
+   * de documento de la ficha. DNI usa RENIEC; carné/pasaporte solo el padrón.
    */
   async sincronizarRepresentante(id: string): Promise<EmpresaEntity> {
     const empresa = await this.obtener(id);
-    const dni = limpiar(empresa.representanteLegalDni);
-    if (!dni || !REGEX_DNI.test(dni)) {
-      throw new DomainError("La empresa no tiene DNI valido del representante legal: no se puede sincronizar", API_ERROR_CODES.VALIDATION, 400);
+    const tipoDocumento = normalizarTipoDocumentoPersona(empresa.representanteLegalTipoDocumento);
+    const documento = limpiar(empresa.representanteLegalDni);
+    const errorDocumento = validarDocumentoPersona(tipoDocumento, documento ?? "");
+    if (!documento || errorDocumento) {
+      throw new DomainError(
+        errorDocumento ?? "La empresa no tiene documento valido del representante legal: no se puede sincronizar",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
     }
     const sieCode = await this.asegurarRepresentanteEnFuente(
-      dni,
+      tipoDocumento,
+      documento,
       limpiar(empresa.representanteCorreo) ?? limpiar(empresa.emailContacto) ?? limpiar(empresa.emailFacturacion),
       limpiar(empresa.representanteCelular) ?? limpiar(empresa.telefono),
       limpiar(empresa.representanteDireccion) ?? limpiar(empresa.direccionFiscal),
       null,
     );
     if (!sieCode) {
-      throw new DomainError("No se pudo sincronizar: RENIEC no devolvio datos del DNI o el servicio de personas no respondio", API_ERROR_CODES.BAD_GATEWAY, 502);
+      throw new DomainError(
+        tipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI
+          ? "No se pudo sincronizar: RENIEC no devolvio datos del DNI o el servicio de personas no respondio"
+          : "No se pudo sincronizar: el documento no existe en el padron interno.",
+        API_ERROR_CODES.BAD_GATEWAY,
+        502,
+      );
     }
     const actualizada = await this.repo.update(id, { representanteSieCode: sieCode });
     /* Alinea la cuenta vinculada (si no tenia persona en la fuente) para el sync del perfil. */
@@ -1260,11 +1318,13 @@ export class EmpresaApplicationService {
       await this.repo.update(empresa.id, { sieCode: idEmpresa });
     }
 
-    /* Persona del representante en la fuente si hay DNI (sin correo: lo completa el representante al ingresar). */
-    const dniRepresentante = limpiar(empresa.representanteLegalDni);
-    const sieCode = dniRepresentante && REGEX_DNI.test(dniRepresentante)
+    /* Persona del representante en la fuente si el documento es valido (sin correo: lo completa al ingresar). */
+    const tipoRepresentante = normalizarTipoDocumentoPersona(empresa.representanteLegalTipoDocumento);
+    const documentoRepresentante = limpiar(empresa.representanteLegalDni);
+    const sieCode = documentoRepresentante && validarDocumentoPersona(tipoRepresentante, documentoRepresentante) === null
       ? await this.asegurarRepresentanteEnFuente(
-          dniRepresentante,
+          tipoRepresentante,
+          documentoRepresentante,
           null,
           limpiar(empresa.representanteCelular),
           null,

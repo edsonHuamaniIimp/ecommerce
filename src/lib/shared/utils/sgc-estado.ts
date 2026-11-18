@@ -1,4 +1,4 @@
-import { SGC_LIFECYCLE_STATUSES } from "@/lib/shared/constants";
+import { SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
 
 /** True si la solicitud ya tiene expediente en el SGC (la integración aplica a esa solicitud). */
 export function sgcAplica(estadoEnvio: string | null): boolean {
@@ -11,6 +11,15 @@ export function sgcAprobado(lifecycleStatus: string | null): boolean {
   return (
     lifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
     lifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
+  );
+}
+
+/** True mientras el expediente está en la revisión Legal interna del SGC. */
+export function sgcEnRevisionLegal(stage: string | null, lifecycleStatus: string | null = null): boolean {
+  return (
+    stage === SGC_STAGES.INTERNAL_REVIEW &&
+    lifecycleStatus !== SGC_LIFECYCLE_STATUSES.OBSERVED &&
+    lifecycleStatus !== SGC_LIFECYCLE_STATUSES.REJECTED
   );
 }
 

@@ -432,7 +432,7 @@ function PerfilPageContent() {
     }
     setSavingEmpresa(true);
     try {
-      await portalEmpresaService.validarDatos({
+      const guardado = await portalEmpresaService.validarDatos({
         ruc: rucEmpresa ?? "",
         tipoDocumento: tipoDocumentoEmpresa,
         pais: paisEmpresa,
@@ -467,6 +467,10 @@ function PerfilPageContent() {
         representantesAdicionales: representantesAdicionales.map(representanteAdicionalPayload),
       });
       toast.success("Datos de la empresa actualizados");
+      const regeneradas = (guardado as { contratosRegenerados?: number } | null)?.contratosRegenerados ?? 0;
+      if (regeneradas > 0) {
+        toast.info(`Se regeneró el contrato de ${regeneradas} solicitud(es) con los nuevos representantes. El cliente debe volver a firmar.`);
+      }
       window.location.reload();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "No se pudieron guardar los datos de la empresa");

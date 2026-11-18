@@ -10,6 +10,7 @@ export interface GessStandDomain {
   empresa: string | null;
   pabellon: string | null;
   bloqueId: string | null;
+  rawData?: unknown;
 }
 
 export function mapGessStandFromDTO(dto: GessStandDTO): GessStandDomain {
@@ -23,5 +24,6 @@ export function mapGessStandFromDTO(dto: GessStandDTO): GessStandDomain {
     empresa: dto.empresa,
     bloqueId: dto.bloqueId,
     pabellon: dto.pabellon,
+    rawData: dto.rawData,
   };
 }

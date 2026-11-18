@@ -42,9 +42,11 @@ export class PresalaApplicationService {
 
     const eventosDb = await this.eventoRepo.findAll();
     const eventoIdMap = new Map<string, string>();
+    const eventoTipoCambioMap = new Map<string, number | null>();
     for (const ev of eventosDb) {
       const key = `${ev.tipoEvento}:${ev.codigoEvento}`;
       if (!eventoIdMap.has(key)) eventoIdMap.set(key, ev.id);
+      if (!eventoTipoCambioMap.has(key)) eventoTipoCambioMap.set(key, ev.tipoCambio ?? null);
     }
 
     const tiposUnicos = new Map<number, ApiEventType>();
@@ -82,6 +84,7 @@ export class PresalaApplicationService {
               imagen: meta?.imagen ?? null,
               plano: meta?.plano ?? null,
               flgVisible: meta?.flgVisible ?? false,
+              tipoCambio: eventoTipoCambioMap.get(`${tipo.code}:${ev.codeEvent}`) ?? null,
               modal_info: meta?.modalInfo ?? null,
             };
           }).filter((v): v is EventoPresalaDTO => v !== null),

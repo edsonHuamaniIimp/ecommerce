@@ -45,6 +45,7 @@ import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client
 import { SolicitarFacturaApplicationService } from "@/application/facturacion-iimp/solicitar-factura-service";
 import { ArchivosCuentaCorrienteApplicationService } from "@/application/facturacion-iimp/archivos-cuenta-service";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
+import { RecordatoriosFacturacionApplicationService } from "@/application/facturacion/recordatorios-facturacion-service";
 import { tipoStandImagenRepo } from "@/infrastructure/persistence/tipo-stand-imagen-repository";
 import { TiposStandImagenApplicationService } from "@/application/stands/tipos-stand-imagen-service";
 import { ContratoApplicationService } from "@/application/contratos/contrato-service";
@@ -96,8 +97,10 @@ const sgcClient: ISgcClient =
     ? new SgcClient({ apiUrl: getSgcApiUrl(), apiKey: getSgcApiKey(), timeoutMs: getSgcTimeoutMs() })
     : new SgcClientMock();
 const documentoOrigen = new DocumentoOrigen();
-const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgcRepo, sgcClient, documentoOrigen, sgcConfig);
-const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo);
+const contratoApp = new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage(), eventoRepo);
+const configuracionApp = new ConfiguracionApplicationService(configuracionRepo);
+const sgcIntegracion = new SgcIntegracionApplicationService(solicitudesRepo, sgcRepo, sgcClient, documentoOrigen, sgcConfig, contratoApp, configuracionApp);
+const sgcWebhook = new SgcWebhookApplicationService(sgcWebhookRepo, sgcRepo, sgcConfig, solicitudesRepo, authRepo, contratoApp, configuracionApp);
 const sgcOutboxRepo = new SgcOutboxPrismaRepository();
 const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion, sgcConfig);
 const auditoria = new AuditoriaApplicationService(new AuditoriaPrismaRepository());
@@ -107,7 +110,7 @@ export const services = {
   eventos: new EventoApplicationService(eventoRepo),
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
   gess: new GessApplicationService(gessRepo, planogessClient, planoRepo, tipoStandImagenRepo, standEvents),
-  reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo, standEvents, configuracionRepo),
+  reservas: new ReservaApplicationService(gessRepo, solicitudesRepo, authRepo, standEvents, configuracionRepo, eventoRepo, empresaRepo, contratoApp),
   prellenadoReserva: new PrellenadoReservaApplicationService(usuarioRepo, personaClient, empresaClient),
   auth: new AuthApplicationService(authRepo, roleRepo, empresaRepo, personaClient),
   dashboard: new DashboardApplicationService(gessRepo),
@@ -117,18 +120,19 @@ export const services = {
   sgc: sgcIntegracion,
   sgcWebhook,
   sgcOutbox,
-  solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion, getStorage()),
+  solicitudes: new SolicitudesApplicationService(solicitudesRepo, sgcIntegracion, getStorage(), eventoRepo),
   planos: new PlanoApplicationService(planoRepo),
   empresas: new EmpresaApplicationService(empresaRepo, authRepo, roleRepo, personaClient, empresaClient, consultaDocumentoClient),
   reportesSolicitudes: new ReportesSolicitudesApplicationService(reportesSolicitudesRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo, reservaIimpClient),
+  recordatoriosFacturacion: new RecordatoriosFacturacionApplicationService(facturacionRepo, reservaIimpClient, authRepo),
   solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
-  contrato: new ContratoApplicationService(solicitudesRepo, empresaRepo, planoRepo, gessRepo, authRepo, getStorage()),
+  contrato: contratoApp,
   alertas: new AlertasApplicationService(authRepo),
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
-  configuracion: new ConfiguracionApplicationService(configuracionRepo),
+  configuracion: configuracionApp,
   auditoria,
   ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(new DdMatrizEvaluacionPrismaRepository()),
   ddClasificarArchivos: new DdClasificarArchivosApplicationService(

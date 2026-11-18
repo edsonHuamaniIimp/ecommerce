@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, MODOS_NOTIFICACION, MONEDAS, REVISION_AREAS, RESULTADOS_APROBACION, REGEX_PAIS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_DD, SOLICITUDES_FILTRO_TIPO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_ORDEN } from "@/lib/shared/constants";
 
 export const solicitudesListarSchema = z.object({
   eventoId: z.string().uuid(),
@@ -15,9 +15,11 @@ export const solicitudesListarSchema = z.object({
   standCode: z.string().max(50).optional(),
   pais: z.string().regex(REGEX_PAIS, "Pais invalido").optional(),
   areaPendiente: z.enum(Object.values(REVISION_AREAS) as [string, ...string[]]).optional(),
-  sgc: z.enum(Object.values(SOLICITUDES_FILTRO_SGC) as [string, ...string[]]).optional(),
-  docsObservados: z.enum(["true", "false"]).optional(),
+    sgc: z.enum(Object.values(SOLICITUDES_FILTRO_SGC) as [string, ...string[]]).optional(),
+    contrato: z.enum(Object.values(SOLICITUDES_FILTRO_CONTRATO) as [string, ...string[]]).optional(),
+    docsObservados: z.enum(["true", "false"]).optional(),
   observadoPor: z.enum(["asociado", "legal"]).optional(),
+  tipo: z.enum(Object.values(SOLICITUDES_FILTRO_TIPO) as [string, ...string[]]).optional(),
   desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   orden: z.enum(Object.values(SOLICITUDES_ORDEN) as [string, ...string[]]).default(SOLICITUDES_ORDEN.RECIENTES),
@@ -29,6 +31,11 @@ export const solicitudesPaisesSchema = z.object({
 
 export const solicitudesDetalleSchema = z.object({
   id: z.string().uuid(),
+});
+
+export const solicitudesCambiarMonedaSchema = z.object({
+  solicitudId: z.string().uuid(),
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]),
 });
 
 export const solicitudesRevisarSchema = z.object({
@@ -69,6 +76,16 @@ export const uploadDocumentoSchema = z.object({
   permitirAnexosIniciales: z.boolean().optional(),
   /** Solo la firma digital del servidor puede adjuntar un contrato firmado en estos eventos. */
   firmaDigital: z.boolean().optional(),
+  /** El Asociado sube un contrato firmado en nombre del cliente (flujo alterno). */
+  subirFirmaAsociado: z.boolean().optional(),
+  /** Observacion exacta del SGC que corrige este archivo. */
+  sgcObservationId: z.string().max(64).optional().nullable(),
+  /** Documento del SGC a versionar; null = documento nuevo requerido. */
+  sgcDocumentId: z.string().max(64).optional().nullable(),
+  /** Titulo exacto de la observacion (anexos arbitrarios). */
+  sgcTitle: z.string().trim().max(300).optional().nullable(),
+  /** Pieza del grupo de adjuntos del SGC. */
+  sgcPieceId: z.string().max(64).optional().nullable(),
 });
 
 /** RF-08: imagen del recorte del pabellon (se guarda tras subirla a /api/upload). */

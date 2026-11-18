@@ -68,6 +68,29 @@ export interface DatosPlantilla {
     tipo: string;
     numero: string;
   };
+  /** Recordatorio: la empresa tiene pagos pendientes y aun no registro su solicitud de factura. */
+  "facturacion-recordatorio-solicitud": {
+    razonSocial: string;
+    standCodes: string;
+  };
+  /** Recordatorio: la empresa declaro requisitos pero faltan documentos en su cuenta corriente. */
+  "facturacion-recordatorio-documentos": {
+    razonSocial: string;
+    standCodes: string;
+    faltantes: string[];
+  };
+  /** Aviso: la solicitud se envio sin requisitos y el cliente debe completarlos. */
+  "facturacion-completar-requisitos": {
+    razonSocial: string;
+    standCodes: string;
+  };
+  /** Aviso: la factura de una cuota ya fue emitida y esta disponible en el portal. */
+  "facturacion-factura-disponible": {
+    razonSocial: string;
+    standCodes: string;
+    numero: string;
+    fechaEmision?: string | null;
+  };
   /** Debida Diligencia: expediente recibido y en revision. */
   "dd-recibida": { codigo: string; razonSocial: string };
   /** Debida Diligencia: expediente observado (correcciones solicitadas). */
@@ -83,6 +106,14 @@ export interface DatosPlantilla {
     standCodes: string;
     documentos: string[];
     justificacion: string;
+    url: string;
+  };
+  /** Aviso interno al Asociado cuando el SGC observa el contrato. */
+  "sgc-contrato-observado": {
+    standCode: string;
+    empresa: string;
+    motivo: string;
+    autoRegenerado: boolean;
     url: string;
   };
 }

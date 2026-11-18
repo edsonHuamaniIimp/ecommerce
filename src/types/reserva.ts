@@ -27,6 +27,8 @@ export interface Evento {
   codigoEvento: number;
   anio: string;
   estado: EstadoEvento;
+  /** Soles por dolar; null = PEN no habilitado. */
+  tipoCambio?: number | null;
 }
 
 /* ---------- Tipos de Stand ---------- */

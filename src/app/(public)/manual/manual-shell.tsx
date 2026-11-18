@@ -4,7 +4,10 @@ import {
   ArrowRight,
   BookOpen,
   ChevronRight,
+  ClipboardCheck,
+  FileCheck2,
   LifeBuoy,
+  Receipt,
   ShieldCheck,
   Store,
 } from "lucide-react";
@@ -39,7 +42,33 @@ const GUIAS = {
     href: "/manual/dd",
     icon: ShieldCheck,
   },
+  facturacion: {
+    nombre: "Facturación",
+    detalle: "Requisitos, solicitud y facturas",
+    href: "/manual/facturacion",
+    icon: Receipt,
+  },
+  subsanacion: {
+    nombre: "Subsanación SGC",
+    detalle: "Observaciones, documentos y firma",
+    href: "/manual/subsanacion",
+    icon: FileCheck2,
+  },
+  subsanacionAsociado: {
+    nombre: "Subsanación SGC (Asociados)",
+    detalle: "Revisión, contrato y reenvío interno",
+    href: "/manual/subsanacion-asociado",
+    icon: ClipboardCheck,
+  },
 } as const;
+
+const GUIA_SIGUIENTE: Record<GuiaManual, keyof typeof GUIAS> = {
+  reservas: "dd",
+  dd: "facturacion",
+  facturacion: "subsanacion",
+  subsanacion: "reservas",
+  subsanacionAsociado: "reservas",
+};
 
 export function ManualShell({
   guia,
@@ -53,7 +82,7 @@ export function ManualShell({
   toc,
   html,
 }: ManualShellProps) {
-  const otraGuia = guia === "reservas" ? GUIAS.dd : GUIAS.reservas;
+  const otraGuia = GUIAS[GUIA_SIGUIENTE[guia]];
   const OtroIcono = otraGuia.icon;
 
   return (

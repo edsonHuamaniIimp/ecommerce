@@ -18,6 +18,8 @@ interface Props {
   /** Numero de la cuota desde la que se solicita la factura (se asocia a los documentos). */
   cuotaNumero?: number;
   standCode?: string;
+  /** "solicitud" registra la reserva; "completar" solo guarda requisitos de una solicitud ya enviada. */
+  modo?: "solicitud" | "completar";
   /** Se ejecuta tras registrar la solicitud (recarga del listado). */
   onEnviado: () => void;
 }
@@ -25,6 +27,18 @@ interface Props {
 const REQUISITOS_INICIALES: RequisitosFacturacionDTO = {
   oc: true,
   hes: true,
+  plataforma: false,
+  plataformaNombre: "",
+  plataformaUrl: "",
+  valorizacion: false,
+  otros: "",
+  ninguna: false,
+};
+
+/** Al completar una solicitud ya enviada no se preselecciona nada: el cliente declara. */
+const REQUISITOS_COMPLETAR: RequisitosFacturacionDTO = {
+  oc: false,
+  hes: false,
   plataforma: false,
   plataformaNombre: "",
   plataformaUrl: "",
@@ -141,10 +155,11 @@ function AdjuntoRequisito({
  * los documentos en el mismo modal. La cuota (la de la bandeja) ya viene fijada.
  * Los requisitos son referenciales; las constancias de pago se adjuntan al pagar.
  */
-export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, onEnviado }: Props) {
+export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, modo = "solicitud", onEnviado }: Props) {
+  const esCompletar = modo === "completar";
   const [archivos, setArchivos] = useState<ArchivoIImpInputDTO[]>([]);
   const [enviando, setEnviando] = useState(false);
-  const [requisitos, setRequisitos] = useState<RequisitosFacturacionDTO>(REQUISITOS_INICIALES);
+  const [requisitos, setRequisitos] = useState<RequisitosFacturacionDTO>(esCompletar ? REQUISITOS_COMPLETAR : REQUISITOS_INICIALES);
   /** Error de validacion de requisitos (plataforma, otros o documentos faltantes). */
   const [error, setError] = useState<string | null>(null);
 
@@ -172,7 +187,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
   const cerrar = (v: boolean) => {
     if (!v) {
       setArchivos([]);
-      setRequisitos(REQUISITOS_INICIALES);
+      setRequisitos(esCompletar ? REQUISITOS_COMPLETAR : REQUISITOS_INICIALES);
       setError(null);
     }
     onOpenChange(v);
@@ -187,10 +202,22 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
   ];
   const cuotaDocumentos = cuotaNumero && cuotaNumero > 0 ? cuotaNumero : null;
   const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));
+  /** Debe declarar al menos un requisito o marcar explicitamente "Ninguna de las anteriores". */
+  const sinRequisitoDeclarado =
+    !requisitos.oc &&
+    !requisitos.hes &&
+    !requisitos.plataforma &&
+    !requisitos.valorizacion &&
+    !Boolean((requisitos.otros ?? "").trim()) &&
+    !requisitos.ninguna;
 
   /** Valida requisitos y documentos; luego envia la solicitud de factura. */
   const enviar = async () => {
     if (!cuotaId) return;
+    if (sinRequisitoDeclarado) {
+      setError("Selecciona al menos un requisito o marca \"Ninguna de las anteriores\".");
+      return;
+    }
     if (requisitos.plataforma) {
       if (!requisitos.plataformaNombre?.trim()) {
         setError("Indica el nombre de la plataforma.");
@@ -212,7 +239,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
     setError(null);
     setEnviando(true);
     try {
-      const resultado = await pagosService.solicitarFactura(cuotaId, archivos, {
+      const datosRequisitos = {
         oc: requisitos.oc,
         hes: requisitos.hes,
         plataforma: requisitos.plataforma,
@@ -221,14 +248,20 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
         valorizacion: requisitos.valorizacion,
         otros: requisitos.otros || null,
         ninguna: requisitos.ninguna,
-      });
-      const doc = resultado.documento;
-      toast.success(
-        doc
-          ? `Solicitud de factura enviada. Comprobante ${doc.serie}-${doc.numero} emitido.`
-          : "Solicitud de factura enviada. La factura de cada cuota se emitirá en su fecha.",
-      );
-      toast.info("Facturación y Cobranzas te enviará un correo con las indicaciones de pago.");
+      };
+      if (esCompletar) {
+        await pagosService.completarRequisitos(cuotaId, datosRequisitos, archivos);
+        toast.success("Requisitos de facturación actualizados.");
+      } else {
+        const resultado = await pagosService.solicitarFactura(cuotaId, archivos, datosRequisitos);
+        const doc = resultado.documento;
+        toast.success(
+          doc
+            ? `Solicitud de factura enviada. Comprobante ${doc.serie}-${doc.numero} emitido.`
+            : "Solicitud de factura enviada. La factura de cada cuota se emitirá en su fecha.",
+        );
+        toast.info("Facturación y Cobranzas te enviará un correo con las indicaciones de pago.");
+      }
       cerrar(false);
       onEnviado();
     } catch (err) {
@@ -243,7 +276,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border-border sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            <span>Requisitos de facturación{standCode ? ` · ${standCode}` : ""}</span>
+            <span>{esCompletar ? "Completar requisitos de facturación" : "Requisitos de facturación"}{standCode ? ` · ${standCode}` : ""}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -251,8 +284,9 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
               <span>
-                Antes de solicitar tu factura, verifica los requisitos de facturación de tu empresa.
-                Selecciona todas las opciones que correspondan y adjunta los documentos que apliquen.
+                {esCompletar
+                  ? "Tu solicitud de factura ya fue enviada, pero quedó sin requisitos declarados. Marca las opciones que correspondan y adjunta los documentos que apliquen."
+                  : "Antes de solicitar tu factura, verifica los requisitos de facturación de tu empresa. Selecciona todas las opciones que correspondan y adjunta los documentos que apliquen."}
               </span>
             </p>
 
@@ -377,6 +411,15 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
               </p>
             )}
 
+            {sinRequisitoDeclarado && (
+              <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] font-medium text-foreground" role="status">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+                <span>
+                  Selecciona al menos un requisito o marca <strong>&quot;Ninguna de las anteriores&quot;</strong> para habilitar el envío.
+                </span>
+              </p>
+            )}
+
             <p className="text-[11px] text-muted-foreground">
               <span>
                 Los requisitos y documentos son referenciales: Facturación y Cobranzas valida los pagos
@@ -393,9 +436,9 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
         </div>
 
         <DialogFooter>
-          <Button className="w-full" disabled={enviando || faltantes.length > 0} onClick={() => { void enviar(); }}>
+          <Button className="w-full" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado} onClick={() => { void enviar(); }}>
             {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
-            <span>{enviando ? "Enviando solicitud..." : "Enviar solicitud de factura"}</span>
+            <span>{enviando ? (esCompletar ? "Guardando..." : "Enviando solicitud...") : (esCompletar ? "Guardar requisitos" : "Enviar solicitud de factura")}</span>
           </Button>
         </DialogFooter>
       </DialogContent>

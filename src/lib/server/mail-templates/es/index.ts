@@ -437,6 +437,99 @@ export const plantillasEs: PlantillasEmail = {
     };
   },
 
+  "facturacion-recordatorio-solicitud": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Solicita tu factura de stand - IIMP",
+      html: envoltura(
+        "Solicitud de factura pendiente",
+        `
+        <p>Hola, te recordamos que la facturación de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> aún no fue solicitada.</p>
+        <p>Ingresa a <strong>Mis documentos</strong> en el Portal del Cliente, revisa tus cuotas y pulsa <strong>Enviar solicitud de factura</strong> en la primera cuota pendiente. Si tu empresa requiere OC, HES, registro en plataforma, valorización u otros documentos, podrás declararlos y adjuntarlos en el mismo formulario.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Solicitar mi factura</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Guía paso a paso: <a href="${manual}" style="color:#1b365d">Manual de facturación del Portal del Cliente</a>.</p>
+      `,
+        PIE_ES,
+      ),
+    };
+  },
+
+  "facturacion-recordatorio-documentos": ({ razonSocial, standCodes, faltantes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Documentos pendientes para tu factura - IIMP",
+      html: envoltura(
+        "Documentos pendientes",
+        `
+        <p>Hola, la solicitud de facturación de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> tiene requisitos declarados que aún no registran sus documentos en el IIMP.</p>
+        <p style="font-size:13px;color:#475569"><strong>Documentos pendientes:</strong></p>
+        ${listaHtml(faltantes.map(esc))}
+        <p>Ingresa a <strong>Mis documentos</strong>, abre el panel <strong>Documentos para tu factura</strong> de la cuota y sube cada documento pendiente.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Subir documentos</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Guía paso a paso: <a href="${manual}" style="color:#1b365d">Manual de facturación del Portal del Cliente</a>.</p>
+      `,
+        PIE_ES,
+      ),
+    };
+  },
+
+  "facturacion-completar-requisitos": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Completa los requisitos de facturación de tu factura - IIMP",
+      html: envoltura(
+        "Completa tus requisitos de facturación",
+        `
+        <p>Hola, la solicitud de facturación de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> fue enviada, pero quedó <strong>sin requisitos declarados</strong>.</p>
+        <p>Para que Facturación pueda emitir tu factura sin observaciones, completa el checklist con lo que exige tu empresa:</p>
+        <ol style="font-size:13px;color:#475569;padding-left:18px">
+          <li style="margin-bottom:6px">Ingresa a <strong>Mis documentos</strong> en el Portal del Cliente.</li>
+          <li style="margin-bottom:6px">Pulsa <strong>Completar requisitos</strong> en la tarjeta de tu solicitud.</li>
+          <li style="margin-bottom:6px">Marca OC, HES, registro en plataforma, valorización, otros o <strong>"Ninguna de las anteriores"</strong>.</li>
+          <li style="margin-bottom:6px">Adjunta los documentos que apliquen y guarda los cambios.</li>
+        </ol>
+        <p style="font-size:13px;color:#475569">Si tu empresa no requiere documentos, marca <strong>"Ninguna de las anteriores"</strong> y guarda. No necesitas volver a enviar tu solicitud al IIMP.</p>
+        <p style="text-align:center;margin:18px 0 6px 0">
+          <img src="${getAppUrl()}/manual/img/fact-completar-requisitos.png" alt="Botón Completar requisitos en Mis documentos" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px" />
+        </p>
+        <p style="text-align:center;margin:0 0 18px 0;font-size:12px;color:#64748b">En <strong>Mis documentos</strong>, pulsa el botón marcado en rojo.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Completar requisitos</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Guía paso a paso: <a href="${manual}" style="color:#1b365d">Manual de facturación del Portal del Cliente</a>.</p>
+      `,
+        PIE_ES,
+      ),
+    };
+  },
+
+  "facturacion-factura-disponible": ({ razonSocial, standCodes, numero, fechaEmision }) => ({
+    subject: `Factura disponible (${numero}) - IIMP`,
+    html: envoltura(
+      "Factura disponible",
+      `
+      <p>La factura de <strong>${esc(razonSocial)}</strong> para el stand <strong>${esc(standCodes)}</strong> ya está disponible en el Portal del Cliente.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+        ${fila("Stand", esc(standCodes))}
+        ${fila("Documento", esc(numero))}
+        ${fechaEmision ? fila("Fecha de emisión", esc(fechaEmision)) : ""}
+      </table>
+      <div style="text-align:center;margin:20px 0">
+        <a href="${getAppUrl()}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Ver mi factura</a>
+      </div>
+      <p style="font-size:13px;color:#475569">Ingresa a <strong>Mis documentos</strong> y descárgala desde la cuota correspondiente. También puedes consultar el <a href="${getAppUrl()}/manual/facturacion" style="color:#1b365d">manual de facturación</a>.</p>
+    `,
+      PIE_ES,
+    ),
+  }),
+
   "dd-recibida": ({ codigo, razonSocial }) => ({
     subject: `Debida diligencia recibida (${codigo}) - IIMP`,
     html: envoltura(
@@ -541,6 +634,25 @@ export const plantillasEs: PlantillasEmail = {
         <div style="text-align:center;margin:20px 0">
           <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Revisar mi solicitud</a>
         </div>
+      `,
+      PIE_ES,
+    ),
+  }),
+  "sgc-contrato-observado": ({ standCode, empresa, motivo, autoRegenerado, url }) => ({
+    subject: `Contrato observado por el SGC - Stand ${standCode} - IIMP`,
+    html: envoltura(
+      "Contrato observado por el SGC",
+      `
+      <p>El SGC observó el contrato de <strong>${esc(empresa)}</strong> para el stand <strong>${esc(standCode)}</strong>.</p>
+      <p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+        ${autoRegenerado
+          ? "El contrato fue regenerado automáticamente. El cliente debe firmar la nueva versión."
+          : "Revisa y regenera el contrato para que el cliente lo firme."}
+      </p>
+      ${motivo ? `<p style="font-size:13px;color:#475569"><strong>Motivo:</strong> ${esc(motivo)}</p>` : ""}
+      <div style="text-align:center;margin:20px 0">
+        <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Revisar solicitud</a>
+      </div>
       `,
       PIE_ES,
     ),

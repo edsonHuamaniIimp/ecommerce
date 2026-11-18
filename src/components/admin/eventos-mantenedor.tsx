@@ -10,6 +10,7 @@ import { listPlanos } from "@/lib/shared/planos/registry";
 import { toast } from "sonner";
 import { TIPOS_PLANO } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { TIPO_CAMBIO_MAX } from "@/lib/shared/utils/moneda";
 
 interface PlanoOpcion { id: string; nombre: string; tipo: string; eventoAsignado: { tipoEvento: number; codigoEvento: number } | null; }
 
@@ -18,6 +19,8 @@ interface VersionItem {
   fecha_inicio: string | null; fecha_fin: string | null; imagen: string | null; plano: string | null;
   flgVisible?: boolean;
   modal_info?: ModalInfoConfig | null;
+  /** Soles por dolar; null = PEN no habilitado. */
+  tipoCambio?: number | null;
 }
 
 interface EventoGrupo { id: string; nombre: string; codigo: string; vertical: string; versiones: VersionItem[]; }
@@ -88,6 +91,7 @@ function toEventoGrupo(value: unknown): EventoGrupo | null {
       plano: typeof v.plano === "string" ? v.plano : null,
       flgVisible: typeof v.flgVisible === "boolean" ? v.flgVisible : undefined,
       modal_info: toModalInfo(v.modal_info),
+      tipoCambio: typeof v.tipoCambio === "number" ? v.tipoCambio : null,
     });
   }
 
@@ -102,6 +106,7 @@ export function EventosMantenedor() {
   const [editItem, setEditItem] = useState<VersionItem | null>(null);
   const [editPlano, setEditPlano] = useState("gess");
   const [editFlgVisible, setEditFlgVisible] = useState(false);
+  const [editTipoCambio, setEditTipoCambio] = useState("");
   const [editModalInfo, setEditModalInfo] = useState<ModalInfoConfig>(MODAL_INFO_PLANTILLA);
   const [planosOpciones, setPlanosOpciones] = useState<PlanoOpcion[]>(listPlanos().map((p) => ({ id: p.id, nombre: p.nombre, tipo: TIPOS_PLANO.SIMPLE, eventoAsignado: null })));
 
@@ -132,6 +137,7 @@ export function EventosMantenedor() {
     setEditItem(ver);
     setEditPlano(ver.plano ?? "");
     setEditFlgVisible(ver.flgVisible ?? false);
+    setEditTipoCambio(ver.tipoCambio != null ? String(ver.tipoCambio) : "");
     setEditModalInfo(ver.modal_info ?? MODAL_INFO_PLANTILLA);
     setEditDialog(true);
   };
@@ -148,6 +154,13 @@ export function EventosMantenedor() {
       };
       const planoOriginal = editItem.plano ?? "";
       const planoNuevo = editPlano ?? "";
+      const tipoCambio = editTipoCambio.trim() === ""
+        ? null
+        : Number(editTipoCambio.replace(",", "."));
+      if (tipoCambio !== null && (!Number.isFinite(tipoCambio) || tipoCambio <= 0)) {
+        toast.error("El tipo de cambio debe ser mayor a cero");
+        return;
+      }
       // Solo se envia el plano si cambio: reenviarlo dispara la validacion de
       // "plano unico" aunque el valor sea el mismo.
       await eventosServiceClient.actualizar({
@@ -156,13 +169,14 @@ export function EventosMantenedor() {
         ...(planoNuevo !== planoOriginal ? { plano: planoNuevo } : {}),
         flg_visible: editFlgVisible,
         modal_info: modalInfo,
+        tipo_cambio: tipoCambio,
       });
       toast.success("Evento actualizado");
       setSelectedGrupo((prev) => (prev ? {
         ...prev,
         versiones: prev.versiones.map((v) =>
           v.tipoEvento === editItem.tipoEvento && v.codigoEvento === editItem.codigoEvento
-            ? { ...v, plano: editPlano || null, flgVisible: editFlgVisible, modal_info: modalInfo }
+            ? { ...v, plano: editPlano || null, flgVisible: editFlgVisible, modal_info: modalInfo, tipoCambio }
             : v,
         ),
       } : prev));
@@ -342,6 +356,23 @@ export function EventosMantenedor() {
               <Checkbox checked={editFlgVisible} onCheckedChange={(v) => setEditFlgVisible(v === true)} />
               <span>Visible en presala</span>
             </label>
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-slate-600">Tipo de cambio (S/ por US$)</p>
+              <Input
+                type="number"
+                min="0.0001"
+                max={TIPO_CAMBIO_MAX}
+                step="0.0001"
+                inputMode="decimal"
+                value={editTipoCambio}
+                onChange={(e) => setEditTipoCambio(e.target.value)}
+                placeholder="Ej. 3.7500"
+              />
+              <p className="text-[10px] text-slate-400">
+                Obligatorio para habilitar contratos en soles. Dejalo vacio para deshabilitar PEN en esta version.
+              </p>
+            </div>
 
             <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
               <p className="text-xs font-semibold text-slate-600">Modal informativo en el plano</p>

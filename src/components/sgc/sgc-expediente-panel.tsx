@@ -345,12 +345,12 @@ export function SgcExpedientePanel({
                     <Clock className="mt-0.5 h-3 w-3 shrink-0 text-amber-600" />
                   )}
                   <span className="text-muted-foreground">
-                    <strong className="text-foreground">2. El cliente sube su contrato firmado</strong>{" "}
+                    <strong className="text-foreground">2. El cliente firma el contrato</strong>{" "}
                     {tieneContratoFirmado
                       ? "· listo"
                       : modo === SGC_SUBSANACION_MODOS.NUEVO_CONTRATO && !tieneContratoAdminNuevo
                         ? "· esperando el contrato corregido del administrador"
-                        : "· lo hace desde “Mis solicitudes” (descarga, firma y sube el contrato firmado)"}
+                        : "· lo firma digitalmente desde “Mis solicitudes”"}
                   </span>
                 </li>
                 <li className="flex items-start gap-1.5">
@@ -366,7 +366,7 @@ export function SgcExpedientePanel({
                 className="w-full bg-emerald-600 hover:bg-emerald-700"
                 disabled={!tieneContratoFirmado || reenviando}
                 onClick={reenviarAlSgc}
-                title={!tieneContratoFirmado ? "Falta que el cliente suba su contrato firmado" : undefined}
+                title={!tieneContratoFirmado ? "Falta que el cliente firme su contrato" : undefined}
               >
                 {reenviando ? <Loader2 className="mr-2 h-3 w-3 animate-spin" /> : <Send className="mr-2 h-3 w-3" />}
                 Reenviar al SGC

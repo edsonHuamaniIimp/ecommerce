@@ -11,14 +11,14 @@ interface Props {
   tieneEvento: boolean;
   /** Accion opcional alineada a la derecha del encabezado. */
   accion?: ReactNode;
-  /** Ancho del contenido; `amplio` para bandejas con muchas columnas. */
-  ancho?: "estandar" | "amplio";
+  /** Ancho del contenido; `amplio` para bandejas con muchas columnas y `completo` para ocupar todo el ancho. */
+  ancho?: "estandar" | "amplio" | "completo";
   children: ReactNode;
 }
 
 /** Shell de las vistas internas que dependen del evento activo. */
 export function PaginaDashboard({ titulo, descripcion, cargando, tieneEvento, accion, ancho = "estandar", children }: Props) {
-  const anchoClase = ancho === "amplio" ? "max-w-screen-2xl" : "max-w-7xl";
+  const anchoClase = ancho === "completo" ? "max-w-none" : ancho === "amplio" ? "max-w-screen-2xl" : "max-w-7xl";
 
   if (cargando) {
     return (

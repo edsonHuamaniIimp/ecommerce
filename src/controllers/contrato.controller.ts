@@ -37,6 +37,7 @@ export const contratoController = {
 
     const resultado = await services.contrato.firmar({
       ...parsed.data,
+      sellosVectoriales: parsed.data.sellos,
       userEmail: session.email,
       userSub: session.sub,
       userPermissions: session.permissions,

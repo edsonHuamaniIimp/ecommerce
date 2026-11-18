@@ -6,7 +6,7 @@ import {
   DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow, Tooltip, TooltipContent, TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, RefreshCw, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
+import { AlertTriangle, Clock, CreditCard, Eye, FileDown, FileText, Files, LayoutGrid, Pencil, Plus, RefreshCw, Rows3, Trash2, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type CuotaPagoDTO, type PagoRowDTO } from "@/lib/client/api/services/pagos-service";
 import { Pagination } from "@/components/shared/pagination";
@@ -16,9 +16,10 @@ import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { useSesion } from "@/hooks/use-sesion";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useConfirm } from "@/hooks/use-confirm";
-import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, TIPOS_ARCHIVO_IIMP, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
+import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUOTA, ESTADOS_FACTURACION, PERMISSIONS, VISTAS_BANDEJA, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
+import { tiposDocumentosPorRequisitos, tiposRequeridosPorRequisitos, requisitosVacios } from "@/lib/shared/utils/requisitos-facturacion";
 
 const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.PENDIENTE]: "Pendiente",
@@ -27,34 +28,9 @@ const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.CANCELADO]: "Cancelado",
 };
 
-/**
- * Tipos de documento del panel "Documentos para tu factura" segun los requisitos
- * declarados por el cliente: OC/HES/valorizacion solo si los marco; con "ninguna
- * de las anteriores" solo quedan las constancias de pago. Sin declaracion, todos.
- */
-function tiposDocumentosPorRequisitos(requisitos: PagoRowDTO["requisitos"]): TipoArchivoIImp[] {
-  const pagos: TipoArchivoIImp[] = [TIPOS_ARCHIVO_IIMP.DETRACCION, TIPOS_ARCHIVO_IIMP.DIFERENCIA, TIPOS_ARCHIVO_IIMP.PAGO_TOTAL];
-  if (!requisitos) {
-    return [TIPOS_ARCHIVO_IIMP.OC, TIPOS_ARCHIVO_IIMP.HES, TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION, ...pagos];
-  }
-  if (requisitos.ninguna) return pagos;
-  const tipos: TipoArchivoIImp[] = [];
-  if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
-  if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
-  if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
-  if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
-  return [...tipos, ...pagos];
-}
-
-/** Tipos documentales exigidos por la declaracion del cliente (sin constancias de pago). */
-function tiposRequeridosFacturacion(requisitos: PagoRowDTO["requisitos"]): TipoArchivoIImp[] {
-  if (!requisitos || requisitos.ninguna) return [];
-  const tipos: TipoArchivoIImp[] = [];
-  if (requisitos.oc) tipos.push(TIPOS_ARCHIVO_IIMP.OC);
-  if (requisitos.hes) tipos.push(TIPOS_ARCHIVO_IIMP.HES);
-  if (requisitos.valorizacion) tipos.push(TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION);
-  if (requisitos.otros) tipos.push(TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS);
-  return tipos;
+/** true si la cuota ya tiene una factura vigente (SIE o IIMP). */
+function cuotaConFactura(cuota: CuotaPagoDTO): boolean {
+  return !cuota.documentoSieAnulado && Boolean(cuota.comprobanteFiscal || cuota.documentoSie || cuota.iimpDocumento);
 }
 
 /**
@@ -73,7 +49,7 @@ function AvisoDocumentosPendientes({
   refreshKey: number;
   onSubir: (cuotaId: string, numero: number, tipos: TipoArchivoIImp[]) => void;
 }) {
-  const requeridos = tiposRequeridosFacturacion(row.requisitos);
+  const requeridos = tiposRequeridosPorRequisitos(row.requisitos);
   const requeridosKey = requeridos.join("|");
   const cuotaObjetivo = row.requisitos?.cuota ?? 1;
   const cuota = row.cuotas.find((c) => c.numero === cuotaObjetivo) ?? row.cuotas[0];
@@ -161,6 +137,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
 
   /* "Registrar reserva": dialogo con documentos por categoria antes de enviar al IIMP. */
   const [reservaCuota, setReservaCuota] = useState<{ cuotaId: string; standCode: string; numero: number } | null>(null);
+  /** Solicitudes ya enviadas sin requisitos: el cliente completa el checklist sin reenviar la reserva. */
+  const [completarCuota, setCompletarCuota] = useState<{ cuotaId: string; numero: number; standCode?: string } | null>(null);
   /* Documentos de la cuenta corriente del IIMP (OC/HES/detraccion/diferencia) de la reserva. */
   const [archivosCuota, setArchivosCuota] = useState<{ cuotaId: string; cuotas: number; standCode: string; numero: number; tiposPermitidos: TipoArchivoIImp[] } | null>(null);
   const [documentosVersion, setDocumentosVersion] = useState(0);
@@ -266,6 +244,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
     const restante = restanteDe(row);
     /* Cuota donde se sugiere registrar la reserva cuando la solicitud aun no se envio. */
     const cuotaSugerida = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? row.cuotas[0];
+    /* Cuota de origen de la declaracion de requisitos (para completarla si quedo vacia). */
+    const cuotaRequisitos = row.cuotas.find((c) => c.numero === (row.requisitos?.cuota ?? 1)) ?? row.cuotas[0] ?? null;
     /* Seguimiento: siguiente cuota pendiente. Antes de emitirse la factura se cuenta
        contra su fecha programada; si la factura ya se emitio, se avisa el pago. */
     const cuotaPendiente = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? null;
@@ -281,13 +261,45 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
       : null;
     return (
     <div className="space-y-2">
-      {!row.iimpContrato && !soloLectura && row.cuotas.length > 0 && (
+      {!row.iimpContrato && row.cuotas.length > 0 && (
         <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
           <span className="text-foreground">
             <strong>Solicitud de factura pendiente:</strong> aún no enviaste tu solicitud de factura.
             {cuotaSugerida ? ` Usa el ícono de solicitud de la cuota ${cuotaSugerida.numero}.` : ""}
           </span>
+        </div>
+      )}
+      {row.iimpContrato && !row.cuotas.some(cuotaConFactura) && (
+        <div className="flex items-start gap-2 rounded-md border border-info/40 bg-info/10 px-3 py-2 text-[11px]">
+          <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
+          <span className="text-foreground">
+            <strong>Solicitud de factura enviada.</strong> Tu factura está en proceso de emisión; te
+            avisaremos por correo cuando esté disponible.
+          </span>
+        </div>
+      )}
+      {row.iimpContrato && requisitosVacios(row.requisitos) && (
+        <div className="flex flex-wrap items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
+          <span className="min-w-0 flex-1 text-foreground">
+            <strong>Tu solicitud se envió sin requisitos de facturación.</strong> Complétalos para que
+            Facturación pueda emitir tu factura sin observaciones.
+          </span>
+          {cuotaRequisitos && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 shrink-0 gap-1 rounded-full px-2.5 text-[10px]"
+              disabled={soloLectura}
+              title={soloLectura ? "Solo lectura" : undefined}
+              onClick={() => setCompletarCuota({ cuotaId: cuotaRequisitos.id, numero: cuotaRequisitos.numero, standCode: row.standCode })}
+            >
+              <FileText className="h-3 w-3" />
+              <span>Completar requisitos</span>
+            </Button>
+          )}
         </div>
       )}
       <AvisoDocumentosPendientes
@@ -356,7 +368,8 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                     <span>Voucher</span>
                   </a>
                 )}
-                {(cuota.comprobanteFiscal || cuota.iimpDocumento) && !cuota.documentoSieAnulado ? (
+                {/* Descarga de la factura emitida (SIE o IIMP). */}
+                {(cuota.comprobanteFiscal || cuota.iimpDocumento) && !cuota.documentoSieAnulado && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0" asChild>
@@ -377,26 +390,48 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       </span>
                     </TooltipContent>
                   </Tooltip>
-                ) : (puedeGestionar || soloLectura) && row.iimpContrato ? (
-                  cuota.estado === ESTADOS_CUOTA.PAGADO ? null : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0"
-                        disabled={soloLectura}
-                        onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero, tiposPermitidos: tiposDocumentosPorRequisitos(row.requisitos) })}
-                      >
-                        <Files className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <span>{soloLectura ? "Solo lectura: Documentos para tu factura (OC, HES y pagos)" : "Documentos para tu factura (OC, HES y pagos)"}</span>
-                    </TooltipContent>
-                  </Tooltip>
-                  )
-                ) : (puedeGestionar || soloLectura) ? (
+                )}
+                {/* "Documentos para tu factura" solo cuando la cuota ya tiene factura emitida. */}
+                {!cuota.documentoSieAnulado &&
+                  (cuota.comprobanteFiscal || cuota.documentoSie || cuota.iimpDocumento) &&
+                  cuota.estado !== ESTADOS_CUOTA.PAGADO &&
+                  (puedeGestionar || soloLectura) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0"
+                          disabled={soloLectura}
+                          onClick={() => setArchivosCuota({ cuotaId: cuota.id, cuotas: row.cuotas.length, standCode: row.standCode, numero: cuota.numero, tiposPermitidos: tiposDocumentosPorRequisitos(row.requisitos) })}
+                        >
+                          <Files className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <span>{soloLectura ? "Solo lectura: Documentos para tu factura (OC, HES y pagos)" : "Documentos para tu factura (OC, HES y pagos)"}</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                {/* Solicitud enviada sin factura: icono de factura pendiente (sin accion). */}
+                {row.iimpContrato &&
+                  !cuota.documentoSieAnulado &&
+                  !(cuota.comprobanteFiscal || cuota.documentoSie || cuota.iimpDocumento) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled>
+                            <FileDown className="h-3.5 w-3.5 opacity-60" />
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <span>Factura pendiente de emisión</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                {/* Sin solicitud: enviar la solicitud de factura (requisitos y adjuntos). */}
+                {!row.iimpContrato && (puedeGestionar || soloLectura) && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -413,7 +448,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                       <span>{soloLectura ? "Solo lectura: Solicitar factura" : "Solicitar factura"}</span>
                     </TooltipContent>
                   </Tooltip>
-                ) : null}
+                )}
                 {cuota.documentoSie && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -662,6 +697,16 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
             cuotaNumero={reservaCuota?.numero}
             standCode={reservaCuota?.standCode}
             onEnviado={() => { void load(page, perPage); }}
+          />
+
+          <EnviarReservaIimp
+            open={completarCuota !== null}
+            onOpenChange={(v) => { if (!v) setCompletarCuota(null); }}
+            cuotaId={completarCuota?.cuotaId ?? ""}
+            cuotaNumero={completarCuota?.numero}
+            standCode={completarCuota?.standCode}
+            modo="completar"
+            onEnviado={() => { setDocumentosVersion((v) => v + 1); void load(page, perPage); }}
           />
 
           <ArchivosCuentaCorriente

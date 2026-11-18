@@ -116,8 +116,10 @@ El contrato conserva una **Modalidad 4: cronograma personalizado según configur
 del cliente**. Se ofrece en el wizard cuando la empresa tiene una configuración creada
 por el administrador en `/dashboard/empresas`:
 
-- el administrador define la cantidad de cuotas (N, hasta 9) y las fechas;
-- el cliente solo edita los porcentajes en el paso Cuotas;
+- el administrador define la cantidad de cuotas (N, hasta 9), las fechas y los
+  porcentajes;
+- el cliente solo visualiza el cronograma; en configuraciones legacy sin porcentajes
+  puede editar únicamente los porcentajes;
 - las fechas son de solo lectura;
 - si no hay configuración válida, el cliente usa el cronograma estándar.
 
@@ -181,8 +183,10 @@ Archivo principal: `src/application/contratos/contrato-service.ts`.
 - `calcularPlan` clasifica el plan: 1 cuota → Modalidad 1; 2x50/50 → Modalidad 2;
   3x40/30/30 → Modalidad 3; plan que coincide con `empresa.configCuotas` → Modalidad 4.
 - **Configuración por empresa**: `empresa.config_cuotas` (JSONB) guarda
-  `{ maxCuotas, fechas }`; se administra desde `/dashboard/empresas` con
-  `empresas:manage`. El cliente recibe la configuración en `GET /api/auth/perfil`.
+  `{ maxCuotas, fechas, porcentajes? }`; se administra desde
+  `/dashboard/empresas` con `empresas:manage`. El cliente recibe la configuración en
+  `GET /api/auth/perfil`. Si `porcentajes` existe, queda fijo; si se omite, se mantiene
+  el modo legacy editable.
 - `src/validators/contratos.validator.ts`:
   - valida estructura (N cuotas configurables, máximo 9; suma 100%, fechas futuras y ascendentes);
   - el servicio valida que las fechas coincidan con el cronograma estándar o con la
@@ -202,12 +206,14 @@ Archivos: `step-pagos.tsx`, `use-reserva-form.ts`, `reserva-modal.tsx`,
   - “2 cuotas — 50% / 50%”.
   - “3 cuotas — 40% / 30% / 30%”.
 - Si la empresa tiene `configCuotas` válida, mostrar **solo** el cronograma
-  personalizado (Modalidad 4): fechas de solo lectura y porcentajes editables por el
-  cliente, con validación de suma 100%.
+  personalizado (Modalidad 4): fechas de solo lectura y porcentajes fijos; en una
+  configuración legacy sin porcentajes, permitir editar solo los porcentajes con
+  validación de suma 100%.
 - Deshabilitar modalidades sin cronograma futuro y explicar el motivo.
 - Mostrar tabla de solo lectura: número, porcentaje, monto, fecha.
 - El estado `CuotaConfig[]` se llena desde el cronograma estándar o desde
-  `configCuotas`; en el modo personalizado solo se editan los porcentajes.
+  `configCuotas`; en el modo personalizado con `porcentajes` solo se visualizan; en el
+  modo legacy sin porcentajes solo se editan los porcentajes.
 - El texto “Configura tus cuotas” cambia a “Elige la modalidad de pago”.
 - `StepConfirmacion` recibe y muestra el plan seleccionado y sus fechas.
 - El contrato borrador se sigue generando al pasar de Cuotas a Contrato.
@@ -316,8 +322,8 @@ Archivos: `plantillas/contrato-perumin38-tags.docx`,
   cronograma personalizado de la empresa (Modalidad 4), según corresponda.
 - El contrato conserva 4 modalidades; la Modalidad 4 se usa para la configuración
   administrada y planes legacy.
-- En el modo personalizado solo se editan los porcentajes; en el estándar no hay
-  inputs editables de porcentaje ni fecha.
+- En el modo personalizado con `porcentajes` solo se visualizan; en el modo legacy sin
+  porcentajes solo se editan los porcentajes. En el estándar no hay inputs editables.
 - Las fechas mostradas coinciden exactamente con la tabla aprobada.
 - El contrato muestra el texto legal oficial de la Modalidad 3 y el cronograma
   seleccionado con fechas y montos.

@@ -28,6 +28,7 @@ export function mapEmpresaToDTO(entity: EmpresaEntity): EmpresaDTO {
     representanteCelular: entity.representanteCelular,
     representanteDireccion: entity.representanteDireccion,
     representanteSieCode: entity.representanteSieCode ?? null,
+    representanteUserId: entity.representanteUserId ?? null,
     partidaElectronica: entity.partidaElectronica,
     nombreFriso: entity.nombreFriso ?? null,
     actividadEconomica: entity.actividadEconomica ?? null,
@@ -102,8 +103,9 @@ export function mapEmpresaFuenteToDTO(empresa: EmpresaApi): EmpresaFuenteDTO {
 /** Persona de servicio-persona (padron interno) -> DTO de respuesta. */
 export function mapPersonaFuenteToDTO(persona: PersonaApi): PersonaFuenteDTO {
   return {
-    sieCode: persona.sie_code ?? "",
-    documento: persona.documento ?? "",
+      sieCode: persona.sie_code ?? "",
+      tipoDocumento: persona.id_tipo_documento ?? "",
+      documento: persona.documento ?? "",
     nombreCompleto: persona.nombre_completo ?? "",
     direccion: persona.direccion ?? null,
     correo: persona.correo ?? null,

@@ -13,6 +13,7 @@ import type {
   ClienteIdent,
   CuotaUpdate,
   DatosComprobanteFiscal,
+  RecordatorioCandidatoRow,
 } from "@/domain/ports/facturacion-repository";
 
 /** Forma cruda (Prisma) de una facturacion con cuotas + solicitud. */
@@ -101,7 +102,7 @@ function toRow(r: FacturacionRaw, empresasPorUsuario: ReadonlyMap<string, string
     moneda: r.moneda,
     modoPago: r.modoPago,
     planCliente: r.solicitud.planCuotas !== null && r.solicitud.planCuotas !== undefined,
-    standCode: r.solicitud.gessStand?.standCode ?? (r.solicitud.stands.map((s) => s.gessStand?.standCode).filter((c): c is string => Boolean(c)).join(", ") || undefined) ?? "ǽ�'��??",
+    standCode: r.solicitud.gessStand?.standCode ?? (r.solicitud.stands.map((s) => s.gessStand?.standCode).filter((c): c is string => Boolean(c)).join(", ") || "—"),
     correoSolicitante: r.solicitud.email,
     empresaFacturacion: empresaDeSolicitud(r, empresasPorUsuario),
     requisitos: (r.solicitud.requisitosFacturacion as FacturacionRow["requisitos"]) ?? null,
@@ -181,13 +182,18 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     }
     const busqueda = params.search?.trim();
     if (busqueda) {
-      /* RUC de la empresa: cuentas de usuario cuyo RUC coincide (empresa vinculada). */
+      /* Cuentas cuya empresa/RUC coincide: cubre razon social y RUC del portal. */
       const cuentas = await prisma.userRole.findMany({
-        where: { ruc: { contains: busqueda, mode: "insensitive" } },
+        where: {
+          OR: [
+            { ruc: { contains: busqueda, mode: "insensitive" } },
+            { nombreEmpresa: { contains: busqueda, mode: "insensitive" } },
+          ],
+        },
         select: { email: true },
-        take: 200,
+        take: 500,
       });
-      const emailsPorRuc = cuentas.map((c) => c.email).filter((e): e is string => Boolean(e));
+      const emailsPorEmpresa = cuentas.map((c) => c.email).filter((e): e is string => Boolean(e));
 
       condicionesSolicitud.push({
         OR: [
@@ -195,9 +201,13 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
           { iimpContrato: { contains: busqueda, mode: "insensitive" } },
           { gessStand: { standCode: { contains: busqueda, mode: "insensitive" } } },
           { stands: { some: { gessStand: { standCode: { contains: busqueda, mode: "insensitive" } } } } },
+          /* La empresa puede venir del catalogo GESS o del snapshot de facturacion. */
+          { gessStand: { empresa: { contains: busqueda, mode: "insensitive" } } },
+          { stands: { some: { gessStand: { empresa: { contains: busqueda, mode: "insensitive" } } } } },
+          { datosFacturacion: { path: ["razonSocial"], string_contains: busqueda } },
           /* RUC/DNI capturado en el snapshot de facturacion de la reserva. */
           { datosFacturacion: { path: ["numeroDocumento"], string_contains: busqueda } },
-          ...(emailsPorRuc.length > 0 ? [{ email: { in: emailsPorRuc } }] : []),
+          ...(emailsPorEmpresa.length > 0 ? [{ email: { in: emailsPorEmpresa } }] : []),
         ],
       });
     }
@@ -459,8 +469,46 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     );
   }
 
-  async esPropietario(facturacionId: string, ident: ClienteIdent): Promise<boolean> {
-    const f = await prisma.facturacion.findUnique({
+  /**
+   * Candidatos para el boton "Notificar" de la bandeja: facturaciones en proceso
+   * con cuotas pendientes, su empresa/correo y la declaracion de requisitos.
+   * La verificacion de documentos en el IIMP la hace el servicio de aplicacion.
+   */
+  async listarCandidatosRecordatorio(): Promise<RecordatorioCandidatoRow[]> {
+    const rows = await prisma.facturacion.findMany({
+      where: { flgActivo: true, estado: ESTADOS_FACTURACION.PENDIENTE },
+      include: INCLUDE,
+      orderBy: { createdAt: "desc" },
+    });
+    const rawRows = rows as unknown as FacturacionRaw[];
+    const empresas = await this.empresasPorUsuario(rawRows);
+    return rawRows.map((r) => {
+      const row = toRow(r, empresas);
+      const pendientes = row.cuotas.filter((c) => c.estado !== ESTADOS_CUOTA.PAGADO);
+      const snapshotEmail = (r.solicitud.datosFacturacion as { email?: string | null } | null)?.email?.trim() || null;
+      return {
+        facturacionId: row.id,
+        solicitudId: row.solicitudId,
+        standCode: row.standCode,
+        empresa: row.empresaFacturacion,
+        email: snapshotEmail ?? row.correoSolicitante,
+        moneda: row.moneda,
+        cuotasPendientes: pendientes.length,
+        montoPendiente: pendientes.reduce((total, c) => total + c.monto, 0),
+        requisitos: row.requisitos,
+        iimpContrato: row.iimpContrato,
+        iimpCuentaCorriente: row.iimpCuentaCorriente,
+      };
+    });
+  }
+
+  async registrarNotificacionRecordatorio(facturacionId: string, detalle: string, createdBy: string): Promise<void> {
+    await prisma.facturacionHistorial.create({
+      data: { facturacionId, accion: ACCIONES_FACTURACION.NOTIFICAR_RECORDATORIO, detalle, createdBy },
+    });
+  }
+
+  async esPropietario(facturacionId: string, ident: ClienteIdent): Promise<boolean> {    const f = await prisma.facturacion.findUnique({
       where: { id: facturacionId },
       select: { solicitud: { select: { flgActivo: true, userId: true, email: true } } },
     });

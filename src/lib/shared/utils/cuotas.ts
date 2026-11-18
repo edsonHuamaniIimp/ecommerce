@@ -1,6 +1,6 @@
-import { CUOTAS_DIAS_MIN_ENTRE, CUOTAS_FECHA_MAXIMA, CUOTAS_MESES_MAX_POR_CUOTA, HITOS_CUOTAS, MAX_CUOTAS_PERSONALIZADAS, MODALIDADES_CUOTAS, MODOS_PAGO, PORCENTAJES_POR_MODALIDAD, type ModalidadCuotas } from "@/lib/shared/constants";
+import { CUOTAS_DIAS_MIN_ENTRE, CUOTAS_FECHA_MAXIMA, CUOTAS_MESES_MAX_POR_CUOTA, CUOTAS_PORCENTAJE_PASO, CUOTAS_PORCENTAJE_TOLERANCIA, HITOS_CUOTAS, MAX_CUOTAS_PERSONALIZADAS, MODALIDADES_CUOTAS, MODOS_PAGO, PORCENTAJES_POR_MODALIDAD, type ModalidadCuotas } from "@/lib/shared/constants";
 import { dateUtils } from "./date";
-import { redondear2 } from "./importes";
+import { redondear2, sumarMontos } from "./importes";
 
 /** Cuota del cronograma del contrato (Anexo 2). */
 export interface CuotaPlan {
@@ -9,6 +9,69 @@ export interface CuotaPlan {
   monto: number;
   /** Fecha de vencimiento ISO (yyyy-mm-dd) o null si no aplica. */
   fechaVencimiento: string | null;
+}
+
+/**
+ * Valida un plan antes de usarlo como fuente de Facturacion. Devuelve el total
+ * exacto (suma de cuotas) o lanza un error si los montos no son coherentes.
+ */
+export interface PlanFacturacionValidable {
+  cuotas?: Array<{ numero?: number; porcentaje?: number; monto: number }>;
+  moneda?: string;
+  tipoCambio?: number | null;
+}
+
+export function validarPlanFacturacion(plan: PlanFacturacionValidable | null | undefined): number {
+  const cuotas = plan?.cuotas;
+  if (!Array.isArray(cuotas) || cuotas.length === 0) {
+    throw new Error("El plan de facturacion no tiene cuotas");
+  }
+
+  const tienePorcentajes = cuotas.every(
+    (cuota) => typeof cuota.porcentaje === "number" && Number.isFinite(cuota.porcentaje),
+  );
+  cuotas.forEach((cuota, index) => {
+    if (!Number.isFinite(cuota.monto) || cuota.monto < 0) {
+      throw new Error(`La cuota ${index + 1} tiene un monto invalido`);
+    }
+    if (Math.abs(cuota.monto - redondear2(cuota.monto)) > 1e-9) {
+      throw new Error(`La cuota ${index + 1} no esta redondeada a centavos`);
+    }
+    if (cuota.numero !== undefined && cuota.numero !== index + 1) {
+      throw new Error("Las cuotas no estan numeradas de forma consecutiva");
+    }
+  });
+
+  if (tienePorcentajes) {
+    const porcentajes = cuotas.map((cuota) => Number(cuota.porcentaje));
+    if (porcentajes.some((porcentaje) => porcentaje <= 0)) {
+      throw new Error("Cada cuota debe tener un porcentaje mayor a cero");
+    }
+    if (Math.abs(porcentajes.reduce((total, porcentaje) => total + porcentaje, 0) - 100) >= CUOTAS_PORCENTAJE_TOLERANCIA) {
+      throw new Error("Los porcentajes del plan no suman 100%");
+    }
+  }
+
+  const total = sumarMontos(cuotas);
+  if (total <= 0) {
+    throw new Error("El total del plan de facturacion debe ser mayor a cero");
+  }
+
+  if (tienePorcentajes) {
+    let acumulado = 0;
+    cuotas.forEach((cuota, index) => {
+      const esUltima = index === cuotas.length - 1;
+      const esperado = esUltima
+        ? redondear2(total - acumulado)
+        : redondear2(total * (Number(cuota.porcentaje) / 100));
+      if (Math.abs(cuota.monto - esperado) > 0.005) {
+        throw new Error(`El monto de la cuota ${index + 1} no coincide con su porcentaje`);
+      }
+      acumulado = redondear2(acumulado + cuota.monto);
+    });
+  }
+
+  return total;
 }
 
 /** Cuota minima que necesitan los validadores (sin monto). */
@@ -26,22 +89,49 @@ export interface ConfigCuotasEmpresa {
   maxCuotas: number;
   /** Fechas ISO yyyy-mm-dd, una por cuota, en orden ascendente. */
   fechas: string[];
+  /**
+   * Porcentajes fijos definidos por el IIMP. Si se omite, se mantiene el
+   * comportamiento legacy: el cliente distribuye los porcentajes.
+   */
+  porcentajes?: number[];
+}
+
+/** True si los porcentajes tienen hasta 2 decimales (paso permitido). */
+function porcentajeConPrecisionValida(porcentaje: number): boolean {
+  const pasos = porcentaje / CUOTAS_PORCENTAJE_PASO;
+  return Number.isFinite(pasos) && Math.abs(pasos - Math.round(pasos)) < 1e-9;
+}
+
+/** True si la configuracion fija los porcentajes que debe respetar el cliente. */
+export function configCuotasFijaPorcentajes(config: ConfigCuotasEmpresa | null | undefined): boolean {
+  return Boolean(config && Array.isArray(config.porcentajes) && config.porcentajes.length > 0);
 }
 
 /** True si la configuracion tiene cantidad y fechas validas y futuras. */
 export function configCuotasValida(
   config: ConfigCuotasEmpresa | null | undefined,
   hoyISO: string = dateUtils.todayLimaInputValue(),
+  /** Permite que la primera cuota venza hoy (reserva administrativa). */
+  permitirHoy = false,
 ): boolean {
   if (!config) return false;
   if (!Number.isInteger(config.maxCuotas) || config.maxCuotas < 1 || config.maxCuotas > MAX_CUOTAS_PERSONALIZADAS) return false;
   if (!Array.isArray(config.fechas) || config.fechas.length !== config.maxCuotas) return false;
   const fechas = config.fechas;
-  return fechas.every((fecha, i) => {
+  const fechasValidas = fechas.every((fecha, i) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
-    if (fecha <= hoyISO) return false;
+    if (permitirHoy && i === 0) {
+      if (fecha < hoyISO) return false;
+    } else if (fecha <= hoyISO) {
+      return false;
+    }
     return i === 0 || fecha > (fechas[i - 1] ?? "");
   });
+  if (!fechasValidas) return false;
+  if (config.porcentajes === undefined) return true;
+  if (!Array.isArray(config.porcentajes) || config.porcentajes.length !== config.maxCuotas) return false;
+  if (!config.porcentajes.every(porcentajeConPrecisionValida)) return false;
+  return porcentajesValidos(config.porcentajes, config.maxCuotas);
 }
 
 /** Normaliza la configuracion recibida (trim) para persistirla. */
@@ -49,6 +139,9 @@ export function normalizarConfigCuotas(config: ConfigCuotasEmpresa): ConfigCuota
   return {
     maxCuotas: config.maxCuotas,
     fechas: config.fechas.map((fecha) => fecha.trim()),
+    ...(config.porcentajes
+      ? { porcentajes: config.porcentajes.map((porcentaje) => redondear2(porcentaje)) }
+      : {}),
   };
 }
 
@@ -67,13 +160,14 @@ export function cuotasPersonalizadasIniciales(
   hoyISO: string = dateUtils.todayLimaInputValue(),
 ): Array<{ porcentaje: number; fecha: string }> | null {
   if (!config || !configCuotasValida(config, hoyISO)) return null;
-  const porcentajes = porcentajesEquitativos(config.maxCuotas);
+  const porcentajes = config.porcentajes ?? porcentajesEquitativos(config.maxCuotas);
   return config.fechas.map((fecha, i) => ({ porcentaje: porcentajes[i] ?? 0, fecha }));
 }
 
 /**
  * True si las cuotas usan exactamente las fechas configuradas por el administrador
- * y sus porcentajes son validos (la distribucion es libre).
+ * y sus porcentajes son validos. Si la configuracion define porcentajes, tambien
+ * deben coincidir exactamente.
  */
 export function cuotasCoincidenConfig(
   cuotas: CuotaProgramada[],
@@ -83,6 +177,12 @@ export function cuotasCoincidenConfig(
   if (!config || !configCuotasValida(config, hoyISO)) return false;
   if (cuotas.length !== config.maxCuotas) return false;
   if (!porcentajesValidos(cuotas.map((c) => c.porcentaje), config.maxCuotas)) return false;
+  if (config.porcentajes) {
+    const porcentajesFijos = config.porcentajes;
+    if (!cuotas.every((cuota, i) => Math.abs(cuota.porcentaje - (porcentajesFijos[i] ?? NaN)) < CUOTAS_PORCENTAJE_TOLERANCIA)) {
+      return false;
+    }
+  }
   return cuotas.every((cuota, i) => cuota.fechaVencimiento === config.fechas[i]);
 }
 
@@ -233,13 +333,52 @@ export function siguienteFechaCuota(fechaPrevia: string | null, hoy: Date = new 
   return sumarDias(new Date(`${fechaPrevia}T00:00:00`), 45);
 }
 
+/**
+ * Monto de una cuota a partir de su porcentaje, redondeado a centavos.
+ * Devuelve 0 para valores invalidos o no positivos; el formulario valida antes
+ * de persistir. La fuente de verdad del plan sigue siendo el porcentaje.
+ */
+export function montoCuotaDesdePorcentaje(montoTotal: number, porcentaje: number): number {
+  if (!Number.isFinite(montoTotal) || montoTotal <= 0) return 0;
+  if (!Number.isFinite(porcentaje) || porcentaje <= 0) return 0;
+  return redondear2(montoTotal * (porcentaje / 100));
+}
+
+/**
+ * Porcentaje de una cuota a partir de su monto, redondeado a dos decimales.
+ * Se usa solo para edicion/previsualizacion; el backend recalcula el monto
+ * definitivo desde el porcentaje y absorbe el redondeo en la ultima cuota.
+ */
+export function porcentajeCuotaDesdeMonto(montoTotal: number, monto: number): number {
+  if (!Number.isFinite(montoTotal) || montoTotal <= 0) return 0;
+  if (!Number.isFinite(monto) || monto <= 0) return 0;
+  return redondear2((monto / montoTotal) * 100);
+}
+
+/** Suma de porcentajes redondeada a dos decimales (paso permitido). */
+export function sumarPorcentajes(porcentajes: number[]): number {
+  return redondear2(
+    porcentajes.reduce(
+      (total, porcentaje) => total + (Number.isFinite(porcentaje) ? porcentaje : 0),
+      0,
+    ),
+  );
+}
+
+/** Porcentaje pendiente de distribuir, sin permitir resultados negativos. */
+export function porcentajeRestante(porcentajes: number[]): number {
+  return Math.max(0, redondear2(100 - sumarPorcentajes(porcentajes)));
+}
+
 /** Montos por cuota: la ultima absorbe el resto para que la suma sea exactamente el total. */
 function montosDeCuotas(montoTotal: number, porcentajes: number[]): number[] {
   const montos: number[] = [];
   let acumulado = 0;
   porcentajes.forEach((porcentaje, i) => {
     const esUltima = i === porcentajes.length - 1;
-    const monto = esUltima ? redondear2(montoTotal - acumulado) : redondear2(montoTotal * (porcentaje / 100));
+    const monto = esUltima
+      ? Math.max(0, redondear2(montoTotal - acumulado))
+      : redondear2(montoTotal * (porcentaje / 100));
     acumulado = redondear2(acumulado + monto);
     montos.push(monto);
   });

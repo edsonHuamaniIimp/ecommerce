@@ -432,6 +432,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "read:reservas",
     "mis-reservas:view",
     "write:reservas",
+    "reservas:empresa",
     "approve:all",
     "solicitudes:view",
     "solicitudes:gestion",
@@ -498,6 +499,7 @@ export const ALL_PERMISSIONS = [
   { key: "mis-reservas:view", label: "Mis reservas", descripcion: "Ver Mis reservas (solicitudes de reserva propias del exhibidor)", section: "reservas" },
   { key: "read:reservas", label: "Reservas", descripcion: "Ver la bandeja de reservas de stands (/dashboard/reservas)", section: "reservas" },
   { key: "write:reservas", label: "Crear reservas", descripcion: "Registrar nuevas reservas de stands", section: "reservas" },
+  { key: "reservas:empresa", label: "Reservar para empresa", descripcion: "Crear reservas administrativas a nombre de una empresa", section: "reservas" },
   { key: "approve:all", label: "Aprobar todo", descripcion: "Aprobar en cualquier area", section: "reservas" },
   { key: "approve:logistica", label: "Aprobar Logistica", descripcion: "Resolver aprobaciones del area de Logistica", section: "reservas" },
   { key: "approve:legal", label: "Aprobar Legal", descripcion: "Resolver aprobaciones del area Legal", section: "reservas" },
@@ -553,6 +555,7 @@ export const PERMISSIONS = {
   READ_RESERVAS: "read:reservas",
   MIS_RESERVAS_VIEW: "mis-reservas:view",
   WRITE_RESERVAS: "write:reservas",
+  RESERVAS_EMPRESA: "reservas:empresa",
   APPROVE_ALL: "approve:all",
   APPROVE_LOGISTICA: "approve:logistica",
   APPROVE_LEGAL: "approve:legal",
@@ -665,6 +668,19 @@ export const REPORTES_ALCANCES = {
 
 export type ReporteAlcance = (typeof REPORTES_ALCANCES)[keyof typeof REPORTES_ALCANCES];
 
+/** Origen de cada fila del reporte unificado por stand. */
+export const REPORTES_TIPOS_REGISTRO = {
+  SOLICITUD: "solicitud",
+  PRE_RESERVA: "pre_reserva",
+} as const;
+
+export type ReporteTipoRegistro = (typeof REPORTES_TIPOS_REGISTRO)[keyof typeof REPORTES_TIPOS_REGISTRO];
+
+export const REPORTES_TIPOS_REGISTRO_LABELS: Record<ReporteTipoRegistro, string> = {
+  [REPORTES_TIPOS_REGISTRO.SOLICITUD]: "Solicitud",
+  [REPORTES_TIPOS_REGISTRO.PRE_RESERVA]: "Pre-reservado",
+};
+
 export const REPORTES_VISTAS = {
   PAISES: "paises",
   PABELLONES: "pabellones",
@@ -762,6 +778,17 @@ export const REQUERIMIENTOS_FACTURACION = {
   ANULADA: "anulada",
 } as const;
 export type RequerimientoFacturacion = (typeof REQUERIMIENTOS_FACTURACION)[keyof typeof REQUERIMIENTOS_FACTURACION];
+
+/**
+ * Grupos de recordatorio de facturacion (boton "Notificar" de la bandeja):
+ * empresas con pagos pendientes que aun no registraron su solicitud de factura
+ * y empresas registradas que declararon requisitos pero no subieron sus documentos.
+ */
+export const RECORDATORIOS_FACTURACION = {
+  SIN_SOLICITUD: "sin_solicitud",
+  DOCUMENTOS_PENDIENTES: "documentos_pendientes",
+} as const;
+export type RecordatorioFacturacion = (typeof RECORDATORIOS_FACTURACION)[keyof typeof RECORDATORIOS_FACTURACION];
 
 
 export const ESTADOS_CUOTA = {
@@ -874,9 +901,36 @@ export const SOLICITUDES_FILTRO_DD = {
   NO_APTAS: "no_aptas",
 } as const;
 
+/** Filtro por origen de la solicitud en la bandeja administrativa. */
+export const SOLICITUDES_FILTRO_TIPO = {
+  REGULAR: "regular",
+  RESERVA_EMPRESA: "reserva_empresa",
+} as const;
+
+export type SolicitudesFiltroTipo = (typeof SOLICITUDES_FILTRO_TIPO)[keyof typeof SOLICITUDES_FILTRO_TIPO];
+
+export const SOLICITUDES_FILTRO_TIPO_LABELS: Record<SolicitudesFiltroTipo, string> = {
+  [SOLICITUDES_FILTRO_TIPO.REGULAR]: "Alquiler regular",
+  [SOLICITUDES_FILTRO_TIPO.RESERVA_EMPRESA]: "Reserva administrativa",
+};
+
 export type SolicitudesFiltroDd = (typeof SOLICITUDES_FILTRO_DD)[keyof typeof SOLICITUDES_FILTRO_DD];
 
 export type SolicitudesFiltroSgc = (typeof SOLICITUDES_FILTRO_SGC)[keyof typeof SOLICITUDES_FILTRO_SGC];
+
+/** Filtros de contrato de la bandeja de solicitudes. */
+export const SOLICITUDES_FILTRO_CONTRATO = {
+  SIN_GENERADO: "sin_generado",
+  SIN_FIRMADO: "sin_firmado",
+} as const;
+
+export type SolicitudesFiltroContrato =
+  (typeof SOLICITUDES_FILTRO_CONTRATO)[keyof typeof SOLICITUDES_FILTRO_CONTRATO];
+
+export const SOLICITUDES_FILTRO_CONTRATO_LABELS: Record<SolicitudesFiltroContrato, string> = {
+  [SOLICITUDES_FILTRO_CONTRATO.SIN_GENERADO]: "Sin contrato generado",
+  [SOLICITUDES_FILTRO_CONTRATO.SIN_FIRMADO]: "Sin contrato firmado",
+};
 
 export const SOLICITUDES_FILTRO_SGC_LABELS: Record<SolicitudesFiltroSgc, string> = {
   [SOLICITUDES_FILTRO_SGC.CON]: "Con expediente SGC",
@@ -1092,6 +1146,29 @@ export const HITOS_CUOTAS = {
 /** Porcentaje de IGV aplicado a las facturas (18%). */
 export const IGV_PORCENTAJE = 0.18;
 
+/** Descuento comercial permitido sobre el neto (0% a 100%, paso de 0.01%). */
+export const DESCUENTO_PORCENTAJE_MIN = 0;
+export const DESCUENTO_PORCENTAJE_MAX = 100;
+export const DESCUENTO_PORCENTAJE_PASO = 0.01;
+
+/** Tipos de descuento persistidos en el snapshot del plan. */
+export const TIPOS_DESCUENTO = {
+  PORCENTAJE: "porcentaje",
+  MONTO: "monto",
+  POR_STAND: "por_stand",
+} as const;
+
+export type TipoDescuento = (typeof TIPOS_DESCUENTO)[keyof typeof TIPOS_DESCUENTO];
+export type TipoDescuentoGlobal = Exclude<TipoDescuento, typeof TIPOS_DESCUENTO.POR_STAND>;
+
+/** Modos de captura del descuento en la reserva administrativa. */
+export const MODOS_DESCUENTO = {
+  GRUPAL: "grupal",
+  POR_STAND: "por_stand",
+} as const;
+
+export type ModoDescuento = (typeof MODOS_DESCUENTO)[keyof typeof MODOS_DESCUENTO];
+
 /** Maximo de cuotas del plan contractual (1..3). */
 export const MAX_CUOTAS_PAGO = 3;
 
@@ -1104,6 +1181,9 @@ export const MAX_REPRESENTANTES_ADICIONALES = 5;
 
 /** Tolerancia al validar que los porcentajes de las cuotas suman 100%. */
 export const CUOTAS_SUMA_TOLERANCIA = 0.01;
+
+/** Tolerancia al comparar porcentajes configurados contra los enviados. */
+export const CUOTAS_PORCENTAJE_TOLERANCIA = 0.0001;
 
 /** Paso permitido del porcentaje de una cuota (hasta 2 decimales). */
 export const CUOTAS_PORCENTAJE_PASO = 0.01;
@@ -1186,6 +1266,16 @@ export const MAX_NOMBRE_ARCHIVO_IIMP = 150;
 
 /** Maximo de stands por operacion de pre-reserva/liberacion en lote. */
 export const MAX_PRE_RESERVA_LOTE = 500;
+
+/** Maximo de stands por reserva administrativa (pabellones internacionales). */
+export const MAX_RESERVA_ADMIN_STANDS = 80;
+
+/** Tipos de solicitud con flujo propio. El flujo regular no persiste tipo. */
+export const TIPOS_SOLICITUD = {
+  RESERVA_EMPRESA: "reserva_empresa",
+} as const;
+
+export type TipoSolicitud = (typeof TIPOS_SOLICITUD)[keyof typeof TIPOS_SOLICITUD];
 
 /**
  * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).
@@ -2445,6 +2535,7 @@ export const ACCIONES_FACTURACION = {
   ACTUALIZAR: "actualizar",
   ELIMINAR: "eliminar",
   ELIMINAR_CUOTA: "eliminar_cuota",
+  NOTIFICAR_RECORDATORIO: "notificar_recordatorio",
 } as const;
 
 /** Autores tecnicos que firman movimientos automaticos del sistema. */
@@ -2641,6 +2732,7 @@ export const MAESTRA_TABLAS = {
   FACTURACION_TIPO: "facturacion_tipo",
   CUOTA_ESTADO: "cuota_estado",
   DOCUMENTO_ESTADO: "documento_estado",
+  DESCUENTO_TIPO: "descuento_tipo",
 } as const;
 
 export type MaestraTabla = (typeof MAESTRA_TABLAS)[keyof typeof MAESTRA_TABLAS];
@@ -2761,6 +2853,8 @@ export const VALIDACIONES = {
 export const UI_SENTINEL = {
   SIN_VINCULAR: "__none__",
   TODOS: "__all__",
+  /** Placeholder para selects que exigen una eleccion explicita. */
+  SELECCIONAR: "__select__",
 } as const;
 
 /** Identificadores de los campos del formulario de registro de exhibidor. */
@@ -3059,6 +3153,16 @@ export const SGC_OUTBOX_BACKOFF_BASE_MS = 60000;
  */
 export const SGC_RECONCILIAR_MAX_POR_CORRIDA = 50;
 
+/**
+ * Presupuesto de tiempo por corrida de reconciliacion. El cron pasa por
+ * CloudFront (timeout de origen ~60 s): se corta antes para responder con las
+ * sincronizaciones completadas y continuar el resto en la siguiente corrida.
+ */
+export const SGC_RECONCILIAR_TIME_BUDGET_MS = 40_000;
+
+/** TTL del sync-on-read para no consultar el SGC en cada apertura de detalle. */
+export const SGC_SYNC_ON_READ_TTL_MS = 2 * 60 * 1000;
+
 export const SGC_API_VERSION = "2026-09-01";
 export const SGC_IDEMPOTENCY_PREFIX = "stands/reserva";
 /** Prefijo de la Idempotency-Key en los POST documentales (reserve/complete), guia v5. */
@@ -3107,10 +3211,11 @@ export const TIPOS_DOCUMENTO_SOLICITUD_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_SOLICITUD.ANEXO]: "Anexo",
 };
 
-/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano. */
+/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano | `subido_asociado` = equivalente firmado cargado por el Asociado. */
 export const ORIGENES_DOCUMENTO = {
   GENERADO: "generado",
   PERSONALIZADO: "personalizado",
+  SUBIDO_ASOCIADO: "subido_asociado",
 } as const;
 export type OrigenDocumento = (typeof ORIGENES_DOCUMENTO)[keyof typeof ORIGENES_DOCUMENTO];
 

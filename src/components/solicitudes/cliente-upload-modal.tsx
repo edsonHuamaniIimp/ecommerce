@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Badge, Button, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine, Loader2 } from "lucide-react";
+import { CheckCircle2, Clock, Download, ExternalLink, Eye, FileText, Upload, X, Trash2, PenLine, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { perfilService } from "@/lib/client/api/services/perfil-service";
 import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
-import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_DOCUMENT_CATEGORIES, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { estadoCorreccionSgc, observacionesSgcSubsanadas } from "@/lib/shared/utils/solicitud-documentos";
+import { esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, type SgcObservacionLike } from "@/lib/shared/utils/solicitud-documentos";
+import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
 
@@ -20,6 +21,8 @@ interface Props {
   solicitud: SolicitudDTO;
   /** "contrato" = subir el contrato firmado; "anexos" = documentos anexos del SGC. */
   modo?: "contrato" | "anexos";
+  /** Modo prueba (solo admin en "Ver como"): permite probar la firma sin guardar ni firmar nada. */
+  modoPrueba?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -37,18 +40,47 @@ interface Pendiente {
   url: string;
   nombre: string;
   requisito: string | null;
+  observacionId?: string | null;
+  observacionTitulo?: string | null;
+  documentoId?: string | null;
+  piezaId?: string | null;
 }
 
 interface Firmante {
   key: string;
   nombre: string;
+  nombres?: string;
+  apellidos?: string;
   rol: string;
   firmaUrl: string | null;
   principal: boolean;
   rep?: EmpresaRepresentanteAdicionalDTO;
 }
 
-export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSaved }: Props) {
+/** Cantidad de archivos que exige una observacion del SGC (piezas o expectedDocuments). */
+function totalEsperadoObservacion(o: SgcObservacionLike): number {
+  if (o.pieces?.length) return o.pieces.length;
+  return Math.max(1, Math.trunc(o.expectedDocuments ?? o.expectedDocumentTitles?.length ?? 1));
+}
+
+/** Archivos de la observacion ya aceptados por el SGC. */
+function aceptadosObservacion(o: SgcObservacionLike): number {
+  if (o.pieces?.length) return o.pieces.filter((piece) => Boolean(piece.acceptedDocumentId)).length;
+  if (o.documentIds?.length) return Math.min(totalEsperadoObservacion(o), o.documentIds.length);
+  if (o.documentsMissing !== null && o.documentsMissing !== undefined) {
+    return Math.max(0, totalEsperadoObservacion(o) - o.documentsMissing);
+  }
+  return 0;
+}
+
+/** Separa un nombre completo en nombres y apellidos (dos ultimas palabras). */
+function separarNombreCompleto(nombre: string): { nombres: string; apellidos: string } {
+  const partes = nombre.trim().split(/\s+/).filter(Boolean);
+  if (partes.length <= 2) return { nombres: partes[0] ?? "", apellidos: partes.slice(1).join(" ") };
+  return { nombres: partes.slice(0, -2).join(" "), apellidos: partes.slice(-2).join(" ") };
+}
+
+export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = false, onClose, onSaved }: Props) {
   const esContrato = modo === "contrato";
   /** Politica fija: solo firma digital, sin subida manual del contrato. */
   /* Politica fija: todo contrato se firma digitalmente desde Mis solicitudes. */
@@ -56,6 +88,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const [pendientes, setPendientes] = useState<Pendiente[]>([]);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [firmaWorkspaceOpen, setFirmaWorkspaceOpen] = useState(false);
+  const [abriendoFirma, setAbriendoFirma] = useState(false);
+  const [pngOriginales, setPngOriginales] = useState<Record<string, string>>({});
+  const [contratoPreviewUrl, setContratoPreviewUrl] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   /** Corte de la iteracion actual: solo se elimina lo subido despues de la ultima revision. */
@@ -71,67 +107,112 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const [subiendoFirmaId, setSubiendoFirmaId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const firmaRef = useRef<HTMLInputElement>(null);
+  const resumeAutomaticoRef = useRef<(() => void) | null>(null);
   const firmaObjetivoRef = useRef<string | null>(null);
   const requisitoRef = useRef<string | null>(null);
+  const observacionRef = useRef<string | null>(null);
+  const observacionTituloRef = useRef<string | null>(null);
+  const documentoRef = useRef<string | null>(null);
+  const piezaRef = useRef<string | null>(null);
 
   /* Firmas de todos los representantes: principal + adicionales de la empresa. */
-  useEffect(() => {
-    let activo = true;
-    void perfilService.get()
-      .then((perfil) => {
-        if (!activo) return;
-        const nombrePrincipal = perfil?.representanteNombre?.trim() ||
-          perfil?.empresa?.representanteLegalNombre?.trim() ||
-          perfil?.email ||
-          "Representante legal";
-        const principal: Firmante = {
-          key: "principal",
-          nombre: nombrePrincipal,
-          rol: "Representante legal principal",
-          firmaUrl: perfil?.firmaUrl ?? null,
-          principal: true,
-        };
-        const adicionales: Firmante[] = (perfil?.empresa?.representantesAdicionales ?? []).map((rep) => ({
-          key: rep.id,
-          nombre: rep.nombre,
-          rol: "Representante legal adicional",
-          firmaUrl: rep.firmaUrl ?? null,
-          principal: false,
-          rep,
-        }));
-        setFirmantes([principal, ...adicionales]);
-      })
-      .catch(() => {});
-    return () => {
-      activo = false;
+  const cargarFirmantes = useCallback(async (): Promise<void> => {
+    const perfil = await perfilService.get().catch(() => null);
+    const nombrePrincipal = perfil?.representanteNombre?.trim() ||
+      perfil?.empresa?.representanteLegalNombre?.trim() ||
+      perfil?.email ||
+      "Representante legal";
+    const partesPrincipal = separarNombreCompleto(nombrePrincipal);
+    /* El nombre del firmante SIEMPRE sale del Representante legal (nombre completo),
+     * nunca de los campos de identidad de la cuenta (nombre/apellidos del usuario). */
+    const principal: Firmante = {
+      key: "principal",
+      nombre: nombrePrincipal,
+      nombres: partesPrincipal.nombres,
+      apellidos: partesPrincipal.apellidos,
+      rol: "Representante legal principal",
+      firmaUrl: perfil?.firmaUrl ?? null,
+      principal: true,
     };
-  }, [solicitud.id]);
+    const adicionales: Firmante[] = (perfil?.empresa?.representantesAdicionales ?? []).map((rep) => {
+      const partes = separarNombreCompleto(rep.nombre);
+      return {
+        key: rep.id,
+        nombre: rep.nombre,
+        nombres: partes.nombres,
+        apellidos: partes.apellidos,
+        rol: "Representante legal adicional",
+        firmaUrl: rep.firmaUrl ?? null,
+        principal: false,
+        rep,
+      };
+    });
+    setFirmantes([principal, ...adicionales]);
+    const originales: Record<string, string> = {};
+    if (perfil?.firmaUrl) originales.principal = perfil.firmaUrl;
+    for (const rep of perfil?.empresa?.representantesAdicionales ?? []) {
+      if (rep.firmaUrl) originales[rep.id] = rep.firmaUrl;
+    }
+    setPngOriginales(originales);
+  }, []);
 
-  const handleUpload = async (file: File) => {
-    /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
-    if (requisitoRef.current || !esContrato) {
-      const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
+  useEffect(() => {
+    const tarea = setTimeout(() => { void cargarFirmantes(); }, 0);
+    return () => clearTimeout(tarea);
+  }, [solicitud.id, cargarFirmantes]);
+
+  const handleUpload = async (files: File[]) => {
+    if (modoPrueba) { toast.info("Modo prueba: no se guardan documentos."); return; }
+    const permitidas = extensionesPermitidasAnexo(requisitoRef.current);
+    const validos = files.filter((file) => {
+      /* Anexos: formatos por requisito (mismas constantes que el wizard y el backend). */
+      if (!requisitoRef.current && esContrato) return true;
       if (!archivoUtils.extensionPermitida(file.name, permitidas)) {
-        setError(`Formato no permitido. Adjunta ${permitidas.map((extension) => extension.toUpperCase()).join(", ")}.`);
-        return;
+        setError(`Formato no permitido: ${file.name}. Adjunta ${permitidas.map((extension) => extension.toUpperCase()).join(", ")}.`);
+        return false;
       }
       if (file.size > ANEXOS_UPLOAD_MAX_BYTES) {
-        setError(`El archivo supera el maximo de ${ANEXOS_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
-        return;
+        setError(`El archivo ${file.name} supera el maximo de ${ANEXOS_UPLOAD_MAX_BYTES / 1024 / 1024} MB.`);
+        return false;
       }
-    }
+      return true;
+    });
+    if (validos.length === 0) return;
     setUploading(true);
+    setError(null);
     try {
-      const url = await solicitudesService.subirArchivo(file);
-      setPendientes(prev => [...prev, { url, nombre: file.name, requisito: requisitoRef.current }]);
+      const subidos: Pendiente[] = [];
+      for (const file of validos) {
+        const url = await solicitudesService.subirArchivo(file);
+        subidos.push({
+          url,
+          nombre: file.name,
+          requisito: requisitoRef.current,
+          observacionId: observacionRef.current,
+          observacionTitulo: observacionTituloRef.current,
+          documentoId: documentoRef.current,
+          piezaId: piezaRef.current,
+        });
+      }
+      setPendientes(prev => [...prev, ...subidos]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
     setUploading(false);
   };
 
-  const abrirSelector = (requisito: string | null) => {
+  const abrirSelector = (
+    requisito: string | null,
+    observacionId: string | null = null,
+    observacionTitulo: string | null = null,
+    documentoId: string | null = null,
+    piezaId: string | null = null,
+  ) => {
     requisitoRef.current = requisito;
+    observacionRef.current = observacionId;
+    observacionTituloRef.current = observacionTitulo;
+    documentoRef.current = documentoId;
+    piezaRef.current = piezaId;
     const input = fileRef.current;
     if (!input) return;
     const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
@@ -144,6 +225,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   };
 
   const handleEnviar = async () => {
+    if (modoPrueba) { toast.info("Modo prueba: no se envía nada."); return; }
     if (pendientes.length === 0) return;
     setSending(true);
     setError(null);
@@ -156,6 +238,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           nombre: p.nombre || p.url.split("/").pop() || "documento",
           tipo: esFirmado ? TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO : TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
           requisito: p.requisito,
+          sgcObservationId: p.observacionId ?? null,
+          sgcDocumentId: p.documentoId ?? null,
+          sgcTitle: p.observacionTitulo ?? null,
+          sgcPieceId: p.piezaId ?? null,
         });
       }
       toast.success(
@@ -189,10 +275,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setError(null);
     try {
       const url = await uploadService.subir(file);
+      setPngOriginales((prev) => ({ ...prev, [objetivo]: url }));
       if (objetivo === "principal") {
         await perfilService.update({ firmaUrl: url });
         setFirmantes((prev) => prev.map((f) => f.principal ? { ...f, firmaUrl: url } : f));
         toast.success("Firma del representante principal cargada.");
+        setTimeout(() => { resumeAutomaticoRef.current?.(); }, 150);
         return;
       }
 
@@ -216,6 +304,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       await portalEmpresaService.guardarRepresentantes(adicionales);
       setFirmantes(actualizados);
       toast.success("Firma del representante adicional cargada.");
+      setTimeout(() => { resumeAutomaticoRef.current?.(); }, 150);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo subir la firma.");
     } finally {
@@ -240,21 +329,57 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
   const observacionesSgc = (solicitud.sgcObservaciones ?? []).filter(
     (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && o.message.trim().length > 0,
   );
+  const observacionesSgcAnexos = observacionesSgc.filter((o) => !esObservacionSgcContrato(o));
+  const correccionSgcAnexos = estadoCorreccionSgc({
+    ...solicitud,
+    sgcObservaciones: observacionesSgcAnexos,
+  });
+  const observacionesSgcAnexosCorregidas =
+    observacionesSgcAnexos.length > 0 && correccionSgcAnexos.faltantes.length === 0;
+  const correccionReenviadaSgc = Boolean(solicitud.sgcSubsanacionReenviadaAt);
   const observacionesSgcCorregidas = observacionesSgc.length > 0 && observacionesSgcSubsanadas(solicitud);
   const correccionSgc = estadoCorreccionSgc(solicitud);
   const observacionesSgcSinFila = observacionesSgc.filter(
-    (o) => !ANEXOS_REQUERIDOS.some((a) => a.key === o.requisito),
+    (o) =>
+      !ANEXOS_REQUERIDOS.some((a) => a.key === o.requisito) &&
+      /* El contrato no es un anexo: se firma desde el flujo de contrato. */
+      !esObservacionSgcContrato(o),
   );
-  const observacionContratoSgc = observacionesSgc.find(
-    (o) => o.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || o.categoria === SGC_DOCUMENT_CATEGORIES.CONTRACT,
-  ) ?? null;
-  const firmantesSinFirma = firmantes.filter((f) => !f.firmaUrl);
+  const observacionContratoSgc = observacionesSgc.find(esObservacionSgcContrato) ?? null;
+  const contratoSgcPendiente = observacionContratoSgcPendiente(solicitud);
+  const requiereNuevoContratoSgc = contratoSgcPendiente && (
+    !contratoAdmin ||
+    contratoAdmin.origen !== ORIGENES_DOCUMENTO.GENERADO ||
+    !observacionContratoSgc?.createdAt ||
+    dateUtils.isBefore(contratoAdmin.createdAt, observacionContratoSgc.createdAt)
+  );
+  /* El contrato observado aun no tiene la version corregida del administrador:
+   * se bloquea la firma y se muestra el estado de regeneracion. */
+  const contratoEnRegeneracion = esContrato && requiereNuevoContratoSgc;
+  const contratoCorregidoListo = Boolean(
+    esContrato && contratoSgcPendiente && !requiereNuevoContratoSgc && contratoAdmin,
+  );
+  const firmantesSinFirma = firmantes.filter((f) => !pngOriginales[f.key]);
   const firmasCompletas = firmantes.length > 0 && firmantesSinFirma.length === 0;
 
 
   /** Firma digital: el servidor regenera el contrato de la plantilla y estampa la firma de cada representante. */
-  const handleFirmarDigital = async () => {
-    if (!firmasCompletas) {
+  const handleFirmarDigital = async (sellos?: Array<{
+    esSello: boolean;
+    nombres: string;
+    apellidos: string;
+    fecha: string;
+    imagen?: string;
+    secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
+  }>) => {
+    if (modoPrueba) {
+      toast.info("Modo prueba: no se firmó nada.");
+      onClose();
+      return;
+    }
+    const capturasCompletas = Boolean(sellos?.length) &&
+      sellos!.every((s) => s.esSello || Boolean(s.imagen));
+    if (!capturasCompletas && !firmasCompletas) {
       const nombres = firmantesSinFirma.map((f) => f.nombre).join(", ");
       setError(nombres
         ? `Sube la firma PNG de: ${nombres}.`
@@ -264,10 +389,10 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     setSending(true);
     setError(null);
     try {
-      if (soloFirmaDigital && !contratoAdmin) {
+      if (soloFirmaDigital && !contratoAdmin && !contratoPreviewUrl) {
         await contratosService.generar({ solicitudId: solicitud.id });
       }
-      const firmado = await contratosService.firmar({ solicitudId: solicitud.id });
+      const firmado = await contratosService.firmar({ solicitudId: solicitud.id, sellos });
       const urlFirmado = firmado.pdfUrl ?? firmado.docxUrl;
       await solicitudesService.uploadDocumento({
         solicitudId: solicitud.id,
@@ -276,6 +401,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         requisito: null,
         firmaDigital: true,
+        sgcObservationId: observacionContratoSgc?.observationId ?? null,
+        sgcDocumentId: observacionContratoSgc?.documentId ?? null,
+        sgcTitle: observacionContratoSgc?.title ?? null,
       });
       toast.success("Contrato firmado digitalmente");
       onSaved();
@@ -284,6 +412,42 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       setError(e instanceof Error ? e.message : "No se pudo firmar digitalmente. Verifica las firmas de los representantes e intenta de nuevo.");
     }
     setSending(false);
+  };
+
+  /** Abre el lienzo de firma; genera el PDF si aun no existe. */
+  const abrirFirmaWorkspace = async () => {
+    if (abriendoFirma) return;
+    const existente = contratoPreviewUrl ?? (requiereNuevoContratoSgc ? null : (contratoAdmin?.url ?? null));
+    if (modoPrueba && !existente) {
+      toast.info("Modo prueba: esta solicitud aún no tiene contrato para probar.");
+      return;
+    }
+    if (existente) {
+      if (!/\.pdf($|\?)/i.test(existente)) {
+        setError("El contrato vigente no tiene una version PDF para previsualizar.");
+        return;
+      }
+      setContratoPreviewUrl(existente);
+      setFirmaWorkspaceOpen(true);
+      return;
+    }
+    if (requiereNuevoContratoSgc) {
+      setError("El administrador aún no generó la versión corregida del contrato. Espera esa versión para firmar.");
+      return;
+    }
+    setAbriendoFirma(true);
+    setError(null);
+    try {
+      const generado = await contratosService.generar({ solicitudId: solicitud.id });
+      const url = generado.pdfUrl;
+      if (!url) throw new Error("El contrato se genero sin PDF; no se puede mostrar la vista de firma.");
+      setContratoPreviewUrl(url);
+      setFirmaWorkspaceOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo preparar la vista de firma.");
+    } finally {
+      setAbriendoFirma(false);
+    }
   };
   /* Documentos del cliente: anexos y contrato firmado (el modo define cual se muestra). */
   const misDocs = (solicitud.docsAdjuntos ?? []).filter(d => d.userId === solicitud.userId);
@@ -302,9 +466,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     contratoAdmin && firmadoActivo &&
     dateUtils.isSameOrAfter(firmadoActivo.createdAt, contratoAdmin.createdAt),
   );
-  /* La firma digital solo aplica a la plantilla generada y si no hay una firma manual vigente. */
-  const puedeFirmarDigital = (soloFirmaDigital || contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO) &&
-    firmasCompletas && !firmaManualVigente && !firmaManualPendiente;
+  /* La vista de firma solo aplica a la plantilla generada y sin una firma manual vigente. */
+  const puedeAbrirFirma = firmantes.length > 0 &&
+    !contratoEnRegeneracion &&
+    !firmaManualPendiente &&
+    (contratoSgcPendiente || (!firmaManualVigente && (!contratoAdmin || contratoAdmin.origen === ORIGENES_DOCUMENTO.GENERADO)));
   const motivoGeneral = solicitud.revisionAsociado?.comentario?.trim() ?? null;
   const observadosAnexos = anexos.filter(d => d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO);
   const faltanObs = observadosAnexos.filter((obs) => {
@@ -316,58 +482,86 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
     const pendiente = pendientes.some((p) => (p.requisito ?? null) === (obs.requisito ?? null));
     return !reemplazo && !pendiente;
   });
+  const coincidePendienteObservacion = (o: SgcObservacionLike) => (p: Pendiente): boolean => {
+    if (o.observationId) {
+      return p.observacionId === o.observationId ||
+        Boolean(o.pieces?.some((piece) => piece.id === p.piezaId));
+    }
+    const titulos = o.expectedDocumentTitles ?? [];
+    const tituloBase = o.title ?? o.nombre ?? null;
+    if (titulos.length > 0) {
+      return titulos.includes(p.observacionTitulo ?? "") ||
+        (tituloBase ? p.observacionTitulo === tituloBase : false) ||
+        p.requisito === null;
+    }
+    if (tituloBase) return p.observacionTitulo === tituloBase;
+    if (o.requisito) return p.requisito === o.requisito;
+    return p.requisito === null;
+  };
+  const pendientesDeObservacion = (o: SgcObservacionLike) =>
+    pendientes.filter(coincidePendienteObservacion(o));
+  const documentosObservacion = (o: SgcObservacionLike) =>
+    anexos.filter((d) => {
+      if (d.estado && d.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) return false;
+      if (o.observationId && d.sgcObservationId === o.observationId) return true;
+      if (o.documentId && d.sgcDocumentId === o.documentId) return true;
+      if (d.sgcPieceId && o.pieces?.some((piece) => piece.id === d.sgcPieceId)) return true;
+      const titulos = o.expectedDocumentTitles ?? [];
+      if (d.sgcTitle && (d.sgcTitle === o.title || titulos.includes(d.sgcTitle))) return true;
+      return Boolean(o.requisito && d.requisito === o.requisito);
+    });
+  const piezasSinArchivo = observacionesSgcAnexos.some((o) => {
+    const tieneFaltante = correccionSgcAnexos.faltantes.some((f) =>
+      o.observationId
+        ? f.observationId === o.observationId
+        : f.title === (o.title ?? o.nombre ?? "Documento"),
+    );
+    if (!tieneFaltante) return false;
+    return aceptadosObservacion(o) + pendientesDeObservacion(o).length < totalEsperadoObservacion(o);
+  });
+  const pendientesSgcAnexos = pendientes.filter(
+    (p) => Boolean(p.observacionId || p.observacionTitulo || p.requisito),
+  ).length;
+  const cubiertosSgcAnexos = Math.min(
+    correccionSgcAnexos.requeridos,
+    correccionSgcAnexos.cubiertos + pendientesSgcAnexos,
+  );
   const otrosDocs = (esContrato ? firmados : anexos)
-    .filter(d => !d.requisito && (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO));
-  /** Contrato firmado observado sin reemplazo activo posterior: se debe volver a firmar. */
-  const firmadoObservado = esContrato
-    ? firmados.find((obs) =>
-        obs.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO &&
-        !firmados.some((d) =>
-          (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) &&
-          dateUtils.isAfter(d.createdAt, obs.createdAt),
-        ),
-      )
-    : null;
+    .filter((d) => {
+      if (d.requisito || (d.estado && d.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO)) return false;
+      if (esContrato) return true;
+      /* Los archivos vinculados a una observacion del SGC pertenecen al grupo,
+       * no a "Otros documentos". */
+      return !d.sgcObservationId && !d.sgcDocumentId && !d.sgcTitle && !d.sgcPieceId;
+    });
   const obligatorios = ANEXOS_REQUERIDOS.filter(a => ANEXOS_BLOQUEANTES.includes(a.key));
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="shrink-0 border-b border-border px-5 pt-4 pb-3">
         <h3 className="text-sm font-semibold text-foreground">
-          {soloFirmaDigital ? "Firmar contrato" : esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}
+          {soloFirmaDigital
+            ? observacionContratoSgc ? "Subsanar contrato" : "Firmar contrato"
+            : esContrato ? "Subir contrato firmado" : "Adjuntar documentos"}
         </h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Stands: <span className="font-mono font-medium text-foreground">{solicitud.standCodes?.join(", ")}</span>
         </p>
+        {modoPrueba && (
+          <p className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-[11px] font-semibold text-warning">
+            MODO PRUEBA: puedes probar el flujo de firma, pero no se guardará ni se firmará nada.
+          </p>
+        )}
         <div className="mt-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2">
           {soloFirmaDigital ? (
             <p className="text-[11px] font-semibold text-foreground">
               El contrato de esta solicitud se firma <span className="text-primary">solo digitalmente</span>.
-              Puedes descargar el contrato vigente; no se admite subir un contrato firmado manualmente.
+              La firma se estampa directamente en el sistema con la firma registrada de cada representante.
             </p>
-          ) : esContrato ? (
-            firmadoObservado ? (
-              <p className="text-[11px] font-semibold text-warning">
-                Tu contrato firmado fue observado{firmadoObservado.motivoObservacion ? `: ${firmadoObservado.motivoObservacion}` : "."}{" "}
-                Descarga el contrato vigente, firmalo de nuevo y sube la version corregida.
-              </p>
-            ) : (firmaManualVigente || firmaManualPendiente) ? (
-              <p className="text-[11px] font-semibold text-foreground">
-                Ya tienes una firma manual vigente. Si deseas firmar digitalmente, elimina primero esa firma.
-              </p>
-            ) : puedeFirmarDigital ? (
-              <p className="text-[11px] font-semibold text-foreground">
-                Este contrato usa la <span className="text-primary">plantilla del sistema</span>: puedes <span className="text-primary">firmarlo digitalmente</span> con la firma de cada representante, o descargarlo, firmarlo y subir tu versión firmada.
-              </p>
-            ) : (
-              <p className="text-[11px] font-semibold text-foreground">
-                Descarga la <span className="text-primary">versión más reciente</span> del contrato del administrador (abajo), fírmala y sube el archivo firmado para continuar con tu solicitud.
-              </p>
-            )
           ) : (
             <p className="text-[11px] text-muted-foreground">
-              <span className="font-semibold text-foreground">Obligatorios para la revisión del área legal:</span>{" "}
-              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trámite.
+              <span className="font-semibold text-foreground">Obligatorios para la revision del area legal:</span>{" "}
+              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trǭmite.
             </p>
           )}
         </div>
@@ -379,10 +573,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             <p className="mt-0.5 text-[11px] text-foreground">{solicitud.revisionAsociado.comentario}</p>
           </div>
         )}
-        {esContrato && observacionContratoSgc && (
+        {esContrato && observacionContratoSgc && !contratoEnRegeneracion && !contratoCorregidoListo && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
-              {observacionesSgcCorregidas ? "Corrección registrada" : "Observación del área legal"}
+              {observacionesSgcCorregidas
+                ? correccionReenviadaSgc ? "Corrección enviada al SGC" : "Corrección registrada"
+                : "Observación del área legal"}
             </p>
             <p className="mt-0.5 text-[11px] text-foreground">
               {observacionesSgcCorregidas
@@ -391,16 +587,46 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             </p>
           </div>
         )}
-        {!esContrato && observacionesSgc.length > 0 && (
-          <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
-            <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcCorregidas ? "text-success" : "text-destructive"}`}>
-              {observacionesSgcCorregidas ? "Corrección registrada" : `Te piden ${correccionSgc.requeridos} archivos; llevas ${correccionSgc.cubiertos}.`}
+        {contratoCorregidoListo && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-success/30 bg-success/10 px-2.5 py-2">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+            <div>
+              <p className="text-[11px] font-semibold text-success">Contrato corregido listo</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                Revisa el contrato y confirma la firma digital para enviar la corrección.
+              </p>
+            </div>
+          </div>
+        )}
+        {contratoEnRegeneracion && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2">
+            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-warning" />
+            <div>
+              <p className="text-[11px] font-semibold text-warning">Preparando contrato corregido</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                El área legal observó el contrato y el sistema está preparando la versión corregida.
+                Cierra esta ventana y vuelve a abrirla en unos segundos para firmar.
+              </p>
+            </div>
+          </div>
+        )}
+        {!esContrato && observacionContratoSgc && (
+          <p className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2 text-[11px] text-primary">
+            El contrato se subsana aparte con <strong>Subsanar observación</strong>. En esta ventana reemplaza solo los anexos.
+          </p>
+        )}
+        {!esContrato && observacionesSgcAnexos.length > 0 && (
+          <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcAnexosCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
+            <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcAnexosCorregidas ? "text-success" : "text-destructive"}`}>
+              {observacionesSgcAnexosCorregidas
+                ? correccionReenviadaSgc ? "Corrección enviada al SGC" : "Corrección registrada"
+                : `Te piden ${correccionSgcAnexos.requeridos} archivos; llevas ${cubiertosSgcAnexos}${pendientesSgcAnexos > 0 ? ` (${pendientesSgcAnexos} listo${pendientesSgcAnexos === 1 ? "" : "s"} para enviar)` : ""}.`}
             </p>
-            {observacionesSgcCorregidas ? (
+            {observacionesSgcAnexosCorregidas ? (
               <p className="mt-0.5 text-[11px] text-foreground">Tu corrección fue enviada. Solicita una nueva revisión para que el área legal la valide.</p>
             ) : (
               <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
-                {observacionesSgc.map((o, i) => (
+                {observacionesSgcAnexos.map((o, i) => (
                   <li key={o.observationId ?? `obs-sgc-${i}`}>
                     • {o.title ?? o.nombre ?? "Documento"}
                     {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
@@ -410,33 +636,15 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             )}
           </div>
         )}
-        {!esContrato && observacionesSgcSinFila.length > 0 && (
-          <div className="mt-2 rounded-md border border-warning/30 bg-warning/5 px-2.5 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-warning">Documentos solicitados sin ficha</p>
-            <div className="mt-1 space-y-1">
-              {observacionesSgcSinFila.map((o, i) => (
-                <div key={o.observationId ?? `obs-sgc-sin-fila-${i}`} className="flex items-center gap-2 text-[11px] text-foreground">
-                  <span className="min-w-0 flex-1">
-                    <span className="font-semibold">{o.title ?? "Documento faltante"}</span>: {o.message}
-                  </span>
-                  <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
-                    disabled={uploading} onClick={() => abrirSelector(null)}>
-                    Adjuntar
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-        {esContrato && contratoAdmin && (
+        {esContrato && contratoAdmin && !contratoEnRegeneracion && (
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                  Contrato vigente del administrador
+                  {contratoCorregidoListo ? "Contrato corregido para firmar" : "Contrato vigente del administrador"}
                 </p>
                 <Badge className="pointer-events-none text-[9px] bg-primary/10 text-primary border-primary/20">
-                  <span>Version vigente</span>
+                  <span>{contratoCorregidoListo ? "Listo para firmar" : "Version vigente"}</span>
                 </Badge>
               </div>
               <p className="truncate text-[11px] font-medium text-foreground">{contratoAdmin.nombre}</p>
@@ -460,20 +668,19 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                 className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
               >
                 <Eye className="h-3 w-3" />
-                <span>Ver</span>
-              </a>
-              <a
-                href={contratoAdmin.url}
-                download
-                className="inline-flex items-center gap-1 rounded-full border border-primary/40 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
-              >
-                <Download className="h-3 w-3" />
-                <span>Descargar</span>
+                <span>Ver contrato</span>
               </a>
             </div>
           </div>
         )}
-        {soloFirmaDigital && (
+        <input
+          ref={firmaRef}
+          type="file"
+          accept=".png,image/png"
+          className="hidden"
+          onChange={(e) => { void onFirmaFile(e); }}
+        />
+        {soloFirmaDigital && !contratoEnRegeneracion && !observacionContratoSgc && (
           <div className="mt-2 space-y-2 rounded-md border border-border bg-secondary/40 px-2.5 py-2">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-foreground">
@@ -483,18 +690,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                 Sube la firma PNG de cada representante. Todas se estamparán en el contrato.
               </p>
             </div>
-            <input
-              ref={firmaRef}
-              type="file"
-              accept=".png,image/png"
-              className="hidden"
-              onChange={(e) => { void onFirmaFile(e); }}
-            />
             {firmantes.length === 0 ? (
               <p className="text-[11px] text-muted-foreground">Cargando representantes...</p>
             ) : (
               <div className="space-y-1.5">
-                {firmantes.map((f) => (
+                {firmantes.map((f) => {
+                  const png = pngOriginales[f.key];
+                  return (
                   <div key={f.key} className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-background px-2.5 py-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-1.5">
@@ -504,13 +706,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         </Badge>
                       </div>
                       <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {f.firmaUrl ? "Firma cargada" : "Firma pendiente"} · {f.rol}
+                        {png ? "Firma cargada" : "Firma pendiente"} · {f.rol}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
-                      {f.firmaUrl && (
+                      {png && (
                         <img
-                          src={f.firmaUrl}
+                          src={png}
                           alt={`Firma de ${f.nombre}`}
                           className="h-8 max-w-[90px] object-contain"
                         />
@@ -527,12 +729,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         <span>
                           {subiendoFirmaId === f.key
                             ? "Subiendo..."
-                            : f.firmaUrl ? "Cambiar firma" : "Subir firma"}
+                            : png ? "Cambiar firma" : "Subir firma"}
                         </span>
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -542,7 +745,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-5">
         {!esContrato && adminDocs.length > 0 && (
           <div>
-            <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (descarga y firma)" : "Documentos del administrador"}</Label>
+            <Label className="text-xs mb-1 block">{esContrato ? "Contrato del administrador (firma digital)" : "Documentos del administrador"}</Label>
             <div className="space-y-1 rounded-md border bg-secondary p-2">
               {adminDocs.map((doc, i) => (
                 <div key={i} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs">
@@ -606,8 +809,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                       )}
                       {observacionSgc && (
                         observacionCorregida
-                          ? <span className="block text-[10px] text-emerald-600">Corregido — pendiente de validación del área legal</span>
-                          : <span className="block text-[10px] text-destructive">Área legal: {observacionSgc.message}</span>
+                          ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
+                          : <span className="block text-[10px] text-destructive">Area legal: {observacionSgc.message}</span>
                       )}
                     </span>
                     {pendiente ? (
@@ -627,7 +830,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                         )}
                         {(!existente || (observacionSgc && !observacionCorregida) || observado) && (
                           <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
-                            disabled={uploading} onClick={() => abrirSelector(a.key)}>
+                            disabled={uploading} onClick={() => abrirSelector(a.key, observacionSgc?.observationId ?? null, observacionSgc?.title ?? null, observacionSgc?.documentId ?? null)}>
                             {observacionFaltante || !existente || observado ? "Adjuntar" : "Reemplazar"}
                           </Button>
                         )}
@@ -636,34 +839,169 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
                   </div>
                 );
               })}
+              {observacionesSgcSinFila.map((o, i) => {
+                const local = (o.documentoLocalId
+                  ? anexos.find((d) => d.id === o.documentoLocalId)
+                  : undefined)
+                  ?? (o.nombre ? anexos.find((d) => d.nombre === o.nombre) : undefined)
+                  ?? null;
+                const corregida = !correccionSgcAnexos.faltantes.some((f) =>
+                  o.observationId
+                    ? f.observationId === o.observationId
+                    : f.title === (o.title ?? o.nombre ?? "Documento"),
+                );
+                const pendientesObs = pendientesDeObservacion(o);
+                const idxPendiente = pendientes.findIndex(coincidePendienteObservacion(o));
+                const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
+                const totalEsperados = totalEsperadoObservacion(o);
+                const aceptados = Math.min(
+                  totalEsperados,
+                  Math.max(aceptadosObservacion(o), documentosObservacion(o).length),
+                );
+                const siguienteIndice = aceptados + pendientesObs.length;
+                const siguientePieza = o.pieces?.find((piece) =>
+                  !piece.acceptedDocumentId && !pendientes.some((p) => p.piezaId === piece.id),
+                );
+                const tituloSiguiente = o.pieces?.length
+                  ? siguientePieza?.title ?? null
+                  : siguienteIndice < totalEsperados
+                    ? o.expectedDocumentTitles?.[siguienteIndice] ?? o.title ?? o.nombre ?? `Archivo ${siguienteIndice + 1}`
+                    : null;
+                const piezaId = siguientePieza?.id ?? null;
+                const numeroSiguiente = Math.min(totalEsperados, siguienteIndice + 1);
+                const piezasVisibles = o.pieces?.length
+                  ? o.pieces.map((piece) => ({
+                      key: piece.id,
+                      title: piece.title,
+                      estado: piece.acceptedDocumentId
+                        ? "Recibido"
+                        : pendientes.some((p) => p.piezaId === piece.id) ||
+                            documentosObservacion(o).some((d) => d.sgcPieceId === piece.id)
+                          ? "Listo para enviar"
+                          : "Pendiente",
+                    }))
+                  : Array.from({ length: totalEsperados }, (_, idx) => ({
+                      key: `esperado-${idx}`,
+                      title: o.expectedDocumentTitles?.[idx] ?? `Archivo ${idx + 1}`,
+                      estado: idx < aceptados
+                        ? "Recibido"
+                        : idx < aceptados + pendientesObs.length
+                          ? "Listo para enviar"
+                          : "Pendiente",
+                    }));
+                const puedeAgregar = Boolean(tituloSiguiente);
+                const requiereVersionExistente = Boolean(o.documentId);
+                return (
+                  <div
+                    key={o.observationId ?? `obs-sgc-sin-fila-${i}`}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${corregida ? "border-border/70 bg-background" : "border-warning/50 bg-warning/5"}`}
+                  >
+                    {local
+                      ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="flex-1">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {o.title ?? o.nombre ?? "Documento adicional"}
+                        <Badge className={`pointer-events-none text-[9px] ${requiereVersionExistente ? "border-warning/30 bg-warning/10 text-warning" : "border-primary/20 bg-primary/10 text-primary"}`}>
+                          <span>{requiereVersionExistente ? "Versión corregida" : "Archivo nuevo"}</span>
+                        </Badge>
+                      </span>
+                      <span className="mt-1 block text-[10px] text-muted-foreground">
+                        El SGC pide {totalEsperados} archivo{totalEsperados === 1 ? "" : "s"} para este grupo.
+                      </span>
+                      <span className="mt-1 block space-y-0.5">
+                        {piezasVisibles.map((pieza) => (
+                          <span key={pieza.key} className="flex items-center gap-1.5 text-[10px]">
+                            {pieza.estado === "Recibido"
+                              ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
+                              : <Clock className="h-3 w-3 shrink-0 text-warning" />}
+                            <span className="truncate">{pieza.title}</span>
+                            <span className={pieza.estado === "Recibido" ? "text-emerald-600" : "text-muted-foreground"}>
+                              {pieza.estado}
+                            </span>
+                          </span>
+                        ))}
+                      </span>
+                      {corregida
+                        ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
+                        : <span className="block text-[10px] text-destructive">Area legal: {o.message}</span>}
+                    </span>
+                    {pendiente ? (
+                      <span className="flex shrink-0 items-center gap-2">
+                        {local && (
+                          <a href={local.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Ver</a>
+                        )}
+                        <span className="text-[10px] font-medium text-emerald-600">
+                          Listo para enviar{pendientesObs.length > 1 ? ` (${pendientesObs.length})` : ""}
+                        </span>
+                        {puedeAgregar && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 shrink-0 gap-1.5 rounded-full px-2.5 text-[11px]"
+                            disabled={uploading}
+                            onClick={() => abrirSelector(null, o.observationId ?? null, tituloSiguiente, o.documentId ?? null, piezaId)}
+                          >
+                            <Upload className="h-3 w-3" />
+                            <span>Agregar archivo {numeroSiguiente} de {totalEsperados}</span>
+                          </Button>
+                        )}
+                        <button className="text-red-500 hover:text-destructive" onClick={() => handleRemove(idxPendiente)}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="flex shrink-0 items-center gap-2">
+                        {local && (
+                          <a href={local.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Ver</a>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                          disabled={uploading || !puedeAgregar}
+                          onClick={() => abrirSelector(null, o.observationId ?? null, tituloSiguiente, o.documentId ?? null, piezaId)}
+                        >
+                          {local ? "Reemplazar" : requiereVersionExistente ? "Subir versión corregida" : `Adjuntar archivo ${numeroSiguiente} de ${totalEsperados}`}
+                        </Button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+            {faltanObs.length > 0 && (
+              <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
+                Faltan reemplazar {faltanObs.length} anexo(s) observado(s) antes de enviar.
+              </p>
+            )}
           </div>
         )}
 
         <div className="space-y-2 rounded-xl border border-border/70 p-3">
           <Label className="text-xs">
-            {esContrato ? (firmadoAnterior ? "Tu firma anterior" : "Tu contrato firmado") : "Otros documentos (opcional)"}
+            {esContrato ? `Tus contratos firmados (${otrosDocs.length})` : "Otros documentos (opcional)"}
           </Label>
-          {esContrato && firmadoAnterior && (
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
-              Firmaste el {dateUtils.formatDateTime(firmadoActivo?.createdAt)}; la version vigente es del{" "}
-              {dateUtils.formatDateTime(contratoAdmin?.createdAt)}. Descarga la version vigente y firmala de nuevo.
-            </p>
-          )}
           {otrosDocs.length > 0 && (
             <div className="space-y-1 rounded-md border p-2 mb-2">
-              {otrosDocs.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-1.5 rounded px-1 py-0.5 text-xs group">
-                  <FileText className="h-3 w-3 text-muted-foreground" />
-                  <a href={doc.url} target="_blank" className="text-primary hover:underline truncate flex-1">{doc.nombre}</a>
+              {otrosDocs.map((doc, index) => (
+                <div key={doc.id} className="group flex items-center gap-2 rounded-md px-1.5 py-1.5 text-xs transition-colors hover:bg-secondary/60">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <a href={doc.url} target="_blank" className="block truncate font-medium text-primary hover:underline">{doc.nombre}</a>
+                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                  </div>
                   {firmadoAnterior && doc.id === firmadoActivo?.id && (
                     <Badge className="pointer-events-none shrink-0 text-[9px] bg-muted text-muted-foreground border-border">
                       <span>Version anterior</span>
                     </Badge>
                   )}
-                  {doc.uploadedBy && <span className="shrink-0 text-[10px] text-muted-foreground">{doc.uploadedBy}</span>}
-                  {!soloFirmaDigital && puedeEliminarDoc(doc) && (
-                    <button className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-destructive"
+                  {!modoPrueba && !soloFirmaDigital && puedeEliminarDoc(doc) && (
+                    <button className="shrink-0 text-red-500 opacity-100 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                       onClick={() => setDeleteConfirm(doc.id)}>
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -686,22 +1024,23 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
             </div>
           )}
           {!soloFirmaDigital && (
-            <input ref={fileRef} type="file" className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleUpload(file);
+            <input ref={fileRef} type="file" multiple className="hidden" accept={esContrato ? ANEXOS_OTROS_EXTENSIONES.map((extension) => `.${extension}`).join(",") : ANEXOS_UPLOAD_EXTENSIONES_TODAS.map((extension) => `.${extension}`).join(",")} onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              if (files.length > 0) void handleUpload(files);
               e.target.value = "";
             }} />
           )}
-          {!soloFirmaDigital && faltanObs.length > 0 && (
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning">
-              Faltan reemplazar {faltanObs.length} anexo(s) observado(s) antes de enviar.
-            </p>
-          )}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
-            {esContrato && (contratoAdmin?.origen === ORIGENES_DOCUMENTO.GENERADO || soloFirmaDigital) && (
-              <Button size="sm" className="w-full rounded-full text-xs font-semibold sm:w-auto" disabled={uploading || sending || !puedeFirmarDigital} title={firmantesSinFirma.length > 0 ? `Sube la firma PNG de: ${firmantesSinFirma.map((f) => f.nombre).join(", ")}.` : !puedeFirmarDigital ? "Ya tienes una firma manual vigente. Eliminala para firmar digitalmente." : undefined} onClick={() => { void handleFirmarDigital(); }}>
-                <PenLine className="mr-1 h-3 w-3" />
-                {sending ? "Firmando..." : "Firmar digitalmente"}
+            {esContrato && (
+              <Button
+                size="sm"
+                className="w-full rounded-full text-xs font-semibold sm:w-auto"
+                disabled={uploading || sending || abriendoFirma || !puedeAbrirFirma || contratoEnRegeneracion}
+                title={contratoEnRegeneracion ? "Estamos preparando el contrato corregido. Vuelve a abrir esta ventana en unos segundos." : !puedeAbrirFirma ? contratoSgcPendiente ? "Se preparará la nueva versión del contrato para firmar." : "No hay una version PDF del contrato para firmar." : firmantesSinFirma.length > 0 ? `Faltan ${firmantesSinFirma.length} firma(s); puedes capturarlas en la vista de firma.` : undefined}
+                onClick={() => { void abrirFirmaWorkspace(); }}
+              >
+                {contratoEnRegeneracion || abriendoFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <PenLine className="mr-1 h-3 w-3" />}
+                {contratoEnRegeneracion ? "Preparando contrato corregido..." : abriendoFirma ? "Preparando contrato..." : observacionContratoSgc ? "Firmar contrato corregido" : "Firmar contrato"}
               </Button>
             )}
             {!soloFirmaDigital && (
@@ -725,8 +1064,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           </Button>
           {!soloFirmaDigital && (
             <Button size="sm" className="rounded-full px-4 text-xs font-semibold"
-              disabled={sending || pendientes.length === 0 || faltanObs.length > 0}
-              title={faltanObs.length > 0 ? "Reemplaza todos los anexos observados antes de enviar" : undefined}
+              disabled={sending || pendientes.length === 0 || faltanObs.length > 0 || piezasSinArchivo}
+              title={faltanObs.length > 0
+                ? "Reemplaza todos los anexos observados antes de enviar"
+                : piezasSinArchivo
+                  ? "Adjunta un archivo por cada pieza solicitada por el SGC"
+                  : undefined}
               onClick={handleEnviar}>
               {sending ? "Enviando..." : "Enviar documentos"}
             </Button>
@@ -798,6 +1141,38 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", onClose, onSave
           )}
         </DialogContent>
       </Dialog>
+
+      {firmaWorkspaceOpen && contratoPreviewUrl && (
+        <FirmaContratoWorkspace
+          contratoUrl={contratoPreviewUrl}
+          firmantes={firmantes}
+          pngOriginales={pngOriginales}
+          modoPrueba={modoPrueba}
+          onPendienteAutomatico={(fn) => { resumeAutomaticoRef.current = fn; }}
+          onRepresentantesActualizados={async () => {
+            await cargarFirmantes();
+            const detalle = await solicitudesService.detalle(solicitud.id).catch(() => null);
+            const contratosAdmin = (detalle?.docsAdjuntos ?? [])
+              .filter((d) =>
+                d.userId === null &&
+                (d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO || d.categoria == null) &&
+                (!d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+              )
+              .sort((a, b) => (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0));
+            const nuevo = contratosAdmin[0];
+            if (nuevo?.url) setContratoPreviewUrl(nuevo.url);
+          }}
+          onFinalizar={async (sellos) => {
+            await handleFirmarDigital(sellos);
+            setFirmaWorkspaceOpen(false);
+          }}
+          onFaltaFirma={(key) => {
+            toast.info("Selecciona la firma PNG del representante.");
+            abrirSelectorFirma(key);
+          }}
+          onClose={() => setFirmaWorkspaceOpen(false)}
+        />
+      )}
     </div>
   );
 }

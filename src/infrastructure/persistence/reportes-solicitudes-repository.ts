@@ -1,12 +1,14 @@
-﻿import "server-only";
+import "server-only";
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-solicitudes-repository";
-import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ReporteExportacion, ReporteExportacionSolicitud, ReporteExportacionStand, ResumenPaisSolicitudes } from "@/domain/models/reportes";
-import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
+import type { BloqueMapaReporte, EmpresaPaisReporte, MapaPabellonesReporte, PabellonMapaReporte, ReporteExportacion, ReporteExportacionSolicitud, ReporteExportacionStand, ReporteSolicitudesPreReservas, ReporteStandRegistro, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import { resolverPrecioComercialStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
-import { REPORTES_SIN_PAIS, TIPOS_PLANO } from "@/lib/shared/constants";
+import { estadoSolicitudConSgc } from "@/lib/shared/utils/estado-solicitud";
+import { isSgcEnabled } from "@/lib/server/sgc-config";
+import { ESTADOS_STAND, REPORTES_SIN_PAIS, REPORTES_TIPOS_REGISTRO, TIPOS_PLANO } from "@/lib/shared/constants";
 
 interface FilaExportacion {
   solicitud_id: string;
@@ -36,6 +38,26 @@ interface FilaResumenPais {
   pais: string;
   empresas: number;
   solicitudes: number;
+}
+
+interface FilaStandRegistro {
+  tipo: string;
+  stand_code: string | null;
+  bloque_id: string | null;
+  pabellon: string | null;
+  empresa: string | null;
+  tipo_stand: string | null;
+  medidas: string | null;
+  raw_data: unknown;
+  ruc: string | null;
+  sie: string | null;
+  estado: string | null;
+  email: string | null;
+  fecha: Date | null;
+  nota: string | null;
+  revisiones: unknown;
+  sgc_lifecycle_status: string | null;
+  sgc_devolucion_requiere_cambio: boolean | null;
 }
 
 export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudesRepository {
@@ -340,7 +362,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
           ur.nombre_empresa AS usuario_empresa
         FROM rel r
         JOIN solicitud s ON s.id = r.solicitud_id
-        LEFT JOIN gess_stand gs ON gs.id = r.gess_stand_id
+        JOIN gess_stand gs ON gs.id = r.gess_stand_id AND gs.flg_activo = true
         LEFT JOIN LATERAL (
           SELECT x.empresa_id, x.nombre, x.apellidos, x.nombre_empresa
           FROM user_role x
@@ -388,7 +410,7 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
 
       const claveStand = fila.stand_id ? `${fila.solicitud_id}|${fila.stand_id}` : `${fila.solicitud_id}|sin-stand`;
       if (!stands.has(claveStand)) {
-        const precio = fila.stand_id ? resolverPrecioStand({ tipoStand: fila.tipo_stand, medidas: fila.medidas, rawData: fila.raw_data }) : 0;
+        const precio = fila.stand_id ? resolverPrecioComercialStand({ tipoStand: fila.tipo_stand, medidas: fila.medidas, rawData: fila.raw_data }) : 0;
         const standCode = fila.stand_code ? codigoComercialStand(fila.stand_code) : null;
         stands.set(claveStand, {
           solicitudId: fila.solicitud_id,
@@ -417,5 +439,152 @@ export class ReportesSolicitudesPrismaRepository implements IReportesSolicitudes
     };
   }
 
-}
+  async exportacionSolicitudesPreReservas(params: { eventoId?: string }): Promise<ReporteSolicitudesPreReservas> {
+    const filtroEvento = params.eventoId
+      ? Prisma.sql`AND gs.evento_id = ${params.eventoId}`
+      : Prisma.empty;
 
+    const filas = await prisma.$queryRaw<FilaStandRegistro[]>(Prisma.sql`
+      WITH rel AS (
+        SELECT s.id AS solicitud_id, s.email, s.user_id, s.gess_stand_id
+        FROM solicitud s
+        WHERE s.flg_activo = true
+        UNION
+        SELECT s.id AS solicitud_id, s.email, s.user_id, ss.gess_stand_id
+        FROM solicitud s
+        JOIN solicitud_stand ss ON ss.solicitud_id = s.id
+        WHERE s.flg_activo = true
+      ),
+      solicitudes AS (
+        SELECT
+          ${REPORTES_TIPOS_REGISTRO.SOLICITUD}::text AS tipo,
+          gs.stand_code,
+          gs.bloque_id,
+          COALESCE(NULLIF(p.nombre, ''), NULLIF(gs.pabellon, '')) AS pabellon,
+          COALESCE(
+            NULLIF(e.razon_social, ''),
+            NULLIF(gs.empresa, ''),
+            NULLIF(ur.nombre_empresa, ''),
+            s.email
+          ) AS empresa,
+          gs.tipo_stand,
+          gs.medidas,
+          gs.raw_data,
+          e.ruc,
+          NULL::text AS sie,
+          s.estado,
+          s.email,
+          s.created_at AS fecha,
+          NULL::text AS nota,
+          rev.revisiones,
+          se.lifecycle_status AS sgc_lifecycle_status,
+          se.devolucion_requiere_cambio AS sgc_devolucion_requiere_cambio
+        FROM rel r
+        JOIN solicitud s ON s.id = r.solicitud_id
+        JOIN gess_stand gs ON gs.id = r.gess_stand_id AND gs.flg_activo = true
+        LEFT JOIN LATERAL (
+          SELECT x.empresa_id, x.nombre_empresa
+          FROM user_role x
+          WHERE x.user_id = r.user_id
+          LIMIT 1
+        ) ur ON true
+        LEFT JOIN empresa e ON e.id = ur.empresa_id
+        LEFT JOIN LATERAL (
+          SELECT json_agg(json_build_object('area', rv.area, 'estado', rv.estado)) AS revisiones
+          FROM revision rv
+          WHERE rv.solicitud_id = s.id
+        ) rev ON true
+        LEFT JOIN sgc_expediente se ON se.solicitud_id = s.id
+        LEFT JOIN LATERAL (
+          SELECT p.nombre
+          FROM plano_bloque pb
+          JOIN plano p ON p.id = pb.plano_id
+          WHERE COALESCE(to_jsonb(pb)->>'bloque_id', to_jsonb(pb)->>'bloqueId') = gs.bloque_id
+            AND COALESCE((to_jsonb(pb)->>'flg_activo')::boolean, true) = true
+            AND p.tipo <> ${TIPOS_PLANO.MACRO}
+          LIMIT 1
+        ) p ON true
+        WHERE true ${filtroEvento}
+      ),
+      pre_reservas AS (
+        SELECT
+          ${REPORTES_TIPOS_REGISTRO.PRE_RESERVA}::text AS tipo,
+          gs.stand_code,
+          gs.bloque_id,
+          COALESCE(NULLIF(p.nombre, ''), NULLIF(gs.pabellon, '')) AS pabellon,
+          COALESCE(
+            NULLIF(gs.pre_reserva_razon_social, ''),
+            NULLIF(gs.pre_reserva_titulo, ''),
+            NULLIF(gs.empresa, '')
+          ) AS empresa,
+          gs.tipo_stand,
+          gs.medidas,
+          gs.raw_data,
+          gs.pre_reserva_ruc AS ruc,
+          gs.pre_reserva_sie AS sie,
+          gs.estado,
+          NULL::text AS email,
+          gs.pre_reserva_at AS fecha,
+          gs.pre_reserva_nota AS nota,
+          NULL::json AS revisiones,
+          NULL::text AS sgc_lifecycle_status,
+          NULL::boolean AS sgc_devolucion_requiere_cambio
+        FROM gess_stand gs
+        LEFT JOIN LATERAL (
+          SELECT p.nombre
+          FROM plano_bloque pb
+          JOIN plano p ON p.id = pb.plano_id
+          WHERE COALESCE(to_jsonb(pb)->>'bloque_id', to_jsonb(pb)->>'bloqueId') = gs.bloque_id
+            AND COALESCE((to_jsonb(pb)->>'flg_activo')::boolean, true) = true
+            AND p.tipo <> ${TIPOS_PLANO.MACRO}
+          LIMIT 1
+        ) p ON true
+        WHERE gs.estado = ${ESTADOS_STAND.PRE_RESERVADO}
+          AND gs.flg_activo = true
+          ${filtroEvento}
+      )
+      SELECT * FROM solicitudes
+      UNION ALL
+      SELECT * FROM pre_reservas
+      ORDER BY pabellon NULLS LAST, stand_code NULLS LAST, tipo
+    `);
+
+    return filas.map((fila): ReporteStandRegistro => {
+      const revisiones = Array.isArray(fila.revisiones)
+        ? (fila.revisiones as Array<{ area: string; estado: string }>)
+        : [];
+      const estado = fila.tipo === REPORTES_TIPOS_REGISTRO.SOLICITUD
+        ? estadoSolicitudConSgc(
+            fila.estado,
+            revisiones,
+            {
+              lifecycleStatus: fila.sgc_lifecycle_status,
+              devolucionRequiereCambio: fila.sgc_devolucion_requiere_cambio,
+            },
+            isSgcEnabled(),
+          )
+        : null;
+
+      return {
+        tipo: fila.tipo as ReporteStandRegistro["tipo"],
+        standCode: fila.stand_code ? codigoComercialStand(fila.stand_code) : null,
+        bloqueId: fila.bloque_id,
+        pabellon: fila.pabellon,
+        tipoStand: fila.tipo_stand,
+        empresa: fila.empresa,
+        precio: resolverPrecioComercialStand({
+          tipoStand: fila.tipo_stand,
+          medidas: fila.medidas,
+          rawData: fila.raw_data,
+        }),
+        ruc: fila.ruc,
+        sie: fila.sie,
+        estado,
+        email: fila.email,
+        fecha: fila.fecha ? fila.fecha.toISOString() : null,
+        nota: fila.nota,
+      };
+    });
+  }
+
+}

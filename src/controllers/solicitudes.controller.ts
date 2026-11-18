@@ -1,18 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
 import { API_ERROR_CODES } from "@/lib/shared/constants";
-import type { SolicitudesFiltroSgc, SolicitudesOrden } from "@/lib/shared/constants";
+import type { SolicitudesFiltroContrato, SolicitudesFiltroSgc, SolicitudesFiltroTipo, SolicitudesOrden } from "@/lib/shared/constants";
 import type { SolicitudRow } from "@/domain/models/entities";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import { getSession } from "@/lib/server/auth";
-import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
-import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SOLICITUDES_FILTRO_DD, VER_COMO } from "@/lib/shared/constants";
+import { solicitudesListarSchema, solicitudesPaisesSchema, solicitudesDetalleSchema, solicitudesCambiarMonedaSchema, solicitudesRevisarSchema, solicitudesNotificarSchema, solicitudesReenviarObservacionSchema, solicitudesHabilitarContratoSchema, uploadDocumentoSchema, solicitudesRecortePlanoSchema } from "@/validators/solicitudes.validator";
+import { REVISION_AREA_LABELS, REVISION_AREA_PERMISSIONS, RESULTADOS_APROBACION, ESTADOS_REEVALUACION, ESTADOS_REVISION, PERMISSIONS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_DD, TIPOS_SOLICITUD, VER_COMO } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
+import { tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 import { mapDdEvaluacionSolicitudToDTO } from "@/lib/shared/mappers/debida-diligencia";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { requestMetadata } from "@/lib/server/request-metadata";
+import { sumarMontos } from "@/lib/shared/utils/importes";
 import { auditarVerComo } from "@/lib/server/ver-como-audit";
 import { exigirLimiteVerComo } from "@/lib/server/ver-como-rate-limit";
 
@@ -127,6 +129,7 @@ export const solicitudesController = {
       pais: url.searchParams.get("pais") ?? undefined,
       areaPendiente: url.searchParams.get("areaPendiente") ?? undefined,
       sgc: url.searchParams.get("sgc") ?? undefined,
+      contrato: url.searchParams.get("contrato") ?? undefined,
       docsObservados: url.searchParams.get("docsObservados") ?? undefined,
       observadoPor: url.searchParams.get("observadoPor") ?? undefined,
       desde: url.searchParams.get("desde") ?? undefined,
@@ -165,6 +168,7 @@ export const solicitudesController = {
           pais: parsed.pais ?? null,
           areaPendiente: parsed.areaPendiente ?? null,
           sgc: parsed.sgc ?? null,
+          contrato: parsed.contrato ?? null,
           docsObservados: parsed.docsObservados === "true",
           observadoPor: parsed.observadoPor ?? null,
           desde: parsed.desde ?? null,
@@ -184,8 +188,10 @@ export const solicitudesController = {
       pais: parsed.pais,
       areaPendiente: parsed.areaPendiente,
       sgc: parsed.sgc as SolicitudesFiltroSgc | undefined,
+      contrato: parsed.contrato as SolicitudesFiltroContrato | undefined,
       docsObservados: parsed.docsObservados === "true",
       observadoPor: parsed.observadoPor,
+      tipo: parsed.tipo as SolicitudesFiltroTipo | undefined,
       desde: parsed.desde,
       hasta: parsed.hasta,
       orden: parsed.orden as SolicitudesOrden,
@@ -231,6 +237,26 @@ export const solicitudesController = {
       perPage: parsed.per_page,
     });
     const data = await evaluarDdSolicitudes(result.data, parsed.eventoId);
+
+    /* La regeneracion del contrato tarda (DOCX/PDF). Se agenda despues de
+     * enviar la bandeja para no bloquearla; el listado ya muestra la
+     * observacion y el siguiente refresh vera el contrato corregido. */
+    const contratosPendientes = result.data
+      .filter(
+        (row) =>
+          (row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+            row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
+          tieneObservacionSgcContrato(row),
+      )
+      .slice(0, 5);
+    if (contratosPendientes.length > 0) {
+      after(async () => {
+        for (const row of contratosPendientes) {
+          await services.sgc.consultarExpediente(row.id).catch(() => null);
+        }
+      });
+    }
+
     const response = success({ ...result, data });
     if (empresaId) response.headers.set("Cache-Control", "no-store");
     return response;
@@ -333,7 +359,8 @@ export const solicitudesController = {
     );
     /* Bypass exclusivo de administradores (admin:full): pueden revisar sin DD APTA. */
     const ddBypassAdmin = !evaluacionDd.aptoParaContratar && session.permissions.includes(PERMISSIONS.ADMIN_FULL);
-    if (!evaluacionDd.aptoParaContratar && !ddBypassAdmin) {
+    const esReservaEmpresa = solicitud.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+    if (!esReservaEmpresa && !evaluacionDd.aptoParaContratar && !ddBypassAdmin) {
       return error(
         API_ERROR_CODES.CONFLICT,
         evaluacionDd.mensaje ?? "La empresa no cuenta con una Debida Diligencia APTA y vigente",
@@ -395,6 +422,33 @@ export const solicitudesController = {
       { to: parsed.data.to, modo: parsed.data.modo },
     );
     return success({ ok: true });
+  },
+
+  /** El cliente (o staff) cambia USD/PEN antes de que exista cobranza. */
+  async cambiarMoneda(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+
+    const parsed = solicitudesCambiarMonedaSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
+    }
+
+    const resultado = await services.solicitudes.cambiarMoneda({
+      ...parsed.data,
+      userSub: session.sub,
+      userPermissions: session.permissions,
+      actor: session.email,
+    });
+    await auditarOperacion(
+      request,
+      session,
+      "cambiar-moneda",
+      parsed.data.solicitudId,
+      `Cambio de moneda a ${resultado.moneda}`,
+      { moneda: resultado.moneda, tipoCambio: resultado.tipoCambio },
+    );
+    return success(resultado);
   },
 
   async modificar(request: Request): Promise<NextResponse> {
@@ -485,7 +539,28 @@ export const solicitudesController = {
     const raw = await request.json() as { solicitudId: string };
     if (!raw.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
     await services.solicitudes.repo.marcarOrdenPago(raw.solicitudId);
-    await auditarOperacion(request, session, "orden-pago", raw.solicitudId, "Se generó la orden de pago");
+    const detalle = await services.solicitudes.repo.detalle(raw.solicitudId);
+    const plan = detalle?.planCuotas ?? null;
+    const cuotas = plan?.cuotas ?? [];
+    await auditarOperacion(request, session, "orden-pago", raw.solicitudId, "Se generó la orden de pago", {
+      montoTotal: cuotas.length > 0 ? sumarMontos(cuotas) : null,
+      moneda: plan?.moneda ?? detalle?.moneda ?? null,
+      tipoCambio: plan?.tipoCambio ?? detalle?.tipoCambio ?? null,
+      descuentoPorcentaje: plan?.descuentoPorcentaje ?? 0,
+      descuentoTipo: plan?.descuentoTipo ?? "porcentaje",
+      descuentoValor: plan?.descuentoValor ?? plan?.descuentoPorcentaje ?? 0,
+      netoLista: plan?.netoLista ?? null,
+      descuentoMonto: plan?.descuentoMonto ?? null,
+      netoDescontado: plan?.netoDescontado ?? null,
+      igv: plan?.igv ?? null,
+      total: plan?.total ?? null,
+      cuotas: cuotas.map((cuota) => ({
+        numero: cuota.numero,
+        porcentaje: cuota.porcentaje,
+        monto: cuota.monto,
+        fechaVencimiento: cuota.fechaVencimiento,
+      })),
+    });
     return success({ ok: true });
   },
 
@@ -611,8 +686,13 @@ export const solicitudesController = {
       requisito: raw.requisito ?? null,
       permitirAnexosIniciales: raw.permitirAnexosIniciales === true,
       firmaDigital: raw.firmaDigital === true,
+      subirFirmaAsociado: raw.subirFirmaAsociado === true,
+      sgcObservationId: raw.sgcObservationId ?? null,
+      sgcDocumentId: raw.sgcDocumentId ?? null,
+      sgcTitle: raw.sgcTitle ?? null,
+      sgcPieceId: raw.sgcPieceId ?? null,
     });
-    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null });
+    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null, subirFirmaAsociado: raw.subirFirmaAsociado === true });
     return success(doc);
   },
 

@@ -67,6 +67,15 @@ export interface DdDocumentoEntity {
   versiones: DdDocumentoVersionEntity[];
 }
 
+export interface DdBandejaDocumento {
+  tipo: DdDocumentoTipo;
+  nombre: string;
+  url: string;
+  estado: DdDocumentoEstado;
+  /** Ultima version cargada; null si el documento es legacy y no tiene historial. */
+  version: number | null;
+}
+
 export interface DdObservacionEntity {
   id: string;
   area: DdObservacionArea;
@@ -248,6 +257,7 @@ export interface DdBandejaRow {
   solicitudesAlquiler: number;
   documentoCargados: number;
   documentoTotal: number;
+  documentos: DdBandejaDocumento[];
   fechaEnvio: Date | null;
   fechaAprobacion: Date | null;
   fechaVencimiento: Date | null;

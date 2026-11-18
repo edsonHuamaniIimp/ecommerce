@@ -197,6 +197,21 @@ export const pagosController = {
     return success(await services.solicitarFactura.solicitar(cuotaId, ident(session), lista, requisitos ?? null));
   },
 
+  /** Completa la declaracion de requisitos de una solicitud ya enviada (checklist vacio). */
+  async completarRequisitos(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    const { cuotaId, archivos, requisitos } = (await request.json()) as {
+      cuotaId: string;
+      archivos?: unknown;
+      requisitos?: RequisitosFacturacionInput | null;
+    };
+    if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
+    const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
+    await services.solicitarFactura.completarRequisitos(cuotaId, ident(session), lista, requisitos ?? null);
+    return success({ ok: true });
+  },
+
   /** Archivos (links) de la cuenta corriente del IIMP de una cuota propia del cliente. */
   async listarArchivos(request: Request): Promise<NextResponse> {
     const session = await getSession();

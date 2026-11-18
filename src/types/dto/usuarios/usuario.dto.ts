@@ -1,4 +1,4 @@
-/** Usuario del Portal del Cliente (bandeja de Usuarios). La persona vive en servicio-persona. */
+﻿/** Usuario del Portal del Cliente (bandeja de Usuarios). La persona vive en servicio-persona. */
 export interface UsuarioPortalDTO {
   id: string;
   email: string;
@@ -25,10 +25,22 @@ export interface UsuarioPortalDTO {
 
 /** Empresa elegida desde la API de entidades (codigo SIE + razon social). */
 export interface EmpresaAccesoDTO {
+  /** ID local de la empresa (solo fuente backoffice). */
+  empresaId?: string | null;
   idEmpresa: string;
   nombreEmpresa: string;
   /** RUC opcional: si existe una empresa local con ese RUC se vincula tambien la FK. */
   ruc?: string | null;
+  /** Comprobante por defecto de la ficha local (factura/boleta). */
+  tipoComprobante?: string | null;
+  /** Cuenta local del representante legal; obligatoria para reserva administrativa. */
+  representanteUserId?: string | null;
+  representanteLegalNombre?: string | null;
+  representanteLegalDni?: string | null;
+  representanteCorreo?: string | null;
+  direccionFiscal?: string | null;
+  emailContacto?: string | null;
+  emailFacturacion?: string | null;
 }
 
 /** Datos de la persona (se escriben en servicio-persona) + correo del acceso local. */

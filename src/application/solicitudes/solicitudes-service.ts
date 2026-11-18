@@ -1,15 +1,16 @@
-import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
+﻿import type { ISolicitudesRepository, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, ROLES_REVISION_ASOCIADO, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, SGC_LIFECYCLE_STATUSES, SGC_SYNC_ON_READ_TTL_MS, CONTRATO_FIRMADO_EXTENSIONES, ORIGENES_DOCUMENTO, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, estadoCorreccionSgc } from "@/lib/shared/utils/solicitud-documentos";
+import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, estadoCorreccionSgc, contratoFirmadoSubidoPorAsociado, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo } from "@/lib/shared/utils/solicitud-documentos";
 import { SgcApiError } from "@/domain/models/sgc";
+import { sgcEnRevisionLegal } from "@/lib/shared/utils/sgc-estado";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { enviarEmailPlantilla } from "@/lib/server/email";
@@ -17,6 +18,11 @@ import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import type { JwtPayload } from "@/lib/server/auth";
 import type { ModoNotificacion } from "@/lib/shared/constants";
 import type { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
+import type { IEventoRepository } from "@/domain/ports/evento-repository";
+import { convertirNeto, tipoCambioValido, type MonedaContrato } from "@/lib/shared/utils/moneda";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, redondear2 } from "@/lib/shared/utils/importes";
+import { planCuotasConFechas } from "@/lib/shared/utils/cuotas";
+import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 
 export class SolicitudesApplicationService {
   readonly repo: ISolicitudesRepository;
@@ -25,11 +31,45 @@ export class SolicitudesApplicationService {
     repo: ISolicitudesRepository,
     private readonly sgcIntegracion?: SgcIntegracionApplicationService,
     private readonly storage?: StorageAdapter,
+    private readonly eventoRepo?: IEventoRepository,
   ) {
     this.repo = repo;
   }
 
   async listar(params: SolicitudesListParams): Promise<SolicitudesPaginatedResult> {
+    /* La bandeja del cliente tambien debe reflejar una devolucion nueva del SGC.
+     * Se sincronizan solo sus expedientes no terminales y con TTL; el listado
+     * completo de admin (sin userId) no dispara llamadas masivas. */
+    if (this.sgcIntegracion && params.userId && params.perPage <= 50) {
+      const candidatos = await this.repo.listar({
+        ...params,
+        page: 1,
+        perPage: 100,
+        estado: undefined,
+        observadoPor: undefined,
+        sgc: undefined,
+        docsObservados: false,
+      });
+      const ahora = Date.now();
+      const pendientes = candidatos.data
+        .filter(
+          (r) =>
+            r.sgcEnabled &&
+            r.sgcEstadoEnvio &&
+            r.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.ACTIVE &&
+            r.sgcLifecycleStatus !== SGC_LIFECYCLE_STATUSES.FINALIZED &&
+            (dateUtils.toMs(r.sgcLastSyncedAt ?? null) === null ||
+              ahora - (dateUtils.toMs(r.sgcLastSyncedAt ?? null) ?? 0) >= SGC_SYNC_ON_READ_TTL_MS),
+        )
+        .slice(0, 20);
+      await Promise.all(
+        pendientes.map((r) =>
+          this.sgcIntegracion
+            ?.consultarExpediente(r.id, { regenerarContrato: false })
+            .catch(() => null),
+        ),
+      );
+    }
     return this.repo.listar(params);
   }
 
@@ -38,7 +78,119 @@ export class SolicitudesApplicationService {
   }
 
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
-    return this.repo.detalle(solicitudId);
+    const actual = await this.repo.detalle(solicitudId);
+    if (
+      !actual ||
+      !this.sgcIntegracion ||
+      !actual.sgcEnabled ||
+      !actual.sgcEstadoEnvio ||
+      actual.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.ACTIVE ||
+      actual.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.FINALIZED
+    ) {
+      return actual;
+    }
+
+    /*
+     * Sync-on-read acotado: si el cliente abre un caso devuelto/rechazado y la
+     * copia local esta vieja, se refresca contra el SGC antes de responder.
+     * El TTL evita llamar al SGC en cada apertura y el fallo es best-effort.
+     */
+    const ultimaSync = dateUtils.toMs(actual.sgcLastSyncedAt ?? null);
+    if (ultimaSync !== null && Date.now() - ultimaSync < SGC_SYNC_ON_READ_TTL_MS) {
+      return actual;
+    }
+    try {
+      await this.sgcIntegracion.consultarExpediente(solicitudId);
+      return (await this.repo.detalle(solicitudId)) ?? actual;
+    } catch {
+      return actual;
+    }
+  }
+
+  /**
+   * Cambia USD <-> PEN antes de que exista cobranza.
+   * Recalcula el plan, invalida contrato/firma local y devuelve la solicitud a revisiÃ³n.
+   */
+  async cambiarMoneda(params: {
+    solicitudId: string;
+    moneda: MonedaContrato;
+    userSub: string;
+    userPermissions: string[];
+    actor: string | null;
+  }): Promise<{ moneda: MonedaContrato; tipoCambio: number }> {
+    const detalle = await this.repo.detalle(params.solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+
+    const esAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL);
+    const esStaff = esAdmin
+      || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_GESTION)
+      || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
+    if (!esStaff && detalle.userId !== params.userSub) {
+      throw new DomainError("No puedes cambiar la moneda de esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    if (!puedeCambiarMonedaSolicitud(detalle)) {
+      throw new DomainError(
+        "La moneda no se puede cambiar porque ya existe facturaciÃ³n, pago, reserva IIMP o aprobaciÃ³n del SGC.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!detalle.planCuotas?.cuotas?.length) {
+      throw new DomainError("La solicitud no tiene un plan de cuotas para recalcular.", API_ERROR_CODES.CONFLICT, 409);
+    }
+
+    const monedaActual = detalle.moneda === MONEDAS.PEN ? MONEDAS.PEN : MONEDAS.USD;
+    if (monedaActual === params.moneda) {
+      return { moneda: params.moneda, tipoCambio: detalle.tipoCambio ?? 1 };
+    }
+
+    let tipoCambio = 1;
+    if (params.moneda === MONEDAS.PEN) {
+      const evento = detalle.eventoId && this.eventoRepo
+        ? await this.eventoRepo.findById(detalle.eventoId).catch(() => null)
+        : null;
+      const tcEvento = evento?.tipoCambio;
+      if (!tipoCambioValido(tcEvento)) {
+        throw new DomainError("El evento no tiene un tipo de cambio configurado para soles.", API_ERROR_CODES.CONFLICT, 409);
+      }
+      tipoCambio = tcEvento;
+    }
+
+    const plan = detalle.planCuotas;
+    const netoLista = convertirNeto(detalle.precio ?? 0, params.moneda, tipoCambio);
+    const descuentoPorcentaje = plan.descuentoPorcentaje ?? 0;
+    const descuentoMontoGuardado = plan.descuentoMonto ?? 0;
+    const neto = descuentoMontoGuardado > 0
+      ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+      : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+    const importes = calcularImportes(neto);
+    const nuevoPlan = {
+      modalidad: plan.modalidad,
+      cuotas: planCuotasConFechas(
+        importes.total,
+        plan.cuotas.map((cuota) => cuota.porcentaje),
+        plan.cuotas.map((cuota) => cuota.fechaVencimiento),
+      ),
+      moneda: params.moneda,
+      tipoCambio,
+      descuentoPorcentaje,
+      descuentoTipo: plan.descuentoTipo ?? "porcentaje",
+      descuentoValor: plan.descuentoValor ?? descuentoPorcentaje,
+      netoLista,
+      descuentoMonto: redondear2(netoLista - neto),
+      netoDescontado: neto,
+      igv: importes.igv,
+      total: importes.total,
+    };
+
+    await this.repo.cambiarMonedaSolicitud(params.solicitudId, {
+      moneda: params.moneda,
+      tipoCambio,
+      plan: nuevoPlan,
+      actor: params.actor,
+    });
+
+    return { moneda: params.moneda, tipoCambio };
   }
 
   /**
@@ -122,6 +274,38 @@ export class SolicitudesApplicationService {
       throw new Error(`Estado invalido: ${data.estado}`);
     }
 
+    const detalleActual = await this.repo.detalle(data.solicitudId);
+    if (detalleActual && sgcEnRevisionLegal(detalleActual.sgcStage, detalleActual.sgcLifecycleStatus)) {
+      throw new DomainError(
+        "El expediente SGC esta en revision Legal. No puedes cambiar el estado local hasta que el SGC lo devuelva.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    const esReservaEmpresa = detalleActual?.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+    const firmaSubidaAsociado = detalleActual
+      ? contratoFirmadoSubidoPorAsociado(detalleActual)
+      : false;
+    const flujoSgcIniciado =
+      esReservaEmpresa &&
+      (firmaSubidaAsociado ||
+        Boolean(detalleActual?.sgcEstadoEnvio) ||
+        Boolean(detalleActual?.sgcLifecycleStatus));
+    const aprobacionAsociadoReservaEmpresa =
+      esReservaEmpresa &&
+      data.area === REVISION_AREAS.ASOCIADO &&
+      data.estado === RESULTADOS_APROBACION.APROBADO;
+    if (aprobacionAsociadoReservaEmpresa && detalleActual) {
+      this.validarContratoFirmadoReservaEmpresa(detalleActual);
+      if (flujoSgcIniciado && !isSgcEnabled()) {
+        throw new DomainError(
+          "El contrato firmado fue cargado por el Asociado; se requiere el SGC habilitado para continuar.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
+
     /*
      * Observacion de documentos (solo Asociado): exige justificacion y al menos un
      * documento vigente; los documentos pasan a estado `observado` (baja logica por
@@ -203,16 +387,35 @@ export class SolicitudesApplicationService {
 
     const revision = await this.repo.crearOActualizarRevision(data);
 
-    // Only send alerts when transitioning FROM pendiente (first review)
-    if (!revision.fuePrimeraRevision) return revision;
+    /*
+     * Reserva administrativa: la aprobacion del Asociado es la validacion final
+     * cuando el cliente firmo digitalmente. Si el Asociado cargo el contrato
+     * firmado en nombre del cliente, se sigue el flujo regular por SGC antes de
+     * generar la orden de pago.
+     */
+    if (aprobacionAsociadoReservaEmpresa && !flujoSgcIniciado) {
+      if (detalleActual?.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO) {
+        await this.repo.marcarOrdenPago(data.solicitudId);
+      }
+      return revision;
+    }
 
     const sgcHabilitado = isSgcEnabled();
-    if (sgcHabilitado && data.area === SGC_TRIGGER_REVISION_AREA && data.estado === RESULTADOS_APROBACION.APROBADO) {
+    const aprobacionNueva =
+      data.area === SGC_TRIGGER_REVISION_AREA &&
+      data.estado === RESULTADOS_APROBACION.APROBADO &&
+      revision.estadoAnterior !== RESULTADOS_APROBACION.APROBADO;
+    const requiereSgcPorFirmaAsociado =
+      aprobacionAsociadoReservaEmpresa && flujoSgcIniciado && aprobacionNueva;
+    if ((sgcHabilitado && aprobacionNueva) || requiereSgcPorFirmaAsociado) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
       /* Envio automatico al SGC (contrato + anexos + revision): el admin ya no necesita pulsar
-       * "Enviar al SGC para revisión". Best-effort: no rompe la aprobacion si el SGC falla. */
+       * "Enviar al SGC para revisiÃ³n". Best-effort: no rompe la aprobacion si el SGC falla. */
       await this.sgcIntegracion?.enviarExpedienteAlSgc(data.solicitudId, data.reviewerEmail);
     }
+
+    // Only send alerts when transitioning FROM pendiente (first review)
+    if (!revision.fuePrimeraRevision) return revision;
     const nextRole = !sgcHabilitado && data.area === REVISION_AREAS.ASOCIADO && data.estado === RESULTADOS_APROBACION.APROBADO
       ? ROLES.LEGAL
       : REVISION_AREA_NEXT_ROLE[data.area as keyof typeof REVISION_AREA_NEXT_ROLE];
@@ -248,6 +451,64 @@ export class SolicitudesApplicationService {
   }
 
   /**
+   * La reserva administrativa no crea revisiones al reservar: al firmar el
+   * contrato se encola en la revision local del Asociado, igual que el flujo
+   * regular, para que el contrato se valide antes de generar la orden de pago.
+   */
+  private async encolarRevisionReservaEmpresa(detalle: SolicitudRow): Promise<void> {
+    if (detalle.revisiones.some((revision) => revision.area === REVISION_AREAS.ASOCIADO)) return;
+    await this.repo.crearRevisionInicial(detalle.id, REVISION_AREAS.ASOCIADO);
+    for (const rol of ROLES_REVISION_ASOCIADO) {
+      await this.repo
+        .crearAlertaRevision({
+          rol,
+          solicitudId: detalle.id,
+          clave: ALERTA_CLAVES.NUEVA_SOLICITUD_REVISION,
+          datos: { stands: detalle.standCode },
+        })
+        .catch(() => {});
+    }
+  }
+
+  /** Antes de generar la orden de pago, exige el contrato firmado vigente de esta solicitud. */
+  private validarContratoFirmadoReservaEmpresa(detalle: SolicitudRow): void {
+    const documentos = detalle.docsAdjuntos ?? [];
+    const vigente = (documento: (typeof documentos)[number]) =>
+      !documento.estado || documento.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO;
+    const porFechaDesc = (a: (typeof documentos)[number], b: (typeof documentos)[number]) =>
+      (dateUtils.toMs(b.createdAt) ?? 0) - (dateUtils.toMs(a.createdAt) ?? 0);
+
+    const contrato = documentos
+      .filter((documento) => documento.userId === null && documento.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO && vigente(documento))
+      .sort(porFechaDesc)[0];
+    const firmado = documentos
+      .filter((documento) => documento.userId !== null && documento.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO && vigente(documento))
+      .sort(porFechaDesc)[0];
+
+    if (!contrato) {
+      throw new DomainError(
+        "No hay un contrato vigente para esta reserva. Regenera el contrato antes de aprobar.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!firmado) {
+      throw new DomainError(
+        "El cliente aun no tiene un contrato firmado vigente para esta reserva.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if ((dateUtils.toMs(firmado.createdAt) ?? 0) < (dateUtils.toMs(contrato.createdAt) ?? 0)) {
+      throw new DomainError(
+        "El contrato firmado no corresponde a la version vigente. Solicita una nueva firma.",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+  }
+
+  /**
    * Habilita al cliente la firma del contrato. Es solo un habilitador:
    * no genera contrato, no cambia el estado de la solicitud ni las revisiones.
    */
@@ -275,10 +536,16 @@ export class SolicitudesApplicationService {
    * Asociado a pendiente y alerta a los revisores. No elimina nada.
    */
   async reenviarObservacion(solicitudId: string, userSub: string, userEmail: string): Promise<void> {
-    const detalle = await this.repo.detalle(solicitudId);
+    let detalle = await this.repo.detalle(solicitudId);
     if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
     if (detalle.userId !== userSub) {
       throw new DomainError("No puedes reenviar una solicitud ajena", API_ERROR_CODES.FORBIDDEN, 403);
+    }
+    /* El cliente pudo llegar con una copia local sin piezas. Antes de validar
+     * el reenvÃ­o, refrescamos el expediente para conocer las piezas v11. */
+    if (typeof this.sgcIntegracion?.consultarExpediente === "function") {
+      await this.sgcIntegracion.consultarExpediente(solicitudId).catch(() => null);
+      detalle = (await this.repo.detalle(solicitudId)) ?? detalle;
     }
     if (detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO) {
       throw new DomainError("La solicitud no esta observada", API_ERROR_CODES.CONFLICT, 409);
@@ -340,10 +607,10 @@ export class SolicitudesApplicationService {
       try {
         resultadoReenvio = await this.sgcIntegracion?.reenviarCorreccionAlSgc(solicitudId, userEmail);
       } catch (err) {
-        if (err instanceof SgcApiError && err.status === 422 && /todav[ií]a falta|still missing/i.test(err.message)) {
+        if (err instanceof SgcApiError && err.status === 422 && /todav[iÃ­]a falta|still missing/i.test(err.message)) {
           const mensaje = err.message.replace(/^SGC\s*422:\s*/i, "").slice(0, 300);
           throw new DomainError(
-            `El SGC indica que todavía falta documentación: ${mensaje}`,
+            `El SGC indica que todavÃ­a falta documentaciÃ³n: ${mensaje}`,
             API_ERROR_CODES.CONFLICT,
             409,
           );
@@ -453,16 +720,30 @@ export class SolicitudesApplicationService {
     permitirAnexosIniciales?: boolean;
     /** True solo cuando el archivo firmado lo genera la firma digital del servidor. */
     firmaDigital?: boolean;
+    /** El Asociado carga el contrato firmado en nombre del cliente (flujo alterno). */
+    subirFirmaAsociado?: boolean;
+    /** Observacion exacta del SGC que corrige este archivo. */
+    sgcObservationId?: string | null;
+    /** Documento del SGC a versionar; null = documento nuevo requerido. */
+    sgcDocumentId?: string | null;
+    /** Titulo exacto de la observacion (anexos arbitrarios). */
+    sgcTitle?: string | null;
+    /** Pieza del grupo de adjuntos del SGC que cubre este archivo. */
+    sgcPieceId?: string | null;
   }): Promise<Record<string, unknown>> {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
+    const isAsociado = params.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
+    const esCargaFirmaAsociado = params.subirFirmaAsociado === true;
+    const detalle = !isAdmin || esCargaFirmaAsociado
+      ? await this.repo.detalle(params.solicitudId)
+      : null;
 
     /*
      * El cliente solo puede adjuntar documentos mientras la solicitud este en el
      * paso Legal (SGC) y aun no se hayan enviado documentos al SGC. El admin no
      * tiene esta restriccion (adjunta el contrato v1 / anexos en el paso Legal).
      */
-    if (!isAdmin) {
-      const detalle = await this.repo.detalle(params.solicitudId);
+    if (!isAdmin && !esCargaFirmaAsociado) {
       if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
       if (detalle.userId !== params.userSub) {
         throw new DomainError("No puedes adjuntar documentos a esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
@@ -489,7 +770,7 @@ export class SolicitudesApplicationService {
         !(params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && puedeClienteSubirAnexosSgc(detalle))
       ) {
         throw new DomainError(
-          "Aún no puedes adjuntar documentos. Se habilita al llegar a la revisión Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
+          "AÃºn no puedes adjuntar documentos. Se habilita al llegar a la revisiÃ³n Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
           API_ERROR_CODES.CONFLICT,
           409,
         );
@@ -506,6 +787,73 @@ export class SolicitudesApplicationService {
     const tipoValido = Object.values(TIPOS_DOCUMENTO_SOLICITUD).includes(params.tipo as TipoDocumentoSolicitud)
       ? (params.tipo as TipoDocumentoSolicitud)
       : null;
+
+    /*
+     * Flujo alterno: el Asociado sube, en nombre del cliente, el PDF firmado.
+     * Solo se permite en la ventana de firma de una reserva administrativa y
+     * deja trazabilidad en `uploadedBy` + `origen`.
+     */
+    if (esCargaFirmaAsociado) {
+      if (!isAsociado && !isAdmin) {
+        throw new DomainError(
+          "Solo el Asociado puede subir el contrato firmado en nombre del cliente",
+          API_ERROR_CODES.FORBIDDEN,
+          403,
+        );
+      }
+      if (tipoValido !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) {
+        throw new DomainError(
+          "La carga en nombre del cliente solo admite un contrato firmado",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+      if (detalle.tipo !== TIPOS_SOLICITUD.RESERVA_EMPRESA) {
+        throw new DomainError(
+          "La carga del contrato firmado por el Asociado solo aplica a reservas administrativas",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (!isSgcEnabled()) {
+        throw new DomainError(
+          "El flujo alterno requiere el SGC habilitado para continuar la revision",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (
+        !contratoClientePendienteFirma(detalle) &&
+        !contratoFirmadoPendienteReemplazo(detalle)
+      ) {
+        throw new DomainError(
+          "La carga en nombre del cliente solo esta disponible en la firma inicial o cuando el contrato firmado esta observado.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      if (!archivoUtils.extensionPermitida(params.url, CONTRATO_FIRMADO_EXTENSIONES)) {
+        throw new DomainError(
+          "El contrato firmado debe ser un PDF",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+    }
+
+    if (esCargaFirmaAsociado && detalle) {
+      const firmadosActivos = detalle.docsAdjuntos
+        .filter(
+          (doc) =>
+            doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+            (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+        )
+        .map((doc) => doc.id);
+      if (firmadosActivos.length > 0) {
+        await this.repo.marcarDocumentosReemplazadosPorIds(params.solicitudId, firmadosActivos);
+      }
+    }
 
     const categoria = tipoValido ?? null;
     /*
@@ -536,8 +884,27 @@ export class SolicitudesApplicationService {
       }
       requisito = params.requisito;
     }
+    /*
+     * Metadatos de la observacion SGC: solo tienen sentido en documentos que el
+     * cliente corrige (anexo o contrato firmado). El titulo exacto evita inferir
+     * el documento observado desde el nombre fisico del archivo.
+     */
+    const permiteMetadatosSgc =
+      tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO ||
+      tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO;
+    const sgcObservationId = permiteMetadatosSgc
+      ? (params.sgcObservationId?.trim() || null)
+      : null;
+    const sgcDocumentId = permiteMetadatosSgc
+      ? (params.sgcDocumentId?.trim() || null)
+      : null;
+    const sgcTitle = permiteMetadatosSgc ? (params.sgcTitle?.trim() || null) : null;
+    const sgcPieceId = permiteMetadatosSgc ? (params.sgcPieceId?.trim() || null) : null;
+
     let userId: string | null;
-    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
+    if (esCargaFirmaAsociado) {
+      userId = detalle?.userId ?? null;
+    } else if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
       userId = null;
     } else if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO || tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) {
       userId = params.userSub;
@@ -570,19 +937,21 @@ export class SolicitudesApplicationService {
      * Nueva version del cliente: la version vigente del mismo requisito/categoria
      * pasa a `reemplazado` (historial). Nunca se elimina fisicamente.
      */
-    if (!isAdmin && categoria) {
+    /* Una correccion vinculada a una observacion SGC no debe reemplazar todos
+     * los anexos del mismo tipo: la observacion identifica el archivo exacto. */
+    if (!isAdmin && !esCargaFirmaAsociado && categoria && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 
     /* Alinea el nombre local con el que se enviara al SGC (mismo URL/requisito/stand). */
     let nombreDocumento = params.nombre;
-    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && requisito) {
+    if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && (requisito || sgcTitle)) {
       const detalleCanonico = await this.repo.detalle(params.solicitudId);
       if (detalleCanonico) {
         const identificador = detalleCanonico.standCode || detalleCanonico.standCodes.join("-") || params.solicitudId.slice(0, 8);
         const hash = (await sha256Hex(new TextEncoder().encode(params.url))).slice(0, 6);
         nombreDocumento = nombreArchivoSgc({
-          titulo: tituloSgcDocumento(params.nombre, requisito),
+          titulo: sgcTitle ?? tituloSgcDocumento(params.nombre, requisito),
           nombreOriginal: params.nombre,
           requisito,
           identificador,
@@ -591,23 +960,53 @@ export class SolicitudesApplicationService {
       }
     }
 
-    const doc = await this.repo.crearDocumentoAdjunto(
-      params.solicitudId, params.url, nombreDocumento,
-      userId,
-      params.userEmail,
-      categoria,
-      requisito,
-      sha256Firmado,
-    );
+    const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle || sgcPieceId
+      ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle, pieceId: sgcPieceId }
+      : null;
+    const doc = esCargaFirmaAsociado
+      ? await this.repo.crearDocumentoAdjunto(
+          params.solicitudId, params.url, nombreDocumento,
+          userId,
+          params.userEmail,
+          categoria,
+          requisito,
+          sha256Firmado,
+          sgcMetadata ?? undefined,
+          ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO,
+        )
+      : sgcMetadata
+        ? await this.repo.crearDocumentoAdjunto(
+            params.solicitudId, params.url, nombreDocumento,
+            userId,
+            params.userEmail,
+            categoria,
+            requisito,
+            sha256Firmado,
+            sgcMetadata,
+          )
+        : await this.repo.crearDocumentoAdjunto(
+            params.solicitudId, params.url, nombreDocumento,
+            userId,
+            params.userEmail,
+            categoria,
+            requisito,
+            sha256Firmado,
+          );
 
     /*
-     * Avance del flujo: cuando el cliente sube el contrato firmado, se avisa al
-     * admin para que proceda con la revision de las areas. Best-effort: un fallo
-     * de la alerta no revierte la subida.
+     * Avance del flujo: al firmar se avisa al admin y, en la reserva
+     * administrativa, se encola en la revision del Asociado. No se genera la
+     * orden de pago hasta que el Asociado valide el contrato.
      */
     if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO) {
+      const detalle = await this.repo.detalle(params.solicitudId);
+      if (
+        detalle?.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA &&
+        detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE
+      ) {
+        await this.encolarRevisionReservaEmpresa(detalle);
+      }
       try {
-        const detalle = await this.repo.detalle(params.solicitudId);
         if (detalle) {
           await this.repo.crearAlertaRol({
             rol: ROLES.ADMIN,

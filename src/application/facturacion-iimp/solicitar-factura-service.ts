@@ -3,6 +3,7 @@ import {
   CUOTAS_PORCENTAJE_TOTAL,
   FACTURACION_IIMP,
   IIMP_CARGO_REPRESENTANTE,
+  MAX_ARCHIVOS_IIMP_POR_LLAMADA,
   MAX_CUOTAS_IIMP,
   MAX_STANDS_IIMP,
   REGEX_DNI,
@@ -23,6 +24,7 @@ import type { DatosFacturacionSolicitud } from "@/domain/models/entities";
 import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
 import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
 import { numeroSolicitudIImp } from "./numero-solicitud";
+import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 
 export interface ResultadoSolicitudFactura {
   numeroSolicitud: string;
@@ -147,6 +149,7 @@ export class SolicitarFacturaApplicationService {
       numeroSolicitud,
       tipEvCod: datos.tipoEvento,
       evenCod: datos.codigoEvento,
+      moneda: datos.moneda,
       stands: datos.stands,
       cuotas,
       ...(archivosNormalizados.length > 0 ? { archivos: archivosNormalizados } : {}),
@@ -177,13 +180,70 @@ export class SolicitarFacturaApplicationService {
     };
   }
 
+  /**
+   * Completa la declaracion de requisitos de una solicitud que ya se registro en
+   * el IIMP con el checklist vacio (casos previos a la validacion). Actualiza solo
+   * el dato local y, si el cliente adjunta documentos, los agrega a la cuenta
+   * corriente existente. No reenvia la reserva (NumeroSolicitud es unico).
+   */
+  async completarRequisitos(
+    cuotaId: string,
+    ident: ClienteIdent,
+    archivos: ReservaIimpArchivoInput[] = [],
+    requisitos: RequisitosFacturacionInput | null = null,
+  ): Promise<void> {
+    const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
+    if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
+    const fact = await this.facturacion.facturacionDeCuota(cuotaId);
+    if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const datos = await this.solicitudes.datosReservaIImp(fact.solicitudId);
+    if (!datos) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    if (!datos.iimpContrato || Number(datos.iimpCuentaCorriente ?? 0) <= 0) {
+      throw new DomainError(
+        "La reserva aun no esta registrada en el IIMP; envia primero tu solicitud de factura",
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
+    if (!requisitosVacios(datos.requisitosFacturacion as RequisitosFacturacionDeclarados | null)) {
+      throw new DomainError("Los requisitos de facturacion ya fueron declarados", API_ERROR_CODES.CONFLICT, 409);
+    }
+    if (!requisitos) {
+      throw new DomainError("Declara al menos un requisito o marca 'Ninguna de las anteriores'", API_ERROR_CODES.VALIDATION, 400);
+    }
+
+    const normalizados = this.normalizarRequisitos(requisitos);
+    const cuotasPlan = datos.planCuotas?.cuotas?.length ?? 0;
+    const archivosNormalizados = archivos
+      .filter((archivo) => archivo.link?.trim())
+      .map((archivo) => ({ ...archivo, link: normalizarLinkArchivoIImp(archivo.link) }));
+    for (const archivo of archivosNormalizados) {
+      validarArchivoIImp(archivo, cuotasPlan);
+    }
+    if (archivosNormalizados.length > 0) {
+      const cuenta = { numeroSolicitud: numeroSolicitudIImp(fact.solicitudId) };
+      for (let i = 0; i < archivosNormalizados.length; i += MAX_ARCHIVOS_IIMP_POR_LLAMADA) {
+        await this.reserva.agregarArchivos({
+          ...cuenta,
+          archivos: archivosNormalizados.slice(i, i + MAX_ARCHIVOS_IIMP_POR_LLAMADA),
+        });
+      }
+    }
+
+    const previos = datos.requisitosFacturacion as { cuota?: number } | null;
+    await this.solicitudes.actualizarRequisitosFacturacion(fact.solicitudId, {
+      ...normalizados,
+      cuota: previos?.cuota ?? fact.cuotas.find((c) => c.id === cuotaId)?.numero ?? 1,
+    });
+  }
+
   /** Normaliza la declaracion de requisitos y valida el enlace de la plataforma. */
   private normalizarRequisitos(input: RequisitosFacturacionInput): RequisitosFacturacionInput {
     const enlace = (input.plataformaUrl ?? "").trim();
     if (enlace && !/^https?:\/\/\S+$/i.test(enlace)) {
       throw new DomainError("El enlace de la plataforma debe ser una URL http(s) valida", API_ERROR_CODES.VALIDATION, 400);
     }
-    return {
+    const normalizado: RequisitosFacturacionInput = {
       oc: input.oc === true,
       hes: input.hes === true,
       plataforma: input.plataforma === true,
@@ -193,13 +253,30 @@ export class SolicitarFacturaApplicationService {
       otros: (input.otros ?? "").trim() || null,
       ninguna: input.ninguna === true,
     };
+    /* El cliente debe declarar al menos un requisito (o marcar "Ninguna"); el modal
+       envia un objeto aun sin seleccion, por eso se valida aqui y no en el null. */
+    const declaro =
+      normalizado.oc ||
+      normalizado.hes ||
+      normalizado.plataforma ||
+      normalizado.valorizacion ||
+      Boolean(normalizado.otros) ||
+      normalizado.ninguna;
+    if (!declaro) {
+      throw new DomainError(
+        "Declara al menos un requisito o marca 'Ninguna de las anteriores'",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    return normalizado;
   }
 
   /** Arma el payload del IIMP desde el snapshot (preferente) y la empresa (enriquecimiento). */
   private async armarPayload(
     snapshot: DatosFacturacionSolicitud | null,
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
-    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }>; archivos?: ReservaIimpArchivoInput[] },
+    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; moneda?: string | null; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }>; archivos?: ReservaIimpArchivoInput[] },
   ): Promise<ReservaIimpInput> {
     /* Tipo normalizado: define el payload del IIMP (01 factura / 03 boleta). No se asume
      * factura en silencio: si ninguna fuente trae un tipo valido, se rechaza. */

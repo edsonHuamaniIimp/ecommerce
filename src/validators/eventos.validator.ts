@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TIPO_CAMBIO_MAX } from "@/lib/shared/utils/moneda";
 
 export const createEventoSchema = z.object({
   evento_padre_id: z.string().min(1, "evento_padre_id requerido"),
@@ -40,6 +41,7 @@ export const updateEventoSchema = z.object({
   plano: z.string().optional(),
   imagen: z.string().optional(),
   modal_info: modalInfoSchema.nullable().optional(),
+  tipo_cambio: z.number().positive().max(TIPO_CAMBIO_MAX).nullable().optional(),
 });
 
 export type CreateEventoInput = z.infer<typeof createEventoSchema>;

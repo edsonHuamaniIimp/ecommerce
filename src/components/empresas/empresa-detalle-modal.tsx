@@ -204,7 +204,10 @@ export function EmpresaDetalleModal({ empresa, onClose }: Props) {
               <Dato
                 label="Cronograma de cuotas"
                 value={empresa.configCuotas
-                  ? `${empresa.configCuotas.maxCuotas} cuota(s): ${empresa.configCuotas.fechas.map((fecha) => dateUtils.format(fecha)).join(", ")}`
+                  ? `${empresa.configCuotas.maxCuotas} cuota(s): ${empresa.configCuotas.fechas.map((fecha, i) => {
+                      const porcentaje = empresa.configCuotas?.porcentajes?.[i];
+                      return `${dateUtils.format(fecha)}${porcentaje !== undefined ? ` (${porcentaje}%)` : ""}`;
+                    }).join(", ")}`
                   : "Cronograma estándar"}
               />
             </dl>

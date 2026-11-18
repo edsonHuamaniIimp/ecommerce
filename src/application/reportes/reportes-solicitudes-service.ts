@@ -1,7 +1,7 @@
 ﻿import { API_ERROR_CODES, PERMISSIONS } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { IReportesSolicitudesRepository } from "@/domain/ports/reportes-solicitudes-repository";
-import type { EmpresaPaisReporte, MapaPabellonesReporte, ReporteExportacion, ResumenPaisSolicitudes } from "@/domain/models/reportes";
+import type { EmpresaPaisReporte, MapaPabellonesReporte, ReporteExportacion, ReporteSolicitudesPreReservas, ResumenPaisSolicitudes } from "@/domain/models/reportes";
 
 export class ReportesSolicitudesApplicationService {
   constructor(private readonly repo: IReportesSolicitudesRepository) {}
@@ -42,6 +42,14 @@ export class ReportesSolicitudesApplicationService {
   ): Promise<ReporteExportacion> {
     this.autorizar(permissions);
     return this.repo.exportacion(params);
+  }
+
+  async exportacionSolicitudesPreReservas(
+    params: { eventoId?: string },
+    permissions: string[],
+  ): Promise<ReporteSolicitudesPreReservas> {
+    this.autorizar(permissions);
+    return this.repo.exportacionSolicitudesPreReservas(params);
   }
 }
 

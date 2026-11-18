@@ -31,6 +31,8 @@ function mockRepo(): IFacturacionRepository {
     esPropietario: vi.fn(),
     esPropietarioDeCuota: vi.fn(),
     facturacionDeCuota: vi.fn(),
+    listarCandidatosRecordatorio: vi.fn(),
+    registrarNotificacionRecordatorio: vi.fn(),
   };
 }
 

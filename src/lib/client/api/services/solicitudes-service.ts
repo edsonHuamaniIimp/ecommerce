@@ -4,6 +4,8 @@ import { internalApi } from "./internal-api";
 import type { SolicitudesPaginatedDTO, SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { SolicitudDdEstadoDTO } from "@/types/dto/solicitudes/solicitud-dd-estado.dto";
 import type { SgcUrlDescargaDTO } from "@/types/dto/sgc/url-descarga.dto";
+import type { MonedaContrato } from "@/lib/shared/utils/moneda";
+import type { SolicitudesFiltroTipo } from "@/lib/shared/constants";
 
 interface RevisionSalidaDTO {
   id: string;
@@ -33,8 +35,10 @@ export interface SolicitudesListFiltros {
   pais?: string;
   areaPendiente?: string;
   sgc?: string;
+  contrato?: string;
   docsObservados?: boolean;
   observadoPor?: "asociado" | "legal";
+  tipo?: SolicitudesFiltroTipo;
   desde?: string;
   hasta?: string;
   orden?: string;
@@ -61,8 +65,10 @@ export const solicitudesService = {
       if (filtros.pais) qs.set("pais", filtros.pais);
       if (filtros.areaPendiente) qs.set("areaPendiente", filtros.areaPendiente);
       if (filtros.sgc) qs.set("sgc", filtros.sgc);
+      if (filtros.contrato) qs.set("contrato", filtros.contrato);
       if (filtros.docsObservados) qs.set("docsObservados", "true");
       if (filtros.observadoPor) qs.set("observadoPor", filtros.observadoPor);
+      if (filtros.tipo) qs.set("tipo", filtros.tipo);
       if (filtros.desde) qs.set("desde", filtros.desde);
       if (filtros.hasta) qs.set("hasta", filtros.hasta);
       if (filtros.orden) qs.set("orden", filtros.orden);
@@ -96,6 +102,14 @@ export const solicitudesService = {
 
   revisar(body: { solicitudId: string; area: string; estado: string; comentario?: string; documentosObservados?: string[] }) {
     return internalApi.post<RevisionSalidaDTO>(`/api/solicitudes/revisar`, body);
+  },
+
+  /** Cambia USD/PEN mientras no exista cobranza; invalida contrato/firma y vuelve a revision. */
+  cambiarMoneda(body: { solicitudId: string; moneda: MonedaContrato }) {
+    return internalApi.post<{ moneda: MonedaContrato; tipoCambio: number }>(
+      `/api/solicitudes/cambiar-moneda`,
+      body,
+    );
   },
 
   /** Reenvio del cliente tras la observacion local: valida reemplazos y vuelve a revision. */
@@ -132,7 +146,7 @@ export const solicitudesService = {
     return internalApi.post<{ contratoHabilitado: boolean }>(`/api/solicitudes/habilitar-contrato`, body);
   },
 
-  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string; requisito?: string | null; permitirAnexosIniciales?: boolean; firmaDigital?: boolean }) {
+  uploadDocumento(body: { solicitudId: string; url: string; nombre: string; tipo?: string; requisito?: string | null; permitirAnexosIniciales?: boolean; firmaDigital?: boolean; subirFirmaAsociado?: boolean; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; sgcPieceId?: string | null }) {
     return internalApi.post<Record<string, unknown>>(`/api/solicitudes/upload-doc`, body);
   },
 

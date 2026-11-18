@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PERSONALIZADAS, type Idioma } from "@/lib/shared/constants";
+import { CUOTAS_PORCENTAJE_PASO, CUOTAS_SUMA_TOLERANCIA, IDIOMAS_DISPONIBLES, MAX_CUOTAS_PERSONALIZADAS, MONEDAS, type Idioma } from "@/lib/shared/constants";
 import { fechasCuotasEstructuralmenteValidas } from "@/lib/shared/utils/cuotas";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -48,10 +48,24 @@ const contratoDatosSchema = z.object({
  */
 export const generarContratoSchema = z.object({
   solicitudId: z.string().uuid("solicitudId invalido"),
+  /** Moneda del contrato. */
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   /** Cuotas del plan; si faltan (p.ej. admin regenerando en una correccion SGC) se usa el plan persistido. */
   cuotas: cuotasContratoSchema.optional(),
+  /** Descuento comercial administrado desde la bandeja (solo admin). */
+  descuentoTipo: z.enum(["porcentaje", "monto"]).optional(),
+  descuentoValor: z.number().min(0).optional(),
+  /** Descuento individual por stand; excluyente con el descuento global. */
+  descuentosPorStand: z
+    .array(z.object({
+      standCode: z.string().trim().min(1).max(30),
+      tipo: z.enum(["porcentaje", "monto"]),
+      valor: z.number().min(0),
+    }))
+    .max(50)
+    .optional(),
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
   contrato: contratoDatosSchema.optional(),
 });
@@ -63,6 +77,8 @@ export const generarContratoSchema = z.object({
  */
 export const borradorContratoSchema = z.object({
   standIds: z.array(z.string().uuid("standId invalido")).min(1, "Selecciona al menos un stand").max(50, "Demasiados stands"),
+  /** Moneda del contrato. */
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   /** Idioma del documento (F3); si falta se resuelve el del cliente. */
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   cuotas: cuotasContratoSchema,
@@ -80,4 +96,26 @@ export const firmarContratoSchema = z.object({
   idioma: z.enum(IDIOMAS_DISPONIBLES as [Idioma, ...Idioma[]]).optional(),
   /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
   contrato: contratoDatosSchema.optional(),
+  /** Sellos vectoriales: uno por firmante (principal primero). */
+  sellos: z
+    .array(
+      z.object({
+        esSello: z.boolean(),
+        nombres: z.string(),
+        apellidos: z.string(),
+        fecha: z.string(),
+        imagen: z.string().optional(),
+        secciones: z.array(
+          z.object({
+            pagina: z.number().int().min(1),
+            x: z.number(),
+            y: z.number(),
+            w: z.number(),
+            h: z.number(),
+          }),
+        ).max(4),
+      }),
+    )
+    .max(10)
+    .optional(),
 });

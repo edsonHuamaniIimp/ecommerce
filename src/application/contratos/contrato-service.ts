@@ -3,11 +3,13 @@ import 'server-only';
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import PizZip from "pizzip";
 import Docxtemplater from "docxtemplater";
 import ImageModule from "docxtemplater-image-module-free";
 import sharp from "sharp";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { concatenarAnexosPdf } from "./anexos-pdf";
 
@@ -16,20 +18,25 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
+import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { PlanoEntity } from "@/domain/models/plano-entities";
 import type { EmpresaRepresentanteAdicionalEntity } from "@/domain/models/empresa";
-import type { DatosContrato } from "@/domain/models/entities";
+import type { DatosContrato, PlanCuotasSolicitud } from "@/domain/models/entities";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, type Idioma } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, type Idioma, type TipoDescuentoGlobal } from "@/lib/shared/constants";
+import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
-import { calcularImportes } from "@/lib/shared/utils/importes";
+import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
+import { convertirNeto, esMonedaContrato, etiquetaMoneda, simboloMoneda, tipoCambioValido, CUENTAS_CONTRATO, MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { configCuotasValida, cronogramaValido, cuotasCoincidenConfig, etiquetaModalidad, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, planCuotasConFechas, porcentajesValidos, type ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
 import { construirSvgRecorte } from "@/lib/shared/utils/recorte-plano";
-import { renderizarMacroConSecciones } from "@/lib/server/macro-plano";
+import { ANCHO_SALIDA_OPERADOR, renderizarMacroConSecciones } from "@/lib/server/macro-plano";
 import { numberUtils } from "@/lib/shared/utils/number";
+import { nombrePais } from "@/lib/shared/utils/pais";
+import { labelTipoStand } from "@/lib/shared/utils/tipo-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeClienteSubirDocumentos } from "@/lib/shared/utils/solicitud-documentos";
@@ -64,10 +71,36 @@ function liberarTurnoConversion(): void {
   esperaTurnoPdf.shift()?.();
 }
 
+/** Fila del Anexo 1 economico por stand (solo contrato de Pabellones Internacionales). */
+interface TablaEconomicaFila {
+  numero: string;
+  modulo: string;
+  tipo: string;
+  precio: string;
+  descuento_porcentaje: string;
+  descuento_monto: string;
+  neto: string;
+  final: string;
+}
+
+interface TablaEconomicaData {
+  filas: TablaEconomicaFila[];
+  total_precio: string;
+  total_descuento: string;
+  total_neto: string;
+  total_final: string;
+}
+
 /** Plantillas DOCX etiquetadas por idioma (F3: contrato en el idioma del cliente). */
 export const PLANTILLAS_CONTRATO: Record<Idioma, string[]> = {
   [IDIOMAS.ES]: ["plantillas", "contrato-perumin38-tags.docx"],
   [IDIOMAS.EN]: ["plantillas", "contrato-perumin38-tags-en.docx"],
+};
+
+/** Plantilla oficial del contrato de participacion del Operador Internacional (P38). */
+export const PLANTILLAS_CONTRATO_RESERVA_EMPRESA: Record<Idioma, string[]> = {
+  [IDIOMAS.ES]: ["plantillas", "contrato-p38-operador-tags.docx"],
+  [IDIOMAS.EN]: ["plantillas", "contrato-p38-operador-tags.docx"],
 };
 
 /**
@@ -85,10 +118,27 @@ export const ANEXOS_PDF_CONTRATO: Record<Idioma, string[]> = {
 const PNG_1PX_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAJYAAAA3CAYAAADuQbOpAAAACXBIWXMAAAPoAAAD6AG1e1JrAAABHElEQVR4nO2SsQnAABCEfv+lzRIJR8TCXsQDLmrAyw2aqqnuiwaN1VjXWE1wf2kwFwiUDeYCgbLBXCBQNpgLBMoGc4FA2WAuECgbzAUCZYO5QKBsMBcIlA3mAoGywVwgUDaYCwTKBnOBQNlgLhAoG8wFAmWDuUCgbDAXCJQN5gKBssFcIFA2mAsEygZzgUDZYC4QKBvMBQJlg7lAoGwwFwiUDeYCgbLBXCBQNpgLBMoGc4FA2WAuECgbzAUCZYO5QKBsMBcIlA3mAoGywVwgUDaYCwTKBnOBQNlgLhAoG8wFAmWDuUCgbDAXCJQN5gKBssFcIFA2mAsEygZzgUDZYC4QKBvMBQJlg7lAoGwwFwiUDeYCgbLBXCBQNngA4xNS816GO2oAAAAASUVORK5CYII=";
 
+export interface SelloVectorialFirma {
+  esSello: boolean;
+  nombres: string;
+  apellidos: string;
+  fecha: string;
+  /** Imagen capturada (cursor) en base64 (dataURL); solo cuando NO es sello. */
+  imagen?: string;
+  secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
+}
+
 export interface GenerarContratoInput {
   solicitudId: string;
+  /** Moneda solicitada (la solicitud ya guarda el snapshot; se conserva por compatibilidad). */
+  moneda?: MonedaContrato;
   /** Cuotas configuradas por el cliente (1..3); si falta usa el plan persistido. */
   cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
+  /** Descuento comercial administrado desde la bandeja (solo admin). */
+  descuentoTipo?: TipoDescuentoGlobal;
+  descuentoValor?: number;
+  /** Descuento individual por stand; excluyente con el descuento global. */
+  descuentosPorStand?: Array<{ standCode: string; tipo: TipoDescuentoGlobal; valor: number }>;
   /** Idioma del documento (es|en); si falta se resuelve el del cliente. */
   idioma?: Idioma;
   /** Firma digital del cliente (imagen base64) para estamparla en el contrato. */
@@ -101,6 +151,12 @@ export interface GenerarContratoInput {
   userPermissions: string[];
   /** Al firmar se genera el PDF firmado pero NO se reemplaza el contrato del admin. */
   registrarContrato?: boolean;
+  /** Sellos vectoriales (uno por firmante, principal primero). */
+  sellosFirmantes?: SelloVectorialFirma[];
+  /** true = estampar imagenes de firma reales (solo al firmar; el contrato del admin va sin firmas). */
+  estamparFirmas?: boolean;
+  /** true = generacion interna de la firma: el cliente ya paso las validaciones de `firmar`. */
+  esFirma?: boolean;
 }
 
 export interface FirmarContratoInput {
@@ -112,12 +168,16 @@ export interface FirmarContratoInput {
   userEmail?: string;
   userSub: string;
   userPermissions: string[];
+  /** Sellos vectoriales (uno por firmante, principal primero). */
+  sellosVectoriales?: SelloVectorialFirma[];
 }
 
 /** Borrador del contrato del wizard (paso Contrato): aun NO existe solicitud. */
 export interface GenerarBorradorInput {
   /** IDs (gess_stand) de los stands seleccionados. */
   standIds: string[];
+  /** Moneda elegida (USD | PEN). */
+  moneda?: MonedaContrato;
   cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
   idioma?: Idioma;
   /** Email de la cuenta autenticada (empresa y firma del perfil). */
@@ -131,6 +191,7 @@ export interface GenerarBorradorInput {
 /** Firma digital del borrador (antes de que exista la solicitud). */
 export interface FirmarBorradorInput {
   standIds: string[];
+  moneda?: MonedaContrato;
   cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
   idioma?: Idioma;
   email: string;
@@ -164,6 +225,7 @@ export class ContratoApplicationService {
     private readonly gess: IGessRepository,
     private readonly auth: IAuthRepository,
     private readonly storage: StorageAdapter,
+    private readonly eventoRepo?: IEventoRepository,
   ) {}
 
   async generar(input: GenerarContratoInput): Promise<ContratoGenerado> {
@@ -187,7 +249,7 @@ export class ContratoApplicationService {
     if (!puedeGenerar && detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE && !puedeClienteSubirDocumentos(detalle)) {
       throw new DomainError("La solicitud ya avanzo en el flujo; no puedes regenerar el contrato.", API_ERROR_CODES.CONFLICT, 409);
     }
-    if (!isAdmin && !esRevisorContrato && detalle.contratoHabilitado !== true) {
+    if (!isAdmin && !esRevisorContrato && detalle.contratoHabilitado !== true && input.esFirma !== true) {
       const esPrimeraPlantilla = detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && detalle.docsAdminCount === 0;
       if (!esPrimeraPlantilla) {
         throw new DomainError(
@@ -237,8 +299,98 @@ export class ContratoApplicationService {
     const configCuotasEmpresa = empresa?.configCuotas
       ?? (emailPropietario ? (await this.auth.findPerfilByEmail(emailPropietario).catch(() => null))?.empresa?.configCuotas : null)
       ?? null;
+    const moneda: MonedaContrato = esMonedaContrato(detalle.moneda) ? detalle.moneda : MONEDAS_CONTRATO.USD;
+    const tipoCambio = detalle.tipoCambio ?? 1;
+    if (moneda === MONEDAS_CONTRATO.PEN && !tipoCambioValido(tipoCambio)) {
+      throw new DomainError("La solicitud no tiene un tipo de cambio valido para soles.", API_ERROR_CODES.CONFLICT, 409);
+    }
+    const netoLista = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
+    const planPersistido = detalle.planCuotas;
+    let descuentoTipo = input.descuentoTipo ?? planPersistido?.descuentoTipo ?? TIPOS_DESCUENTO.PORCENTAJE;
+    let descuentoValor = input.descuentoValor ?? planPersistido?.descuentoValor ?? planPersistido?.descuentoPorcentaje ?? 0;
+    let descuentoPorcentaje = 0;
+    let neto: number;
+    let descuentosDetalle = planPersistido?.descuentosPorStand ?? null;
+
+    if (input.descuentosPorStand) {
+      if (!isAdmin) {
+        throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
+      }
+      if (input.descuentoTipo !== undefined || input.descuentoValor !== undefined) {
+        throw new DomainError("No se puede combinar descuento global con descuento por stand.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const stands = detalle.standsDetalle ?? [];
+      if (stands.length === 0 || stands.length !== input.descuentosPorStand.length) {
+        throw new DomainError("El descuento por stand no coincide con los stands de la solicitud.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const detalles: NonNullable<typeof descuentosDetalle> = [];
+      for (const stand of stands) {
+        const item = input.descuentosPorStand.find((descuento) => descuento.standCode === stand.standCode);
+        if (!item) {
+          throw new DomainError(`Falta el descuento del stand ${stand.standCode}.`, API_ERROR_CODES.VALIDATION, 400);
+        }
+        const precio = convertirNeto(stand.precio ?? 0, moneda, tipoCambio);
+        const valido = item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? descuentoPorcentajeValido(item.valor)
+          : descuentoMontoValido(precio, item.valor);
+        if (!valido) {
+          throw new DomainError(`El descuento del stand ${stand.standCode} es invalido.`, API_ERROR_CODES.VALIDATION, 400);
+        }
+        const descuento = item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? redondear2(precio - aplicarDescuentoNeto(precio, item.valor))
+          : redondear2(item.valor);
+        const netoStand = item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? aplicarDescuentoNeto(precio, item.valor)
+          : aplicarDescuentoMonto(precio, item.valor);
+        detalles.push({
+          standId: stand.standCode,
+          standCode: stand.standCode,
+          precio,
+          tipo: item.tipo,
+          valor: item.valor,
+          porcentaje: item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+            ? item.valor
+            : redondear2(precio > 0 ? (descuento * 100) / precio : 0),
+          descuentoMonto: descuento,
+          neto: netoStand,
+        });
+      }
+      descuentoTipo = TIPOS_DESCUENTO.POR_STAND;
+      descuentoValor = 0;
+      descuentoPorcentaje = 0;
+      descuentosDetalle = detalles;
+      neto = redondear2(detalles.reduce((total, detalleStand) => total + detalleStand.neto, 0));
+    } else {
+      if ((input.descuentoTipo !== undefined || input.descuentoValor !== undefined) && !isAdmin) {
+        throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
+      }
+      if (descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE && !descuentoPorcentajeValido(descuentoValor)) {
+        throw new DomainError("El porcentaje de descuento es invalido.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      if (descuentoTipo === TIPOS_DESCUENTO.MONTO && !descuentoMontoValido(netoLista, descuentoValor)) {
+        throw new DomainError("El monto de descuento es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const descuentoPorStandSinInput =
+        descuentoTipo === TIPOS_DESCUENTO.POR_STAND &&
+        input.descuentoTipo === undefined &&
+        input.descuentoValor === undefined;
+      const descuentoMontoGuardado = planPersistido?.descuentoMonto ?? 0;
+      if (descuentoPorStandSinInput && !descuentoMontoValido(netoLista, descuentoMontoGuardado)) {
+        throw new DomainError("El descuento por stand del plan es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      descuentoPorcentaje = descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE ? descuentoValor : 0;
+      neto = descuentoPorStandSinInput
+        ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+        : descuentoTipo === TIPOS_DESCUENTO.MONTO
+          ? aplicarDescuentoMonto(netoLista, descuentoValor)
+          : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+      descuentosDetalle = descuentoTipo === TIPOS_DESCUENTO.POR_STAND
+        ? (planPersistido?.descuentosPorStand ?? null)
+        : null;
+    }
+
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
-      detalle.precio ?? 0,
+      neto,
       cuotasSolicitadas,
       {
         permitirPersonalizado: isAdmin || usandoPlanPersistido,
@@ -246,9 +398,40 @@ export class ContratoApplicationService {
         modalidadPersistida: usandoPlanPersistido ? detalle.planCuotas?.modalidad : undefined,
       },
     );
+    const planParaTabla = descuentosDetalle
+      ? { ...(planPersistido ?? { modalidad: "", cuotas: [] }), descuentosPorStand: descuentosDetalle }
+      : planPersistido;
+    const tablaEconomica = detalle.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA
+      ? this.construirTablaEconomica({
+          stands: detalle.standsDetalle,
+          plan: planParaTabla,
+          moneda,
+          tipoCambio,
+          netoLista,
+          neto,
+          igv: importes.igv,
+          total: importes.total,
+          descuentoTipo,
+          descuentoValor,
+        })
+      : undefined;
 
     /* Snapshot del plan: fuente de verdad para regenerar el contrato y para Facturacion. */
-    await this.solicitudes.guardarPlanCuotas(input.solicitudId, { modalidad, cuotas: plan });
+    await this.solicitudes.guardarPlanCuotas(input.solicitudId, {
+      modalidad,
+      cuotas: plan,
+      moneda,
+      tipoCambio,
+      descuentoPorcentaje,
+      descuentoTipo,
+      descuentoValor,
+      ...(descuentosDetalle ? { descuentosPorStand: descuentosDetalle } : {}),
+      netoLista,
+      descuentoMonto: redondear2(netoLista - neto),
+      netoDescontado: neto,
+      igv: importes.igv,
+      total: importes.total,
+    });
 
     const base = `contrato-${(detalle.standCode || input.solicitudId.slice(0, 8)).replace(/[^A-Za-z0-9_-]/g, "")}-${Date.now()}`;
     const generado = await this.renderContrato({
@@ -261,8 +444,15 @@ export class ContratoApplicationService {
       plan,
       porcentajes,
       modalidad,
+      moneda,
+      tipoSolicitud: detalle.tipo ?? null,
+      pais: detalle.pais ?? null,
+      tablaEconomica,
+      esFirma: input.esFirma === true,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
+      sellosFirmantes: input.sellosFirmantes,
+      estamparFirmas: input.estamparFirmas,
       base,
     });
 
@@ -285,6 +475,76 @@ export class ContratoApplicationService {
   }
 
   /**
+   * Regenera el contrato desde la plantilla cuando el SGC observa el contrato.
+   * Se ejecuta como sistema (sin depender de una sesion del Asociado) y habilita
+   * la firma del cliente para la nueva version.
+   */
+  async regenerarContratoParaSgc(solicitudId: string): Promise<ContratoGenerado> {
+    const detalle = await this.solicitudes.detalle(solicitudId);
+    if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const generado = await this.generar({
+      solicitudId,
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+      userSub: detalle.userId ?? "system",
+      userEmail: detalle.email ?? undefined,
+    });
+    await this.solicitudes.habilitarContrato(solicitudId);
+    return generado;
+  }
+
+  /**
+   * Regenera el contrato de las solicitudes de una empresa cuando cambia la lista
+   * de representantes adicionales (0->1, 1->0, reemplazos...). Crea una NUEVA
+   * version del contrato del administrador y habilita la firma; el firmado
+   * anterior queda como historial (no se elimina ni se invalida).
+   */
+  async regenerarPorCambioRepresentantes(empresaId: string): Promise<number> {
+    const empresa = await this.empresas.findById(empresaId).catch(() => null);
+    if (!empresa) return 0;
+    const ids = await this.solicitudes.listarIdsPorEmpresa(
+      empresa.id,
+      empresa.ruc ?? null,
+      empresa.sieCode ?? null,
+    );
+    let regeneradas = 0;
+    for (const solicitudId of ids) {
+      const detalle = await this.solicitudes.detalle(solicitudId).catch(() => null);
+      if (!detalle) continue;
+      if (
+        detalle.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE &&
+        detalle.estadoSolicitud !== ESTADOS_SOLICITUD.OBSERVADO
+      ) {
+        continue;
+      }
+      try {
+        await this.generar({
+          solicitudId,
+          userPermissions: [PERMISSIONS.ADMIN_FULL],
+          userSub: detalle.userId ?? "system",
+          userEmail: detalle.email ?? undefined,
+          registrarContrato: true,
+        });
+        await this.solicitudes.habilitarContrato(solicitudId).catch(() => undefined);
+        if (detalle.userId) {
+          await this.solicitudes
+            .crearAlertaReserva({
+              userId: detalle.userId,
+              tipo: "reserva",
+              clave: ALERTA_CLAVES.CONTRATO_REGENERADO_REPRESENTANTES,
+              datos: { stands: detalle.standCode ?? solicitudId },
+              url: "/dashboard/mis-solicitudes",
+            })
+            .catch(() => undefined);
+        }
+        regeneradas += 1;
+      } catch {
+        /* Una solicitud que no se pueda regenerar no rompe el guardado de representantes. */
+      }
+    }
+    return regeneradas;
+  }
+
+  /**
    * Borrador del contrato (paso Contrato del wizard): genera el DOCX/PDF con los stands
    * seleccionados y las cuotas configuradas SIN crear la solicitud ni persistir nada.
    * La solicitud recien se crea al enviar la reserva (paso Confirmar).
@@ -302,7 +562,19 @@ export class ContratoApplicationService {
     const { modulos, gruposPabellon } = await this.construirModulos(
       stands.map((s) => ({ bloqueId: s.bloqueId ?? s.standCode, codigoComercial: s.standCode, tipoStand: s.tipoStand, pabellon: null })),
     );
-    const neto = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+    const moneda: MonedaContrato = input.moneda ?? MONEDAS_CONTRATO.USD;
+    let tipoCambio = 1;
+    if (moneda === MONEDAS_CONTRATO.PEN) {
+      const eventoId = stands[0]?.eventoId;
+      const evento = eventoId && this.eventoRepo ? await this.eventoRepo.findById(eventoId).catch(() => null) : null;
+      const tcEvento = evento?.tipoCambio;
+      if (!tipoCambioValido(tcEvento)) {
+        throw new DomainError("El evento no tiene un tipo de cambio configurado para contratos en soles.", API_ERROR_CODES.CONFLICT, 409);
+      }
+      tipoCambio = tcEvento;
+    }
+    const netoUsd = stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+    const neto = convertirNeto(netoUsd, moneda, tipoCambio);
     const configCuotasEmpresa = empresa?.configCuotas
       ?? (await this.auth.findPerfilByEmail(input.email).catch(() => null))?.empresa?.configCuotas
       ?? null;
@@ -322,8 +594,10 @@ export class ContratoApplicationService {
       plan,
       porcentajes,
       modalidad,
+      moneda,
       firmaExhibidorBase64: input.firmaExhibidorBase64,
       contrato: input.contrato,
+      estamparFirmas: Boolean(input.firmaExhibidorBase64),
       base,
     });
   }
@@ -413,11 +687,99 @@ export class ContratoApplicationService {
 
     const plan = planCuotasConFechas(importes.total, porcentajes, fechas);
     if (plan.some((c) => c.monto < CUOTA_MONTO_MINIMO)) {
-      throw new DomainError(`Cada cuota debe ser de al menos US$ ${CUOTA_MONTO_MINIMO.toFixed(2)}.`, API_ERROR_CODES.VALIDATION, 400);
+      throw new DomainError(`Cada cuota debe ser de al menos ${CUOTA_MONTO_MINIMO.toFixed(2)} en la moneda del contrato.`, API_ERROR_CODES.VALIDATION, 400);
     }
     const modalidad = opciones?.modalidadPersistida
       ?? (usaConfigEmpresa ? MODOS_PAGO.PERSONALIZADO : modalidadDeCuotas(porcentajes));
     return { importes, plan, porcentajes, modalidad };
+  }
+
+  /** Detalle economico por stand para el Anexo 1 de Pabellones Internacionales. */
+  private construirTablaEconomica(params: {
+    stands: Array<{ standCode: string; tipoStand?: string | null; precio?: number }> | undefined;
+    plan?: PlanCuotasSolicitud | null;
+    moneda: MonedaContrato;
+    tipoCambio: number;
+    netoLista: number;
+    neto: number;
+    igv: number;
+    total: number;
+    descuentoTipo: string;
+    descuentoValor: number;
+  }): TablaEconomicaData {
+    const stands = params.stands ?? [];
+    const aCentavos = (valor: number) => Math.round((valor + Number.EPSILON) * 100);
+    const monto = (valor: number) => numberUtils.numero(redondear2(valor), { decimales: 2 });
+    const filasBase = stands.map((stand) => ({
+      standCode: stand.standCode,
+      tipo: labelTipoStand(stand.tipoStand) ?? "Stand",
+      precioCents: aCentavos(convertirNeto(stand.precio ?? 0, params.moneda, params.tipoCambio)),
+    }));
+    const totalPrecioCents = filasBase.reduce((total, fila) => total + fila.precioCents, 0);
+    const totalDescuentoCents = Math.max(0, aCentavos(redondear2(params.netoLista - params.neto)));
+    const detallePorStand = new Map(
+      (params.plan?.descuentosPorStand ?? [])
+        .filter((detalle) => Boolean(detalle.standCode))
+        .map((detalle) => [detalle.standCode as string, detalle]),
+    );
+    const descuentos = filasBase.map((fila) => {
+      const detalle = detallePorStand.get(fila.standCode);
+      if (detalle) return Math.min(fila.precioCents, Math.max(0, aCentavos(detalle.descuentoMonto)));
+      if (totalDescuentoCents === 0 || totalPrecioCents === 0) return 0;
+      return Math.min(fila.precioCents, Math.round((fila.precioCents * totalDescuentoCents) / totalPrecioCents));
+    });
+    const ajustarDescuentos = (delta: number) => {
+      for (let index = descuentos.length - 1; index >= 0 && delta !== 0; index -= 1) {
+        const precio = filasBase[index]?.precioCents ?? 0;
+        const actual = descuentos[index] ?? 0;
+        const capacidad = delta > 0 ? precio - actual : actual;
+        const movimiento = Math.min(capacidad, Math.abs(delta));
+        if (movimiento <= 0) continue;
+        descuentos[index] = actual + (delta > 0 ? movimiento : -movimiento);
+        delta += delta > 0 ? -movimiento : movimiento;
+      }
+    };
+    ajustarDescuentos(totalDescuentoCents - descuentos.reduce((total, valor) => total + valor, 0));
+    const netos = filasBase.map((fila, index) => Math.max(0, fila.precioCents - (descuentos[index] ?? 0)));
+    const totalNetoCents = netos.reduce((total, valor) => total + valor, 0);
+    const igvCents = aCentavos(params.igv);
+    const igvPorFila = netos.map((neto) =>
+      totalNetoCents > 0 ? Math.round((neto * igvCents) / totalNetoCents) : 0,
+    );
+    const ajusteIgv = igvCents - igvPorFila.reduce((total, valor) => total + valor, 0);
+    if (igvPorFila.length > 0) {
+      igvPorFila[igvPorFila.length - 1] = Math.max(0, (igvPorFila.at(-1) ?? 0) + ajusteIgv);
+    }
+    const filas = filasBase.map((fila, index) => {
+      const detalle = detallePorStand.get(fila.standCode);
+      const descuento = descuentos[index] ?? 0;
+      const neto = netos[index] ?? 0;
+      const final = neto + (igvPorFila[index] ?? 0);
+      const porcentaje = detalle
+        ? detalle.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? `${numberUtils.numero(detalle.porcentaje, { decimales: 2 })}%`
+          : "-"
+        : params.descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? `${numberUtils.numero(params.descuentoValor, { decimales: 2 })}%`
+          : "-";
+      return {
+        numero: String(index + 1),
+        modulo: fila.standCode,
+        tipo: fila.tipo,
+        precio: monto(fila.precioCents / 100),
+        descuento_porcentaje: porcentaje,
+        descuento_monto: monto(descuento / 100),
+        neto: monto(neto / 100),
+        final: monto(final / 100),
+      };
+    });
+    return {
+      filas,
+      total_precio: monto(params.netoLista),
+      total_descuento: monto(totalDescuentoCents / 100),
+      total_neto: monto(params.neto),
+      total_final: monto(params.total),
+    };
   }
 
   /** Modulos del Anexo 1 + grupos por pabellon (items del plano para el recorte). */
@@ -484,12 +846,26 @@ export class ContratoApplicationService {
     plan: ReturnType<typeof planCuotasConFechas>;
     porcentajes: number[];
     modalidad: string;
+    moneda: MonedaContrato;
+    /** `reserva_empresa` usa la plantilla oficial del Operador Internacional. */
+    tipoSolicitud?: string | null;
+    /** Pais ISO alpha-2 del operador (clausulas y Anexo 3-A). */
+    pais?: string | null;
+    /** Detalle economico por stand (Anexo 1 de Pabellones Internacionales). */
+    tablaEconomica?: TablaEconomicaData;
+    /** true = el documento se genera para la firma, no como contrato previo. */
+    esFirma?: boolean;
     firmaExhibidorBase64?: string;
     /** Datos del exhibidor capturados en el wizard (prioridad sobre la empresa local). */
     contrato?: DatosContrato | null;
+    /** Sellos vectoriales (uno por firmante, principal primero). */
+    sellosFirmantes?: SelloVectorialFirma[];
+    /** true = estampar imagenes reales de firma (solo al firmar). */
+    estamparFirmas?: boolean;
     base: string;
   }): Promise<ContratoGenerado> {
     const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
+    const esContratoOperador = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA;
     const esCompleto = params.modalidad === MODOS_PAGO.COMPLETO;
     const esMitad = params.modalidad === MODOS_PAGO.CUOTAS;
     const esTresCuotas = params.modalidad === MODOS_PAGO.TRES_CUOTAS;
@@ -506,6 +882,11 @@ export class ContratoApplicationService {
     const fechaFirmaTexto = esContratoEn
       ? `${String(hoy.getDate()).padStart(2, "0")} ${mesesEn[hoy.getMonth()]} ${hoy.getFullYear()}`
       : `${String(hoy.getDate()).padStart(2, "0")} de ${mesesEs[hoy.getMonth()]} de ${hoy.getFullYear()}`;
+    const fechaLarga = (iso: string | null) => {
+      if (!iso) return "";
+      const [anio, mes, dia] = iso.split("-").map(Number);
+      return `${String(dia).padStart(2, "0")} de ${mesesEs[(mes ?? 0) - 1] ?? ""} de ${anio}`;
+    };
     const textoUbicacionGeneral = esContratoEn ? "General location - Pavilions map" : "Ubicacion general - Mapa de pabellones";
     const textoObjetoSocial = esContratoEn ? "activities related to its line of business" : "actividades propias de su giro comercial";
     const textoActividad = esContratoEn ? "exhibition of products and services" : "exhibicion de productos y servicios";
@@ -515,17 +896,31 @@ export class ContratoApplicationService {
      * Imagenes del Anexo 1: una por pabellon, generadas en el SERVIDOR con los mismos
      * datos del plano (util compartida con el portal) y rasterizadas con sharp.
      */
-    const planosData: Array<{ imagen_plano: string; pabellon: string; version: string; fecha: string }> = [];
+    const planosData: Array<{
+      imagen_plano: string;
+      pabellon: string;
+      version: string;
+      fecha: string;
+      ancho: number;
+      alto: number;
+    }> = [];
     for (const grupo of gruposPabellon.values()) {
       try {
-        const { svg, encontrado } = construirSvgRecorte(grupo.items, grupo.objetivos, { etiquetas: grupo.etiquetas, codigos: grupo.codigos });
+        const { svg, encontrado } = construirSvgRecorte(grupo.items, grupo.objetivos, {
+          etiquetas: grupo.etiquetas,
+          codigos: grupo.codigos,
+          ...(esContratoOperador ? { anchoSalida: ANCHO_SALIDA_OPERADOR } : {}),
+        });
         if (!encontrado) continue;
         const png = await sharp(Buffer.from(svg)).png().toBuffer();
+        const meta = await sharp(png).metadata();
         planosData.push({
           imagen_plano: png.toString("base64"),
           pabellon: grupo.nombre,
           version: "1",
           fecha: fechaFirma,
+          ancho: meta.width ?? 0,
+          alto: meta.height ?? 0,
         });
       } catch { /* imagen omitida: el contrato sigue siendo valido */ }
     }
@@ -547,13 +942,20 @@ export class ContratoApplicationService {
       for (const { macroId, planosHijoIds } of hijosPorMacro.values()) {
         const macro = await this.planos.detalle(macroId);
         if (!macro) continue;
-        const jpg = await renderizarMacroConSecciones(macro, planosHijoIds);
+        const jpg = await renderizarMacroConSecciones(
+          macro,
+          planosHijoIds,
+          esContratoOperador ? { anchoSalida: ANCHO_SALIDA_OPERADOR } : undefined,
+        );
         if (!jpg) continue;
+        const meta = await sharp(jpg).metadata();
         planosData.unshift({
           imagen_plano: jpg.toString("base64"),
           pabellon: textoUbicacionGeneral,
           version: "1",
           fecha: fechaFirma,
+          ancho: meta.width ?? 0,
+          alto: meta.height ?? 0,
         });
       }
     } catch { /* imagen de ubicacion omitida: el contrato sigue siendo valido */ }
@@ -605,6 +1007,8 @@ export class ContratoApplicationService {
     })();
     const firmasRepresentantes = await this.prepararFirmasRepresentantes(
       empresa?.representantesAdicionales ?? [],
+      (params.sellosFirmantes ?? []).slice(1),
+      params.estamparFirmas === true,
     );
     const firmasExhibidor = [
       {
@@ -656,6 +1060,26 @@ export class ContratoApplicationService {
       },
     );
 
+    const metrajeTotal = redondear2(
+      modulos.reduce((total, modulo) => total + (Number.parseFloat(modulo.metraje) || 0), 0),
+    );
+    const pabellonesModulos = [...new Set(modulos.map((modulo) => modulo.zona.trim()).filter(Boolean))].join(", ");
+    const tiposModulos = (() => {
+      const conteo = new Map<string, number>();
+      for (const modulo of modulos) {
+        const tipo = labelTipoStand(modulo.tipo) ?? "Stand";
+        const etiqueta = tipo.toLowerCase() === "preferencial"
+          ? "Preferenciales"
+          : tipo.toLowerCase() === "estandar" ? "standard" : tipo;
+        conteo.set(etiqueta, (conteo.get(etiqueta) ?? 0) + 1);
+      }
+      return [...conteo.entries()].map(([tipo, cantidad]) => `${cantidad} stands ${tipo}`).join(" y ");
+    })();
+    const metrajeTexto = numberUtils.numero(metrajeTotal, { decimales: Number.isInteger(metrajeTotal) ? 0 : 2 });
+    const paisOperador = nombrePais(params.pais) || params.pais || "-";
+    const cuotaMonto = (indice: number) => plan[indice] ? monto(plan[indice].monto) : "";
+    const cuotaFecha = (indice: number) => plan[indice] ? fechaLarga(plan[indice].fechaVencimiento) : "";
+
     const data = {
       razon_social: razonSocial,
       ruc,
@@ -672,6 +1096,20 @@ export class ContratoApplicationService {
       actividad: textoActividad,
       modulos,
       planos: planosData,
+      tabla_economica: params.tablaEconomica?.filas ?? [],
+      total_precio: params.tablaEconomica?.total_precio ?? "",
+      total_descuento: params.tablaEconomica?.total_descuento ?? "",
+      total_neto: params.tablaEconomica?.total_neto ?? "",
+      total_final: params.tablaEconomica?.total_final ?? "",
+      moneda: params.moneda,
+      simbolo_moneda: simboloMoneda(params.moneda),
+      moneda_codigo: etiquetaMoneda(params.moneda),
+      cta_corriente: CUENTAS_CONTRATO[params.moneda].cuentaCorriente,
+      cta_interbancaria: CUENTAS_CONTRATO[params.moneda].cuentaInterbancaria,
+      cta_detraccion: CUENTAS_CONTRATO[params.moneda].cuentaDetraccion,
+      tipo_cuenta: esContratoEn
+        ? params.moneda
+        : CUENTAS_CONTRATO[params.moneda].tipoCuenta,
       monto_total: monto(importes.total),
       valor_venta: monto(importes.valorVenta),
       igv: monto(importes.igv),
@@ -694,22 +1132,61 @@ export class ContratoApplicationService {
       ].filter(Boolean).join("; "),
       /** Codigos comerciales de los stands (Anexo 4: asunto de zona maquinaria). */
       codigos_stands: modulos.map((m) => m.modulo).join(", "),
+      /* Anexo 3-A: se completa desde la generacion para que el firmante revise los datos antes de firmar. */
+      anexo3a_pais: paisOperador,
+      anexo3a_modulos: modulos.map((m) => m.modulo).join(", "),
+      anexo3a_empresa: razonSocial,
+      anexo3a_empresa_firma: razonSocial,
+      anexo3a_representante: representanteLegal,
+      anexo3a_fecha: fechaFirmaTexto,
+      es_firma: params.esFirma === true,
       firmante_empresa: razonSocial !== "-" ? razonSocial : "",
       firma_exhibidor: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
       firmante_fecha: fechaFirmaTexto,
+      pais_operador: paisOperador,
+      area_total: metrajeTexto,
+      metraje_total: metrajeTexto,
+      cantidad_modulos: String(modulos.length),
+      pabellones_modulos: pabellonesModulos || "-",
+      tipos_modulos: tiposModulos || "-",
+      cuota_1_monto: cuotaMonto(0),
+      cuota_2_monto: cuotaMonto(1),
+      cuota_3_monto: cuotaMonto(2),
+      fecha_cuota_1: cuotaFecha(0),
+      fecha_cuota_2: cuotaFecha(1),
+      fecha_cuota_3: cuotaFecha(2),
     };
 
     /* Render DOCX en el idioma resuelto (respaldo al español si falta la plantilla). */
-    const rutaPlantilla = path.join(process.cwd(), ...PLANTILLAS_CONTRATO[idioma]);
-    const rutaRespaldo = path.join(process.cwd(), ...PLANTILLAS_CONTRATO[IDIOMAS.ES]);
+    const plantillas = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA
+      ? PLANTILLAS_CONTRATO_RESERVA_EMPRESA
+      : PLANTILLAS_CONTRATO;
+    const rutaPlantilla = path.join(process.cwd(), ...plantillas[idioma]);
+    const rutaRespaldo = path.join(process.cwd(), ...plantillas[IDIOMAS.ES]);
     const plantilla = fs.readFileSync(fs.existsSync(rutaPlantilla) ? rutaPlantilla : rutaRespaldo);
     const zip = new PizZip(plantilla);
+    const ANCHO_MAX_PLANO_CONTRATO = 900;
+    const ALTO_MAX_PLANO_CONTRATO = 480;
     const imageModule = new ImageModule({
       centered: false,
       fileType: "docx",
       getImage: (valor: unknown) => Buffer.from(String(valor), "base64"),
-      getSize: (_img: Buffer, _valor: unknown, tagName: string) =>
-        (["firma_exhibidor", "firma_representante", "firma_iimp", "firma_1", "firma_2"].includes(tagName) ? [150, 55] : [520, 320]),
+      getSize: (_img: Buffer, valor: unknown, tagName: string) => {
+        if (["firma_exhibidor", "firma_representante", "firma_iimp", "firma_1", "firma_2"].includes(tagName)) {
+          return [150, 55];
+        }
+        if (tagName === "imagen_plano" && esContratoOperador) {
+          const plan = valor as { ancho?: unknown; alto?: unknown } | null;
+          const ancho = Number(plan?.ancho ?? 0);
+          const alto = Number(plan?.alto ?? 0);
+          if (ancho > 0 && alto > 0) {
+            const escala = Math.min(ANCHO_MAX_PLANO_CONTRATO / ancho, ALTO_MAX_PLANO_CONTRATO / alto);
+            return [Math.round(ancho * escala), Math.round(alto * escala)];
+          }
+          return [ANCHO_MAX_PLANO_CONTRATO, ALTO_MAX_PLANO_CONTRATO];
+        }
+        return [520, 320];
+      },
     });
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true, modules: [imageModule] });
     doc.render(data);
@@ -794,44 +1271,159 @@ export class ContratoApplicationService {
 
     const emailFirmante = input.userEmail ?? detalle.email;
     const perfil = emailFirmante ? await this.auth.findPerfilByEmail(emailFirmante) : null;
-    if (!perfil?.firmaUrl) {
-      throw new DomainError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.", API_ERROR_CODES.VALIDATION, 409);
+    const sellos = input.sellosVectoriales ?? [];
+    const capturasCompletas = sellos.length > 0 && sellos.every((s) => s.esSello || s.imagen);
+    if (!capturasCompletas) {
+      if (!perfil?.firmaUrl) {
+        throw new DomainError("Antes de firmar digitalmente, sube tu firma (imagen) en tu Perfil.", API_ERROR_CODES.VALIDATION, 409);
+      }
+      const empresaFirmanteId = emailFirmante
+        ? await this.auth.findEmpresaIdDeUsuario(emailFirmante).catch(() => null)
+        : null;
+      const empresaFirmante = empresaFirmanteId ? await this.empresas.findById(empresaFirmanteId) : null;
+      const representantesSinFirma = (empresaFirmante?.representantesAdicionales ?? []).filter((rep) => !rep.firmaUrl);
+      if (representantesSinFirma.length > 0) {
+        throw new DomainError(
+          `Antes de firmar, sube la firma digital de: ${representantesSinFirma.map((rep) => rep.nombre).join(", ")}.`,
+          API_ERROR_CODES.VALIDATION,
+          409,
+        );
+      }
     }
 
-    const empresaFirmanteId = emailFirmante
-      ? await this.auth.findEmpresaIdDeUsuario(emailFirmante).catch(() => null)
-      : null;
-    const empresaFirmante = empresaFirmanteId ? await this.empresas.findById(empresaFirmanteId) : null;
-    const representantesSinFirma = (empresaFirmante?.representantesAdicionales ?? []).filter((rep) => !rep.firmaUrl);
-    if (representantesSinFirma.length > 0) {
-      throw new DomainError(
-        `Antes de firmar, sube la firma digital de: ${representantesSinFirma.map((rep) => rep.nombre).join(", ")}.`,
-        API_ERROR_CODES.VALIDATION,
-        409,
-      );
-    }
+    const base64DeImagen = (imagen: string) => {
+      const coma = imagen.indexOf(",");
+      return coma >= 0 ? imagen.slice(coma + 1) : imagen;
+    };
 
-    const imagen = await this.leerImagenFirma(perfil.firmaUrl);
-    const png = await sharp(imagen).resize({ width: 480, withoutEnlargement: true }).png().toBuffer();
+    let firmaPrincipal = PNG_1PX_BASE64;
+    if (sellos[0]?.esSello) {
+      firmaPrincipal = PNG_1PX_BASE64;
+    } else if (sellos[0]?.imagen) {
+      const capturada = await sharp(Buffer.from(base64DeImagen(sellos[0].imagen), "base64"))
+        .resize({ width: 480, withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      firmaPrincipal = capturada.toString("base64");
+    } else if (perfil?.firmaUrl) {
+      const imagen = await this.leerImagenFirma(perfil.firmaUrl);
+      const png = await sharp(imagen).resize({ width: 480, withoutEnlargement: true }).png().toBuffer();
+      firmaPrincipal = png.toString("base64");
+    }
 
     const generado = await this.generar({
       solicitudId: input.solicitudId,
       idioma: input.idioma,
-      firmaExhibidorBase64: png.toString("base64"),
+      firmaExhibidorBase64: firmaPrincipal,
       contrato: input.contrato,
+      sellosFirmantes: sellos,
+      estamparFirmas: true,
+      esFirma: true,
       userEmail: input.userEmail,
       userSub: input.userSub,
       userPermissions: input.userPermissions,
       registrarContrato: false,
     });
-    return { docxUrl: generado.docxUrl, pdfUrl: generado.pdfUrl, nombre: generado.nombre };
+
+    let pdfUrl = generado.pdfUrl;
+    if (sellos.some((s) => s.esSello) && generado.pdfUrl) {
+      const pdfBytes = await this.leerImagenFirma(generado.pdfUrl);
+      const pdfVectorial = await this.estamparSellosVectoriales(pdfBytes, sellos);
+      if (pdfVectorial) {
+        pdfUrl = await this.storage.upload(pdfVectorial, `${generado.nombre}.pdf`, "application/pdf");
+      }
+    }
+    return { docxUrl: generado.docxUrl, pdfUrl, nombre: generado.nombre };
+  }
+
+  /**
+   * Estampa los sellos digitales como texto y rectangulo VECTORIAL encima del PDF
+   * firmado (nitidez de texto nativo, sin raster). Las coordenadas vienen en puntos
+   * PDF desde la deteccion de zonas que hace la vista de firma.
+   */
+  private async estamparSellosVectoriales(
+    pdfBytes: Buffer,
+    sellos: SelloVectorialFirma[],
+  ): Promise<Buffer | null> {
+    try {
+      const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const colorSello = rgb(0.106, 0.212, 0.365);
+      const colorFecha = rgb(0.278, 0.345, 0.412);
+
+      for (const sello of sellos) {
+        if (!sello.esSello) continue;
+        for (const seccion of sello.secciones) {
+          const page = doc.getPage(seccion.pagina - 1);
+          if (!page) continue;
+          const x = seccion.x;
+          const y = seccion.y;
+          const w = seccion.w;
+          const h = seccion.h;
+          const centro = x + w / 2;
+
+          page.drawRectangle({
+            x,
+            y,
+            width: w,
+            height: h,
+            borderColor: colorSello,
+            borderWidth: 1.4,
+          });
+
+          const dibujarLinea = (texto: string, size: number, baseY: number, bold: boolean) => {
+            const fuente = bold ? fontBold : font;
+            const maxWidth = Math.max(10, w - 8);
+            let tamano = size;
+            const anchoBase = fuente.widthOfTextAtSize(texto, tamano);
+            if (anchoBase > maxWidth) {
+              tamano = size * (maxWidth / anchoBase);
+            }
+            const ancho = fuente.widthOfTextAtSize(texto, tamano);
+            page.drawText(texto, {
+              x: centro - ancho / 2,
+              y: baseY,
+              size: tamano,
+              font: fuente,
+              color: bold ? colorSello : colorFecha,
+            });
+          };
+
+          dibujarLinea("Firmado digitalmente por", 6.5, y + h - 10, false);
+          dibujarLinea((sello.nombres || "-").trim().toUpperCase(), 8, y + h - 20, true);
+          dibujarLinea((sello.apellidos || "-").trim().toUpperCase(), 8, y + h - 29, true);
+          dibujarLinea(sello.fecha || dateUtils.formatDateTime(dateUtils.now()), 6, y + h - 38.5, false);
+        }
+      }
+
+      const salida = await doc.save();
+      return Buffer.from(salida);
+    } catch {
+      return null;
+    }
   }
 
   /** Prepara la imagen de firma de cada representante adicional para la plantilla. */
   private async prepararFirmasRepresentantes(
     representantes: EmpresaRepresentanteAdicionalEntity[],
+    sellosAdicionales: SelloVectorialFirma[] = [],
+    estamparFirmas = false,
   ): Promise<Array<{ nombre_representante: string; firma_representante: string }>> {
-    return Promise.all(representantes.map(async (rep) => {
+    return Promise.all(representantes.map(async (rep, index) => {
+      const sello = sellosAdicionales[index];
+      if (!estamparFirmas || sello?.esSello) {
+        return { nombre_representante: rep.nombre, firma_representante: PNG_1PX_BASE64 };
+      }
+      if (sello?.imagen) {
+        const coma = sello.imagen.indexOf(",");
+        const base64 = coma >= 0 ? sello.imagen.slice(coma + 1) : sello.imagen;
+        const capturada = await sharp(Buffer.from(base64, "base64"))
+          .resize({ width: 480, withoutEnlargement: true })
+          .png()
+          .toBuffer();
+        return { nombre_representante: rep.nombre, firma_representante: capturada.toString("base64") };
+      }
       if (!rep.firmaUrl) {
         return { nombre_representante: rep.nombre, firma_representante: PNG_1PX_BASE64 };
       }
@@ -892,15 +1484,38 @@ export class ContratoApplicationService {
   private convertirConSoffice(inPath: string): Promise<Buffer | null> {
     return new Promise((resolve) => {
       const outPath = inPath.replace(/\.docx$/, ".pdf");
-      const proc = spawn(this.resolverSoffice(), ["--headless", "--convert-to", "pdf", "--outdir", os.tmpdir(), inPath], { stdio: "ignore" });
-      proc.on("error", () => resolve(null));
+      /* El usuario del contenedor no tiene HOME escribible: sin un perfil propio,
+       * LibreOffice no inicia y la conversion devuelve null (contrato solo DOCX). */
+      const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), "lo-profile-"));
+      const profileUrl = pathToFileURL(profileDir).href;
+      const limpiar = () => {
+        fs.rmSync(profileDir, { recursive: true, force: true });
+      };
+      const proc = spawn(
+        this.resolverSoffice(),
+        [`-env:UserInstallation=${profileUrl}`, "--headless", "--convert-to", "pdf", "--outdir", os.tmpdir(), inPath],
+        { stdio: "ignore" },
+      );
+      let terminado = false;
+      const finalizar = (buf: Buffer | null) => {
+        if (terminado) return;
+        terminado = true;
+        clearTimeout(timer);
+        limpiar();
+        resolve(buf);
+      };
+      const timer = setTimeout(() => {
+        proc.kill();
+        finalizar(null);
+      }, CONVERSION_PDF_TIMEOUT_MS);
+      proc.on("error", () => finalizar(null));
       proc.on("close", (code) => {
         if (code === 0 && fs.existsSync(outPath)) {
           const buf = fs.readFileSync(outPath);
           fs.rmSync(outPath, { force: true });
-          resolve(buf);
+          finalizar(buf);
         } else {
-          resolve(null);
+          finalizar(null);
         }
       });
     });
@@ -909,7 +1524,8 @@ export class ContratoApplicationService {
   /** Fallback en Windows: convierte con Microsoft Word (COM, preserva el formato del DOCX). */
   private convertirConWord(inPath: string): Promise<Buffer | null> {
     return new Promise((resolve) => {
-      const outPath = `${inPath}.pdf`;
+      /* Ruta .pdf limpia: Word no siempre exporta bien a un archivo ".docx.pdf". */
+      const outPath = path.join(os.tmpdir(), `contrato-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.pdf`);
       const scriptPath = path.join(os.tmpdir(), `word-pdf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.ps1`);
       const script = [
         "param([string]$inPath, [string]$outPath)",
@@ -919,11 +1535,13 @@ export class ContratoApplicationService {
         "$word.DisplayAlerts = 0",
         "try {",
         "  $doc = $word.Documents.Open($inPath, $false, $true)",
-        "  $doc.SaveAs2($outPath, 17)",
+        "  try { $doc.ExportAsFixedFormat($outPath, 17) }",
+        "  catch { $doc.SaveAs2($outPath, 17) }",
         "  $doc.Close($false)",
         "} finally { $word.Quit() }",
       ].join("\n");
       fs.writeFileSync(scriptPath, script, "utf8");
+      let stderr = "";
       const terminar = (buf: Buffer | null) => {
         fs.rmSync(scriptPath, { force: true });
         fs.rmSync(outPath, { force: true });
@@ -932,13 +1550,27 @@ export class ContratoApplicationService {
       const proc = spawn(
         "powershell.exe",
         ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-inPath", inPath, "-outPath", outPath],
-        { stdio: "ignore", windowsHide: true },
+        { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
       );
-      const timeout = setTimeout(() => { proc.kill(); terminar(null); }, CONVERSION_PDF_TIMEOUT_MS);
-      proc.on("error", () => { clearTimeout(timeout); terminar(null); });
+      proc.stderr?.on("data", (chunk: Buffer) => {
+        stderr = `${stderr}${chunk.toString("utf8")}`.slice(-2000);
+      });
+      const timeout = setTimeout(() => {
+        console.warn(`[contratos] Word no termino la conversion PDF en ${CONVERSION_PDF_TIMEOUT_MS} ms.`);
+        proc.kill();
+        terminar(null);
+      }, CONVERSION_PDF_TIMEOUT_MS);
+      proc.on("error", (error) => {
+        clearTimeout(timeout);
+        console.warn(`[contratos] No se pudo ejecutar PowerShell/Word: ${error.message}`);
+        terminar(null);
+      });
       proc.on("close", (code) => {
         clearTimeout(timeout);
         const buf = code === 0 && fs.existsSync(outPath) ? fs.readFileSync(outPath) : null;
+        if (!buf && stderr.trim()) {
+          console.warn(`[contratos] Word no genero el PDF (codigo ${code}): ${stderr.trim()}`);
+        }
         terminar(buf);
       });
     });

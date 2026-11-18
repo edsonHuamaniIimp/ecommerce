@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -11,6 +11,7 @@ import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { requirePlano } from "@/lib/shared/planos/registry";
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA } from "@/lib/shared/constants";
+import { esStandNoDisponible } from "@/lib/shared/utils/estado-stand";
 import type { ReservaStep } from "@/lib/shared/constants";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
@@ -20,6 +21,7 @@ import { textosReserva } from "@/lib/shared/textos/reserva";
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
 import type { FormDatos } from "./reserva/interfaces";
@@ -175,7 +177,7 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
             medidas,
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
-            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION || estado === ESTADOS_STAND.PRE_RESERVADO,
+            reserved: esStandNoDisponible(estado),
             dbId: String(r.id ?? ""),
           });
         }
@@ -188,6 +190,15 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     })();
     return () => { cancelled = true; };
   }, [eventoId, tipoEvento, codigoEvento]);
+
+  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  const [tipoCambioEventoCache, setTipoCambioEventoCache] = useState<{ eventoId: string | null; tipoCambio: number | null }>({
+    eventoId: null,
+    tipoCambio: null,
+  });
+  const tipoCambioEvento = tipoCambioEventoCache.eventoId === (sesionReserva?.eventoId ?? null)
+    ? tipoCambioEventoCache.tipoCambio
+    : null;
 
   const {
     reservaOpen, setReservaOpen,
@@ -223,9 +234,28 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
     representantesAdicionales,
     setRepresentantesAdicionales,
     firmarDigitalmente,
-  } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL });
+    moneda,
+    setMoneda,
+  } = useReservaForm(selectedIds, linkedMap, { sinContrato: CONTRATO_SIEMPRE_AL_FINAL, tipoCambioEvento });
 
-  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  useEffect(() => {
+    const eventoId = sesionReserva?.eventoId;
+    if (!eventoId) return;
+    let activo = true;
+    eventosServiceClient.configuracionPublica(eventoId)
+      .then((data) => {
+        if (!activo) return;
+        const valor = typeof data.tipoCambio === "number" ? data.tipoCambio : Number(data.tipoCambio);
+        setTipoCambioEventoCache({
+          eventoId,
+          tipoCambio: Number.isFinite(valor) && valor > 0 ? valor : null,
+        });
+      })
+      .catch(() => {
+        if (activo) setTipoCambioEventoCache({ eventoId, tipoCambio: null });
+      });
+    return () => { activo = false; };
+  }, [sesionReserva?.eventoId, reservaOpen]);
 
   useEffect(() => {
     if (!openReserva || !dataReady) return;
@@ -531,6 +561,9 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
         submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
+        moneda={moneda}
+        tipoCambio={tipoCambioEvento}
+        onMonedaChange={setMoneda}
         selectedLabels={selectedLabels}
         selectedItems={selected.map(sel => {
           const info = linkedMap.get(sel.id);
@@ -673,3 +706,4 @@ export function PlanoIsometrico({ eventoId, tipoEvento, codigoEvento, openReserv
 function Legend({ color, label }: { color: string; label: string }) {
   return <span className="flex items-center gap-1.5"><span className="inline-block h-3 w-3 rounded-sm border" style={{ backgroundColor: color }} />{label}</span>;
 }
+

@@ -1,7 +1,10 @@
 import { z } from "zod";
+import { MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPOS_DESCUENTO, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN } from "@/lib/shared/constants";
 
 export const reservaRequestSchema = z.object({
   standIds: z.array(z.string()).min(1),
+  /** Moneda elegida para la solicitud/contrato. */
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   /** Hold creado al abrir el wizard. */
   holdId: z.string().uuid().optional(),
   documentos: z.array(z.string()).optional(),
@@ -22,3 +25,25 @@ export const reservaRequestSchema = z.object({
 });
 
 export type ReservaRequestInput = z.infer<typeof reservaRequestSchema>;
+
+/** Reserva administrativa a nombre de una empresa (pabellones internacionales). */
+export const reservaAdminSchema = z.object({
+  eventoId: z.string().uuid(),
+  empresaRuc: z.string().min(1).max(20),
+  standIds: z.array(z.string()).min(1).max(MAX_RESERVA_ADMIN_STANDS),
+  moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
+  tipoComprobante: z.enum([TIPOS_COMPROBANTE.FACTURA, TIPOS_COMPROBANTE.BOLETA]).optional(),
+  descuentoPorcentaje: z.number().min(DESCUENTO_PORCENTAJE_MIN).max(DESCUENTO_PORCENTAJE_MAX).optional(),
+  descuentoMonto: z.number().min(0).optional(),
+  descuentosPorStand: z.array(z.object({
+    standId: z.string().min(1),
+    tipo: z.enum([TIPOS_DESCUENTO.PORCENTAJE, TIPOS_DESCUENTO.MONTO]),
+    valor: z.number().min(0),
+  })).optional(),
+  cuotas: z.array(z.object({
+    porcentaje: z.number().min(0).max(100),
+    fechaVencimiento: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })).min(1).max(9),
+});
+
+export type ReservaAdminInput = z.infer<typeof reservaAdminSchema>;

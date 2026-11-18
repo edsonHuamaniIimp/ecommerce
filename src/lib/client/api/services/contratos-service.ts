@@ -9,8 +9,15 @@ import type { Idioma } from "@/lib/shared/constants";
 export const contratosService = {
   generar(body: {
     solicitudId: string;
+    /** Moneda del contrato. */
+    moneda?: "USD" | "PEN";
     /** Cuotas configuradas (1..3): porcentaje + fecha de pago (yyyy-mm-dd). Si faltan (admin regenerando) se usa el plan persistido. */
     cuotas?: Array<{ porcentaje: number; fechaVencimiento: string }>;
+    /** Descuento administrado desde la bandeja. */
+    descuentoTipo?: "porcentaje" | "monto";
+    descuentoValor?: number;
+    /** Descuento individual por stand (solo admin). */
+    descuentosPorStand?: Array<{ standCode: string; tipo: "porcentaje" | "monto"; valor: number }>;
     /** Idioma del contrato (F3): el que ve el usuario en la UI. */
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
@@ -20,13 +27,26 @@ export const contratosService = {
   },
 
   /** Firma digital con la imagen del perfil; devuelve el contrato firmado (RF-12). */
-  firmar(body: { solicitudId: string; idioma?: Idioma; contrato?: DatosContratoDTO }) {
+  firmar(body: {
+    solicitudId: string;
+    idioma?: Idioma;
+    contrato?: DatosContratoDTO;
+    sellos?: Array<{
+      esSello: boolean;
+      nombres: string;
+      apellidos: string;
+      fecha: string;
+      imagen?: string;
+      secciones: Array<{ pagina: number; x: number; y: number; w: number; h: number }>;
+    }>;
+  }) {
     return internalApi.post<{ docxUrl: string; pdfUrl: string | null; nombre: string }>("/api/contratos/firmar", body);
   },
 
   /** Borrador del contrato (paso Contrato): NO crea la solicitud. */
   borrador(body: {
     standIds: string[];
+    moneda?: "USD" | "PEN";
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */
@@ -38,6 +58,7 @@ export const contratosService = {
   /** Firma digital del borrador (antes de que exista la solicitud). */
   firmarBorrador(body: {
     standIds: string[];
+    moneda?: "USD" | "PEN";
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     idioma?: Idioma;
     /** Datos del exhibidor capturados en el wizard (cuerpo del contrato). */

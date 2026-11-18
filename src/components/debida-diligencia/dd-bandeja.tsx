@@ -50,7 +50,10 @@ import {
   DD_BANDEJA_FILTROS,
   DD_BANDEJA_ORDEN,
   DD_BANDEJA_ORDEN_LABELS,
+  DD_DOCUMENTO_ADICIONAL,
+  DD_DOCUMENTO_VIGENCIA,
   DD_DOCUMENTOS_FILTRO,
+  DD_DOCUMENTOS_REQUERIDOS,
   DD_EVENTO_TODOS,
   DD_ESTADOS,
   DD_ESTADO_LABELS,
@@ -96,6 +99,32 @@ const ESTADOS_REVISABLES = new Set<string>([
   DD_ESTADOS.APROBADA,
   DD_ESTADOS.RECHAZADA,
 ]);
+
+/** Columnas de documentos del expediente para la exportacion. */
+const COLUMNAS_DOCUMENTOS = [
+  ...DD_DOCUMENTOS_REQUERIDOS.map((documento) => ({
+    tipo: documento.tipo,
+    titulo: documento.titulo,
+  })),
+  { tipo: DD_DOCUMENTO_VIGENCIA.tipo, titulo: DD_DOCUMENTO_VIGENCIA.titulo },
+  { tipo: DD_DOCUMENTO_ADICIONAL.tipo, titulo: DD_DOCUMENTO_ADICIONAL.titulo },
+];
+
+/** URL absoluta de la version principal del documento en el sistema. */
+function urlDocumentoEnSistema(url: string): string {
+  const ruta = url.trim();
+  if (!ruta) return "";
+  if (/^https?:\/\//i.test(ruta)) return ruta;
+  if (typeof window === "undefined") return ruta;
+  return `${window.location.origin}${ruta.startsWith("/") ? "" : "/"}${ruta}`;
+}
+
+/** Valor exportable: solo la URL de la version principal del documento. */
+function valorDocumentoExportacion(fila: DdBandejaRowDTO, tipo: string): string {
+  const documento = fila.documentos.find((item) => item.tipo === tipo);
+  if (!documento) return "No cargado";
+  return urlDocumentoEnSistema(documento.url) || "Sin URL";
+}
 
 function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string } {
   /* Los importados siguen las mismas reglas por estado que los del portal. */
@@ -253,17 +282,18 @@ export function DdBandeja() {
         beneficiariosNacionalidades: string;
         beneficiariosPorcentajes: string;
       };
-      const filasExportacion: FilaExportacion[] = filas.flatMap((fila) => {
+      const unir = (valores: string[]) =>
+        valores.filter((valor) => valor.trim().length > 0).join(" | ");
+      /* Una fila por expediente: los vinculos multiples van en la misma celda. */
+      const filasExportacion: FilaExportacion[] = filas.map((fila) => {
         const vinculos = fila.tipoRelacionComercial.length > 0
           ? fila.tipoRelacionComercial
-          : [""];
+          : [];
         const beneficiarios = fila.beneficiarios ?? [];
-        const unir = (valores: string[]) =>
-          valores.filter((valor) => valor.trim().length > 0).join(" | ");
-        return vinculos.map((vinculo) => ({
+        return {
           ...fila,
-          vinculoExportacion: vinculo
-            ? DD_VINCULO_LABELS[vinculo] ?? vinculo
+          vinculoExportacion: vinculos.length > 0
+            ? unir(vinculos.map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo))
             : "-",
           beneficiariosNombres: unir(beneficiarios.map((b) => b.nombre)),
           beneficiariosDocumentos: unir(beneficiarios.map((b) => b.documento)),
@@ -271,7 +301,7 @@ export function DdBandeja() {
           beneficiariosPorcentajes: unir(
             beneficiarios.map((b) => `${b.porcentaje}%`),
           ),
-        }));
+        };
       });
       const columnas: ColumnaExportacion<FilaExportacion>[] = [
         { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
@@ -288,6 +318,10 @@ export function DdBandeja() {
         { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
         { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
         { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
+        ...COLUMNAS_DOCUMENTOS.map((documento) => ({
+          encabezado: documento.titulo,
+          valor: (r: FilaExportacion) => valorDocumentoExportacion(r, documento.tipo),
+        })),
         { encabezado: "Enviado", valor: (r) => (r.fechaEnvio ? dateUtils.format(r.fechaEnvio) : "") },
         { encabezado: "Aprobado", valor: (r) => (r.fechaAprobacion ? dateUtils.format(r.fechaAprobacion) : "") },
         { encabezado: "Fecha a caducar", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },

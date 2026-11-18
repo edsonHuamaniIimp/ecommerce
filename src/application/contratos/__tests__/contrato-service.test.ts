@@ -226,6 +226,47 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("360.00");
   });
 
+  it("usa la plantilla oficial del Operador Internacional para reserva_empresa", async () => {
+    const { svc, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        pais: "CH",
+        tipoStand: "Preferencial",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(3),
+      userSub: "user-1",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("OPERADOR INTERNACIONAL");
+    expect(texto).toContain("Suiza");
+    expect(texto).toContain("2,360.00");
+    expect(texto).toContain("9 m²");
+    expect(texto).toContain("1 stands Preferencial");
+    expect(texto).toContain("Detalle económico por stand");
+    expect(texto).toContain("2,000.00");
+    expect(texto).toContain("2,360.00");
+    expect(texto).toContain("JORGE QUISPE RAMOS");
+    expect(texto).toContain("MINERA CORDILLERA S.A.C.");
+    expect(texto).not.toContain("XX m²");
+    expect(texto).not.toContain("XXXXXXXXX");
+  });
+
   it("con la modalidad de tres cuotas marca la Modalidad 3 e imprime el cronograma 40/30/30", async () => {
     const { svc, storage } = build();
 
@@ -247,6 +288,7 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     const configCuotas = {
       maxCuotas: 3,
       fechas: ["2026-11-15", "2027-02-15", "2027-06-15"],
+      porcentajes: [50, 25, 25],
     };
     const { svc, storage, solicitudes } = build({ empresa: { configCuotas } });
 
@@ -271,6 +313,31 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
       "11111111-1111-4111-8111-111111111111",
       expect.objectContaining({ modalidad: MODOS_PAGO.PERSONALIZADO }),
     );
+  });
+
+  it("rechaza porcentajes distintos a los fijados por el administrador", async () => {
+    const { svc, storage } = build({
+      empresa: {
+        configCuotas: {
+          maxCuotas: 2,
+          fechas: ["2026-11-20", "2027-06-15"],
+          porcentajes: [60, 40],
+        },
+      },
+    });
+
+    await expect(
+      svc.generar({
+        solicitudId: "11111111-1111-4111-8111-111111111111",
+        cuotas: [
+          { porcentaje: 50, fechaVencimiento: "2026-11-20" },
+          { porcentaje: 50, fechaVencimiento: "2027-06-15" },
+        ],
+        userSub: "user-1",
+        userPermissions: [],
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(storage.upload).not.toHaveBeenCalled();
   });
 
   it("acepta N cuotas en el cronograma personalizado (ejemplo: 4)", async () => {
@@ -356,6 +423,45 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("Modalidad 4 X:");
     expect(texto).toContain("Cuota 1: 40% del total");
     expect(texto).toContain("15/06/2027");
+  });
+
+  it("permite al admin editar el descuento individual por stand y persiste el snapshot", async () => {
+    const { svc, solicitudes } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        precio: 1000,
+        standsDetalle: [{
+          standCode: "A-1",
+          bloqueId: "A-1",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 1000,
+          tipoStand: "Estandar",
+        }],
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      descuentosPorStand: [{ standCode: "A-1", tipo: "porcentaje", valor: 10 }],
+      userSub: "admin",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    expect(solicitudes.guardarPlanCuotas).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({
+        descuentoTipo: "por_stand",
+        descuentoMonto: 100,
+        netoDescontado: 900,
+        total: 1062,
+        descuentosPorStand: [
+          expect.objectContaining({ standCode: "A-1", tipo: "porcentaje", valor: 10, neto: 900 }),
+        ],
+      }),
+    );
   });
 
   it("rechaza a un usuario ajeno sin permisos", async () => {
@@ -1017,5 +1123,34 @@ describe("ContratoApplicationService.generar — contrato posterior", () => {
       userSub: "user-1",
       userPermissions: [],
     })).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("genera el contrato en soles usando el tipo de cambio y las cuentas PEN", async () => {
+    const { svc, storage, solicitudes } = build({
+      detalle: {
+        moneda: "PEN",
+        tipoCambio: 3.75,
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "user-1",
+      userPermissions: [],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("S/ 8,850.00");
+    expect(texto).toContain("S/ 7,500.00");
+    expect(texto).toContain("191-2654259-0-95");
+    expect(texto).toContain("002-191-002654259095-50");
+    expect(texto).toContain("000-00372668");
+    expect(texto).not.toContain("000-00-372668");
+    expect(solicitudes.guardarPlanCuotas).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({ moneda: "PEN", tipoCambio: 3.75 }),
+    );
   });
 });

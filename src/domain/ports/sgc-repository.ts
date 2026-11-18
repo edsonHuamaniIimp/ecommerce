@@ -57,6 +57,8 @@ export interface ActualizarSgcExpedienteData {
   devolucionEstrategia?: string | null;
   /** Observaciones por documento de la ultima devolucion ([] = limpiar). Campo opcional. */
   observaciones?: SgcObservacionDocumento[] | null;
+  contratoRegeneradoObservationId?: string | null;
+  contratoRegeneradoAt?: Date | null;
 }
 
 export interface CrearSgcDocumentoData {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { Button, Input, Label, Tabs, TabsList, TabsTrigger } from "@nrivera-iimp/ui-kit-iimp";
@@ -13,11 +13,20 @@ export type FuenteEmpresa = "local" | "sie";
 /** Opcion normalizada para pintar el resultado de cualquiera de las fuentes. */
 interface OpcionEmpresa {
   key: string;
+  empresaId: string | null;
   titulo: string;
   sub: string;
   idEmpresa: string;
   nombreEmpresa: string;
   ruc: string | null;
+  tipoComprobante: string | null;
+  representanteUserId: string | null;
+  representanteLegalNombre: string | null;
+  representanteLegalDni: string | null;
+  representanteCorreo: string | null;
+  direccionFiscal: string | null;
+  emailContacto: string | null;
+  emailFacturacion: string | null;
   /** false = empresa local sin codigo SIE (no se puede vincular al acceso). */
   seleccionable: boolean;
 }
@@ -27,12 +36,14 @@ interface OpcionEmpresa {
  * Fuentes: `local` = empresas registradas en el backoffice (/dashboard/empresas),
  * `sie` = catalogo de la API de entidades (codigo SIE compartido).
  */
-export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuentes = ["sie"] }: {
+export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuentes = ["sie"], permitirSinSie = false }: {
   seleccion: EmpresaAccesoDTO | null;
   onSeleccion: (empresa: EmpresaAccesoDTO | null) => void;
   label?: string;
   /** Fuentes habilitadas; la primera es la activa por defecto. */
   fuentes?: FuenteEmpresa[];
+  /** Permite seleccionar empresas locales sin codigo SIE (reserva administrativa). */
+  permitirSinSie?: boolean;
 }) {
   const [fuente, setFuente] = useState<FuenteEmpresa>(fuentes[0] ?? "sie");
   const [q, setQ] = useState("");
@@ -50,12 +61,21 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
     const respuesta = await empresasService.listar({ search: termino, perPage: 10 });
     return (respuesta.data ?? []).map((e) => ({
       key: `local-${e.id}`,
+      empresaId: e.id,
       titulo: e.razonSocial,
       sub: `RUC ${e.ruc}${e.sieCode ? ` · ${e.sieCode}` : " · sin codigo SIE"}`,
       idEmpresa: e.sieCode ?? "",
       nombreEmpresa: e.razonSocial,
       ruc: e.ruc,
-      seleccionable: Boolean(e.sieCode),
+      tipoComprobante: e.tipoComprobante ?? null,
+      representanteUserId: e.representanteUserId ?? null,
+      representanteLegalNombre: e.representanteLegalNombre ?? null,
+      representanteLegalDni: e.representanteLegalDni ?? null,
+      representanteCorreo: e.representanteCorreo ?? null,
+      direccionFiscal: e.direccionFiscal ?? null,
+      emailContacto: e.emailContacto ?? null,
+      emailFacturacion: e.emailFacturacion ?? null,
+      seleccionable: Boolean(e.sieCode) || permitirSinSie,
     }));
   };
 
@@ -63,11 +83,20 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
     const lista: EmpresaEntidadDTO[] = await entidadesService.buscarEmpresas(termino);
     return lista.map((e) => ({
       key: `sie-${e.idEmpresa || e.razonSocial}`,
+      empresaId: null,
       titulo: e.razonSocial,
       sub: `${e.idEmpresa}${e.documento ? ` · ${e.documento}` : ""}`,
       idEmpresa: e.idEmpresa,
       nombreEmpresa: e.razonSocial,
       ruc: e.documento || null,
+      tipoComprobante: null,
+      representanteUserId: null,
+      representanteLegalNombre: null,
+      representanteLegalDni: null,
+      representanteCorreo: null,
+      direccionFiscal: null,
+      emailContacto: null,
+      emailFacturacion: null,
       seleccionable: true,
     }));
   };
@@ -87,6 +116,24 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
     } finally {
       setBuscando(false);
     }
+  };
+
+  const seleccionar = (empresa: OpcionEmpresa) => {
+    onSeleccion({
+      empresaId: empresa.empresaId,
+      idEmpresa: empresa.idEmpresa,
+      nombreEmpresa: empresa.nombreEmpresa,
+      ruc: empresa.ruc,
+      tipoComprobante: empresa.tipoComprobante,
+      representanteUserId: empresa.representanteUserId,
+      representanteLegalNombre: empresa.representanteLegalNombre,
+      representanteLegalDni: empresa.representanteLegalDni,
+      representanteCorreo: empresa.representanteCorreo,
+      direccionFiscal: empresa.direccionFiscal,
+      emailContacto: empresa.emailContacto,
+      emailFacturacion: empresa.emailFacturacion,
+    });
+    setResultados(null);
   };
 
   if (seleccion) {
@@ -139,22 +186,25 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       {resultados && resultados.length > 0 && (
         <div className="max-h-[180px] space-y-0.5 overflow-y-auto rounded-lg border border-border p-1">
           {resultados.map((e) => (
-            <Button
+            <div
               key={e.key}
-              type="button"
-              variant="ghost"
-              disabled={!e.seleccionable}
-              className="h-auto w-full justify-start px-2 py-1 text-left disabled:opacity-60"
-              onClick={() => {
-                onSeleccion({ idEmpresa: e.idEmpresa, nombreEmpresa: e.nombreEmpresa, ruc: e.ruc });
-                setResultados(null);
-              }}
+              className="flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-secondary/60"
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium">{e.titulo}</span>
                 <span className="block font-mono text-[10px] text-muted-foreground">{e.sub}</span>
               </span>
-            </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+                disabled={!e.seleccionable}
+                onClick={() => seleccionar(e)}
+              >
+                <span>Seleccionar</span>
+              </Button>
+            </div>
           ))}
         </div>
       )}

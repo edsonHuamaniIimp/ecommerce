@@ -4,7 +4,7 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, ToggleGroup, ToggleGroupItem } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine } from "lucide-react";
+import { Search, Eye, FileText, Clock, XCircle, RefreshCw, RotateCcw, Upload, Trash2, ChevronRight, CreditCard, CalendarDays, Paperclip, LayoutGrid, List, MapPin, Map as MapIcon, ImageDown, Loader2, PenLine, Settings2, FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -23,11 +23,13 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { ModificarSolicitudModal } from "./modificar-solicitud-modal";
 import { ClienteUploadModal } from "./cliente-upload-modal";
 import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recorte-plano";
-import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, VISTAS_BANDEJA } from "@/lib/shared/constants";
+import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, VISTAS_BANDEJA, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { precioTexto } from "@/lib/shared/utils/precio-stand";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos, tieneObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
+import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
+import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
+import { MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 
 type SolicitudRow = SolicitudDTO;
@@ -47,7 +49,20 @@ function puedeSolicitarReevaluacion(row: SolicitudRow) {
 function faltanDocumentosMultiStand(row: SolicitudRow) { return requiereDocsReevaluacion(row); }
 /** En ventana de contrato de reserva: faltan anexos obligatorios (Vigencia/DNI). */
 function faltanAnexosReserva(row: SolicitudRow) {
+  /* La reserva administrativa ya valida empresa/representante y no exige los
+     anexos del flujo regular (Vigencia de Poderes / DNI). */
+  if (row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA) return false;
   return enVentanaContratoReserva(row) && anexosBloqueantesFaltantes(row.docsAdjuntos).length > 0;
+}
+
+/** La reserva administrativa ya fue firmada y espera la aprobacion del Asociado. */
+function contratoFirmadoReservaPendienteAprobacion(row: SolicitudRow) {
+  if (row.tipo !== TIPOS_SOLICITUD.RESERVA_EMPRESA || row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE) return false;
+  return (row.docsAdjuntos ?? []).some(
+    (documento) =>
+      documento.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+      (!documento.estado || documento.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+  );
 }
 
 /** Estado de la subsanacion local: que falta reemplazar/firmar y si ya se puede reenviar. */
@@ -147,10 +162,10 @@ function adminDocReciente(row: SolicitudRow) {
 /** Seccion del detalle: separador superior + encabezado uniforme y contenido. */
 function ModalSection({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h4 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">{title}</h4>
-        {meta && <span className="text-[11px] text-muted-foreground">{meta}</span>}
+    <section className="rounded-xl border border-border/80 bg-card p-4 shadow-sm shadow-black/[0.03]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+        <h4 className="text-xs font-semibold text-foreground">{title}</h4>
+        {meta && <span className="text-[11px] font-medium text-muted-foreground">{meta}</span>}
       </div>
       {children}
     </section>
@@ -275,6 +290,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const [detailRow, setDetailRow] = useState<SolicitudRow | null>(null);
   const [sgcContratoUrl, setSgcContratoUrl] = useState<string | null>(null);
   const detailRequestRef = useRef(0);
+  const [monedaRow, setMonedaRow] = useState<SolicitudRow | null>(null);
+  const [nuevaMoneda, setNuevaMoneda] = useState<MonedaContrato>(MONEDAS_CONTRATO.USD);
+  const [cambiandoMoneda, setCambiandoMoneda] = useState(false);
   const [imgCarousel, setImgCarousel] = useState<{ images: string[]; idx: number } | null>(null);
   const documentoEstadoLabels = useMaestraLabels(
     MAESTRA_TABLAS.DOCUMENTO_ESTADO,
@@ -288,6 +306,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   const [clienteUploadOpen, setClienteUploadOpen] = useState(false);
   const [clienteUploadRow, setClienteUploadRow] = useState<SolicitudRow | null>(null);
   const [clienteUploadModo, setClienteUploadModo] = useState<"contrato" | "anexos">("anexos");
+  const [clienteUploadPrueba, setClienteUploadPrueba] = useState(false);
   /** RF-08: preview del recorte del pabellon con el stand destacado. */
   const [recorteBloque, setRecorteBloque] = useState<{ solicitudId: string; bloqueIds: string[]; etiqueta: string } | null>(null);
   const [guardandoRecorte, setGuardandoRecorte] = useState(false);
@@ -297,6 +316,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
   // Vista cuadricula/lista persistida por bandeja (util compartido).
   const { vista: view, setVista: setView } = useVistaBandeja("mis-solicitudes");
   const { session: sesion } = useSesion();
+  const esAdmin = Boolean(sesion?.permissions?.includes(PERMISSIONS.ADMIN_FULL));
   const puedePagar = (row: SolicitudRow) => !soloLectura && puedePagarNiubizz(row);
   const puedeReevaluar = (row: SolicitudRow) => !soloLectura && puedeSolicitarReevaluacion(row);
 
@@ -340,7 +360,34 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     }
   };
 
-  /** RF-08 (F2): genera el PNG del recorte y lo guarda en la solicitud para el contrato. */
+  const abrirCambioMoneda = (row: SolicitudRow) => {
+    setMonedaRow(row);
+    setNuevaMoneda(row.moneda === MONEDAS_CONTRATO.PEN ? MONEDAS_CONTRATO.PEN : MONEDAS_CONTRATO.USD);
+  };
+
+  const confirmarCambioMoneda = async () => {
+    if (!monedaRow) return;
+    setCambiandoMoneda(true);
+    try {
+      await solicitudesService.cambiarMoneda({
+        solicitudId: monedaRow.id,
+        moneda: nuevaMoneda,
+      });
+      toast.success(`Moneda cambiada a ${nuevaMoneda === MONEDAS_CONTRATO.PEN ? "Soles" : "Dólares"}. El contrato se regenerará en la nueva revisión.`);
+      setMonedaRow(null);
+      await load(page, search, perPage);
+      if (detailOpen && detailRow?.id === monedaRow.id) {
+        await openDetail(monedaRow.id);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "No se pudo cambiar la moneda");
+    } finally {
+      setCambiandoMoneda(false);
+    }
+  };
+
+  /** RF-08 (F2): genera el PNG del recorte y lo guarda
+   en la solicitud para el contrato. */
   const guardarRecortePng = async () => {
     if (!recorteBloque) return;
     const blob = await recorteRef.current?.exportarPng();
@@ -365,7 +412,23 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
     const data = await solicitudesService.detalle(row.id);
     setClienteUploadRow(data);
     setClienteUploadModo(modo);
+    setClienteUploadPrueba(false);
     setClienteUploadOpen(true);
+  };
+
+  /** Modo prueba (solo admin en "Ver como"): abre la accion del cliente sin ejecutar nada. */
+  const abrirPruebaCliente = async (row: SolicitudRow, modo: "contrato" | "anexos") => {
+    if (!esAdmin || !soloLectura) return;
+    const data = await solicitudesService.detalle(row.id);
+    setClienteUploadRow(data);
+    setClienteUploadModo(modo);
+    setClienteUploadPrueba(true);
+    setClienteUploadOpen(true);
+  };
+
+  /** Modo prueba (solo admin en "Ver como"): abre la firma sin ejecutar nada ni guardar cambios. */
+  const abrirPruebaFirma = async (row: SolicitudRow) => {
+    await abrirPruebaCliente(row, "contrato");
   };
 
   /** Reenvio tras observacion local o devolucion del SGC: el backend valida y ejecuta. */
@@ -514,6 +577,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
+                        {!soloLectura && puedeCambiarMonedaSolicitud(row) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            title="Cambiar moneda del contrato"
+                            onClick={() => abrirCambioMoneda(row)}
+                          >
+                            <Settings2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {row.flgActivo === false && (
                           <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}><span>Dada de baja</span></Badge>
                         )}
@@ -524,7 +598,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     <div className="space-y-3 px-4 py-3">
                       <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
                         <Dato label="Empresa" valor={row.empresa} />
-                        <Dato label="Precio" valor={precioTexto(row.precio)} />
+                        <Dato label="Precio" valor={formatearPrecioSolicitud(row.precio, row.moneda, row.tipoCambio)} />
                         <Dato label="Estado del stand" valor={row.estado} />
                         <Dato label="Documentos" valor={`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)}`} />
                         <Dato label="Coordenadas (X,Y)" valor={row.pabellon} />
@@ -580,6 +654,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             : faltanAnexosReserva(row)
                               ? "Faltan anexos obligatorios (Vigencia de Poderes y DNI). Adjuntalos para continuar."
                               : "Faltan documentos por adjuntar para continuar con tu solicitud."}
+                        </p>
+                      )}
+
+                      {contratoFirmadoReservaPendienteAprobacion(row) && (
+                        <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
+                          <span className="font-semibold">Contrato firmado: </span>
+                          pendiente de aprobación del Asociado antes de pasar a pago.
                         </p>
                       )}
 
@@ -646,10 +727,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             </Button>
                           )}
                           {contratoClientePendienteFirma(row) && (
-                            <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
-                              onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                            <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="w-full justify-center gap-1.5 bg-primary font-semibold text-primary-foreground hover:bg-primary/90 sm:w-auto"
+                              onClick={() => openClienteUpload(row, "contrato")}>
                               <PenLine className="h-3.5 w-3.5" />
                               <span>Firmar contrato</span>
+                            </Button>
+                          )}
+                          {esAdmin && soloLectura && (
+                            <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
+                              title="Modo prueba: no guarda ni firma nada"
+                              onClick={() => { void abrirPruebaFirma(row); }}>
+                              <FlaskConical className="h-3.5 w-3.5" />
+                              <span>Probar firma</span>
                             </Button>
                           )}
                           {!soloLectura && enVentanaLegalSgc(row) && (
@@ -659,16 +748,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Adjuntar documentos</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcContrato(row) && !observacionesSgcSubsanadas(row))) && (
+                            {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && !accionesObservacion(row).contratoCorregidoPendienteFirma && observacionContratoSgcPendiente(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-emerald-600 font-semibold text-white hover:bg-emerald-700 sm:w-auto"
-                              onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                              title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
+                              onClick={() => openClienteUpload(row, "contrato")}>
                               <Upload className="h-3.5 w-3.5" />
-                              <span>Corregir: subir contrato firmado</span>
+                              <span>Subsanar observación</span>
                             </Button>
                           )}
-                          {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
+                            {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
-                              onClick={() => { void openClienteUpload(row, "anexos"); }}>
+                              title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                              onClick={() => openClienteUpload(row, "anexos")}>
                               <Upload className="h-3.5 w-3.5" />
                               <span>Subir / reemplazar documentos</span>
                             </Button>
@@ -681,18 +772,26 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           )}
                           {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
+                            const reenvioBloqueado = soloLectura || reenviandoObservacion || (
+                              enVentanaDocumentosSgc(row)
+                                ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row)
+                                : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato
+                            );
+                            const reenvioListo = !reenvioBloqueado && a.anexosPendientes === 0;
                             return (
                               <>
-                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
+                                {a.contratoCorregidoPendienteFirma && (
                                   <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
-                                    onClick={() => {
-                                      const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
-                                      void openClienteUpload(row, modo);
-                                    }}>
-                                    {a.tieneAnexosObservados
-                                      ? <Upload className="h-3.5 w-3.5" />
-                                      : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observación</span>
+                                    onClick={() => openClienteUpload(row, "contrato")}>
+                                    <PenLine className="h-3.5 w-3.5" />
+                                    <span>Firmar contrato corregido</span>
+                                  </Button>
+                                )}
+                                {a.tieneAnexosObservados && (
+                                  <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
+                                    onClick={() => openClienteUpload(row, "anexos")}>
+                                    <Upload className="h-3.5 w-3.5" />
+                                    <span>Subir / reemplazar documentos</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -703,9 +802,10 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 )}
                                 {/* Devolucion del SGC: el boton del cliente ejecuta el reenvio
                                     (anexos corregidos + contrato si corresponde + /resend). */}
-                                <Button size="sm" variant="outline"
-                                  className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                <Button size="sm"
+                                  variant={reenvioListo ? "default" : "outline"}
+                                  className={`w-full justify-center gap-1.5 sm:w-auto ${reenvioListo ? "bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90 motion-safe:animate-pulse" : ""}`}
+                                  disabled={reenvioBloqueado}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -719,7 +819,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
                                             ? "Falta firmar contrato"
-                                            : "Reenviar a revision"}
+                                            : "Reenviar a revisión"}
                                   </span>
                                 </Button>
                               </>
@@ -759,7 +859,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         </TableCell>
                         <TableCell className="hidden max-w-[140px] truncate text-xs lg:table-cell">{row.tipoStand ?? "-"}</TableCell>
                         <TableCell className="hidden max-w-[160px] truncate text-xs lg:table-cell">{row.empresa ?? "-"}</TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{precioTexto(row.precio)}</TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-xs lg:table-cell">{formatearPrecioSolicitud(row.precio, row.moneda, row.tipoCambio)}</TableCell>
                         <TableCell className="hidden lg:table-cell"><FlujoRevision row={row} /></TableCell>
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground sm:table-cell">
                           {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
@@ -786,10 +886,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               </Button>
                             )}
                             {contratoClientePendienteFirma(row) && (
-                              <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                                onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                              <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="h-8 gap-1.5 bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                                onClick={() => openClienteUpload(row, "contrato")}>
                                 <PenLine className="h-3.5 w-3.5" />
                                 <span>Firmar contrato</span>
+                              </Button>
+                            )}
+                            {esAdmin && soloLectura && (
+                              <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
+                                title="Modo prueba: no guarda ni firma nada"
+                                onClick={() => { void abrirPruebaFirma(row); }}>
+                                <FlaskConical className="h-3.5 w-3.5" />
+                                <span>Probar firma</span>
                               </Button>
                             )}
                             {!soloLectura && enVentanaLegalSgc(row) && (
@@ -799,16 +907,18 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Adjuntar documentos</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaSubsanacionSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcContrato(row) && !observacionesSgcSubsanadas(row))) && (
+                          {(esAdmin || !soloLectura) && enVentanaSubsanacionSgc(row) && !contratoClientePendienteFirma(row) && !accionesObservacion(row).contratoCorregidoPendienteFirma && observacionContratoSgcPendiente(row) && (
                               <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"
-                                onClick={() => { void openClienteUpload(row, "contrato"); }}>
+                                title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined}
+                                onClick={() => openClienteUpload(row, "contrato")}>
                                 <Upload className="h-3.5 w-3.5" />
-                                <span>Corregir: subir contrato firmado</span>
+                                <span>Subsanar observación</span>
                               </Button>
                             )}
-                            {!soloLectura && enVentanaDocumentosSgc(row) && (sgcObservacionesAbiertas(row).length === 0 || (tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row))) && (
+                          {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
-                                onClick={() => { void openClienteUpload(row, "anexos"); }}>
+                                title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                                onClick={() => openClienteUpload(row, "anexos")}>
                                 <Upload className="h-3.5 w-3.5" />
                                 <span>Subir / reemplazar documentos</span>
                               </Button>
@@ -821,18 +931,26 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                             )}
                           {row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO && (() => {
                             const a = accionesObservacion(row);
+                            const reenvioBloqueado = soloLectura || reenviandoObservacion || (
+                              enVentanaDocumentosSgc(row)
+                                ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row)
+                                : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato
+                            );
+                            const reenvioListo = !reenvioBloqueado && a.anexosPendientes === 0;
                             return (
                               <>
-                                {(a.contratoCorregidoPendienteFirma || a.tieneAnexosObservados) && (
+                                {a.contratoCorregidoPendienteFirma && (
                                   <Button size="sm" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
-                                    onClick={() => {
-                                      const modo = a.tieneAnexosObservados ? "anexos" : "contrato";
-                                      void openClienteUpload(row, modo);
-                                    }}>
-                                    {a.tieneAnexosObservados
-                                      ? <Upload className="h-3.5 w-3.5" />
-                                      : <PenLine className="h-3.5 w-3.5" />}
-                                    <span>Subsanar observación</span>
+                                    onClick={() => openClienteUpload(row, "contrato")}>
+                                    <PenLine className="h-3.5 w-3.5" />
+                                    <span>Firmar contrato corregido</span>
+                                  </Button>
+                                )}
+                                {a.tieneAnexosObservados && (
+                                  <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto" disabled={soloLectura}
+                                    onClick={() => openClienteUpload(row, "anexos")}>
+                                    <Upload className="h-3.5 w-3.5" />
+                                    <span>Subir / reemplazar documentos</span>
                                   </Button>
                                 )}
                                 {((a.contratoAdminObservado && !a.adminContratoVigente) || a.esperandoContratoCorregidoFirmado) && (
@@ -843,9 +961,10 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 )}
                                 {/* Devolucion del SGC: el boton del cliente ejecuta el reenvio
                                     (anexos corregidos + contrato si corresponde + /resend). */}
-                                <Button size="sm" variant="outline"
-                                  className="w-full justify-center gap-1.5 sm:w-auto"
-                                  disabled={soloLectura || reenviandoObservacion || (enVentanaDocumentosSgc(row) ? esperandoContratoCorregidoSgc(row) || reenvioSgcPendiente(row) || reenvioSgcYaEnviado(row) : a.pendientesReemplazo.length > 0 || a.faltaFirmaContrato)}
+                                <Button size="sm"
+                                  variant={reenvioListo ? "default" : "outline"}
+                                  className={`w-full justify-center gap-1.5 sm:w-auto ${reenvioListo ? "bg-gold font-bold text-gold-foreground shadow-md hover:bg-gold/90 motion-safe:animate-pulse" : ""}`}
+                                  disabled={reenvioBloqueado}
                                   onClick={() => { void handleReenviarObservacion(row); }}>
                                   {reenviandoObservacion ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                                   <span>
@@ -859,12 +978,23 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                           ? `Falta subir ${a.anexosPendientes}`
                                           : a.faltaFirmaContrato
                                             ? "Falta firmar contrato"
-                                            : "Reenviar a revision"}
+                                            : "Reenviar a revisión"}
                                   </span>
                                 </Button>
                               </>
                             );
                           })()}
+                          {!soloLectura && puedeCambiarMonedaSolicitud(row) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
+                              title="Cambiar moneda del contrato"
+                              onClick={() => abrirCambioMoneda(row)}
+                            >
+                              <Settings2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <VerDetalleButton onClick={() => { void openDetail(row.id); }} />
                           </div>
                         </TableCell>
@@ -893,28 +1023,80 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
           setSgcContratoUrl(null);
         }
       }}>
-        <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden sm:max-w-lg">
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden sm:max-w-3xl lg:max-w-5xl">
           {/* Header */}
-          <DialogHeader className="shrink-0 border-b border-border pb-3 text-left">
-            <div className="flex flex-wrap items-center justify-between gap-2 pr-6">
-              <DialogTitle className="text-sm font-semibold text-foreground">Estado de solicitud</DialogTitle>
-              {detailRow && <EstadoSolicitudBadge estado={detailRow.estadoSolicitud} />}
+          <DialogHeader className="shrink-0 border-b border-border pb-4 text-left">
+            <div className="flex flex-wrap items-start justify-between gap-3 pr-8">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Solicitud
+                </p>
+                <DialogTitle className="mt-1 flex flex-wrap items-center gap-2 text-base font-semibold text-foreground">
+                  <span>Detalle de la solicitud</span>
+                  {detailRow && (
+                    <span className="rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground">
+                      {standTitulo(detailRow)}
+                    </span>
+                  )}
+                </DialogTitle>
+                {detailRow && (
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {detailRow.empresa ?? "Sin empresa"} · {dateUtils.formatDateTime(detailRow.createdAt)}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {esAdmin && soloLectura && detailRow && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 rounded-full px-2.5 text-[10px]"
+                    title="Abre la firma en modo prueba: no guarda ni firma nada"
+                    onClick={() => { void abrirPruebaFirma(detailRow); }}
+                  >
+                    <FlaskConical className="h-3 w-3" />
+                    <span>Probar firma</span>
+                  </Button>
+                )}
+                {detailRow && !soloLectura && puedeCambiarMonedaSolicitud(detailRow) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    title="Cambiar moneda del contrato"
+                    onClick={() => abrirCambioMoneda(detailRow)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                )}
+                {detailRow && <EstadoSolicitudBadge estado={detailRow.estadoSolicitud} />}
+              </div>
             </div>
           </DialogHeader>
           {/* Body */}
-          <div className="flex-1 min-h-0 space-y-2 overflow-y-auto py-4">
+          <div className="flex-1 min-h-0 space-y-3 overflow-y-auto px-1 py-4 sm:px-2">
           {detailRow && (
             <>
               {/* Resumen */}
-              <ModalSection title="Informacion general" meta={dateUtils.formatDateTime(detailRow.createdAt)}>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Stand</span>
-                    <span className="font-mono text-xs font-semibold text-foreground">{standTitulo(detailRow)}</span>
+              <ModalSection title="Resumen de la solicitud">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Stand</span>
+                    <span className="mt-0.5 block font-mono text-sm font-semibold text-foreground">{standTitulo(detailRow)}</span>
                   </div>
-                  <div className="space-y-0.5">
-                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">Tipo</span>
-                    <span className="text-xs text-foreground">{detailRow.tipoStand ?? "-"}</span>
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Tipo</span>
+                    <span className="mt-0.5 block truncate text-xs font-medium text-foreground">{detailRow.tipoStand ?? "-"}</span>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Empresa</span>
+                    <span className="mt-0.5 block truncate text-xs font-medium text-foreground">{detailRow.empresa ?? "-"}</span>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 p-2.5">
+                    <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Precio</span>
+                    <span className="mt-0.5 block text-xs font-semibold text-foreground">
+                      {formatearPrecioSolicitud(detailRow.precio ?? 0, detailRow.moneda, detailRow.tipoCambio)}
+                    </span>
                   </div>
                 </div>
                 {(detailRow.standCodes?.length ?? 0) > 1 && (
@@ -1039,12 +1221,12 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   )}
                   {/* Single-stand */}
                   {(!detailRow.standCodes || detailRow.standCodes.length <= 1) && (detailRow.documentos as string[]).length > 0 && (
-                    <div className="space-y-0.5 rounded-md border p-2">
+                    <div className="space-y-1 rounded-lg border border-border bg-muted/20 p-2">
                       {(detailRow.documentos as string[]).map((url, i) => (
-                        <a key={i} href={url} target="_blank" className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs text-primary hover:bg-primary/5 transition-colors">
-                          <FileText className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate flex-1">{stringUtils.nombreArchivo(url)}</span>
-                          <Eye className="h-3 w-3 opacity-50 shrink-0" />
+                        <a key={i} href={url} target="_blank" className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs text-primary transition-colors hover:bg-background">
+                          <FileText className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate font-medium">{stringUtils.nombreArchivo(url)}</span>
+                          <Eye className="h-3.5 w-3.5 shrink-0 opacity-60" />
                         </a>
                       ))}
                     </div>
@@ -1058,15 +1240,17 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <div className="space-y-2">
                         {adminDocs.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Administrador ({adminDocs.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-info/30 bg-info/10 p-2">
+                            <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Administrador ({adminDocs.length})</p>
+                            <div className="overflow-hidden rounded-lg border border-info/25 bg-info/5">
                               {adminDocs.map((doc, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-info" />
-                                  <a href={doc.url} target="_blank" className="text-info hover:text-info transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="text-muted-foreground hover:text-foreground shrink-0">
-                                    <Eye className="h-3 w-3" />
+                                <div key={i} className="flex items-center gap-2 border-t border-info/15 px-3 py-2 text-xs first:border-t-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-info" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={doc.url} target="_blank" className="block truncate font-medium text-info hover:underline">{doc.nombre}</a>
+                                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  </div>
+                                  <a href={doc.url} target="_blank" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground" aria-label="Ver documento">
+                                    <Eye className="h-3.5 w-3.5" />
                                   </a>
                                 </div>
                               ))}
@@ -1075,29 +1259,32 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         )}
                         {contratoFirmado.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tu contrato firmado ({contratoFirmado.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-gold/30 bg-gold/10 p-2">
+                            <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tu contrato firmado ({contratoFirmado.length})</p>
+                            <div className="overflow-hidden rounded-lg border border-gold/25 bg-gold/5">
                               {contratoFirmado.map((doc, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-gold" />
-                                  <a href={doc.url} target="_blank" className="text-amber-800 hover:text-amber-900 transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                <div key={i} className="group flex items-center gap-2 border-t border-gold/15 px-3 py-2 text-xs first:border-t-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-gold" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={doc.url} target="_blank" className="block truncate font-medium text-amber-800 hover:underline">{doc.nombre}</a>
+                                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  </div>
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
                                   )}
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
-                                    <Eye className="h-3 w-3" />
+                                  <a href={doc.url} target="_blank" className="shrink-0 rounded-md p-1 text-muted-foreground opacity-100 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100" aria-label="Ver documento">
+                                    <Eye className="h-3.5 w-3.5" />
                                   </a>
                                   {!soloLectura && puedeEliminarDocumentoActual(detailRow, doc) && (
-                                    <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+                                    <button className="shrink-0 rounded-md p-1 text-destructive opacity-100 hover:bg-background sm:opacity-0 sm:group-hover:opacity-100"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         setDeleteConfirm(doc.id);
-                                      }}>
-                                      <Trash2 className="h-3 w-3" />
+                                      }}
+                                      aria-label="Eliminar documento">
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
@@ -1107,29 +1294,32 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         )}
                         {anexosCliente.length > 0 && (
                           <div>
-                            <p className="mb-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Tus documentos ({anexosCliente.length})</p>
-                            <div className="space-y-0.5 rounded-md border border-success/30 bg-success/10 p-2">
+                            <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Tus documentos ({anexosCliente.length})</p>
+                            <div className="overflow-hidden rounded-lg border border-success/25 bg-success/5">
                               {anexosCliente.map((doc, i) => (
-                                <div key={i} className="flex items-center gap-2 rounded px-1.5 py-1 text-xs group">
-                                  <FileText className="h-3.5 w-3.5 shrink-0 text-success" />
-                                  <a href={doc.url} target="_blank" className="text-success hover:text-success transition-colors truncate flex-1 font-medium">{doc.nombre}</a>
+                                <div key={i} className="group flex items-center gap-2 border-t border-success/15 px-3 py-2 text-xs first:border-t-0">
+                                  <FileText className="h-4 w-4 shrink-0 text-success" />
+                                  <div className="min-w-0 flex-1">
+                                    <a href={doc.url} target="_blank" className="block truncate font-medium text-success hover:underline">{doc.nombre}</a>
+                                    <span className="block truncate text-[10px] text-muted-foreground">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
+                                  </div>
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`} title={doc.motivoObservacion ?? undefined}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO]}</span></Badge>
                                   )}
                                   {doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO && (
                                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>{documentoEstadoLabels[ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO]}</span></Badge>
                                   )}
-                                  <span className="text-[10px] text-muted-foreground shrink-0">{doc.uploadedBy ? `${doc.uploadedBy} · ` : ""}{dateUtils.formatDateTime(doc.createdAt)}</span>
-                                  <a href={doc.url} target="_blank" className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground shrink-0">
-                                    <Eye className="h-3 w-3" />
+                                  <a href={doc.url} target="_blank" className="shrink-0 rounded-md p-1 text-muted-foreground opacity-100 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100" aria-label="Ver documento">
+                                    <Eye className="h-3.5 w-3.5" />
                                   </a>
                                   {!soloLectura && puedeEliminarDocumentoActual(detailRow, doc) && (
-                                    <button className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+                                    <button className="shrink-0 rounded-md p-1 text-destructive opacity-100 hover:bg-background sm:opacity-0 sm:group-hover:opacity-100"
                                       onClick={(e) => {
                                         e.preventDefault();
                                         setDeleteConfirm(doc.id);
-                                      }}>
-                                      <Trash2 className="h-3 w-3" />
+                                      }}
+                                      aria-label="Eliminar documento">
+                                      <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
@@ -1199,13 +1389,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto" asChild>
                             <a href={adminDoc.url} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-3.5 w-3.5" />
-                              <span>Descargar contrato</span>
+                              <span>Ver contrato</span>
                             </a>
                           </Button>
                         ) : null;
                       })()}
-                      <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full gap-1.5 sm:w-auto"
-                        onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
+                      <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="w-full gap-1.5 sm:w-auto"
+                        onClick={() => openClienteUpload(detailRow, "contrato")}>
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
@@ -1239,8 +1429,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
 
               {/* Subsanación SGC: el cliente descarga el contrato vigente y sube el firmado */}
                             {/* Observaciones de anexos del área legal (SGC) por documento */}
-              {!soloLectura && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
-                <ModalSection title="Acción requerida">
+              {(esAdmin || !soloLectura) && detailRow && detailRow.flgActivo !== false && sgcObservacionesAbiertas(detailRow).some(esObservacionSgcAnexo) && (
+                <ModalSection title="Documentos observados por el área legal">
                   <div className={`flex flex-col gap-3 rounded-lg border p-3 ${observacionesSgcSubsanadas(detailRow) ? "border-success/30 bg-success/10" : "border-warning/30 bg-warning/10"}`}>
                     <div className="flex items-start gap-3">
                       <Upload className={`mt-0.5 h-4 w-4 shrink-0 ${observacionesSgcSubsanadas(detailRow) ? "text-success" : "text-warning"}`} />
@@ -1266,7 +1456,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                     </div>
                     {!observacionesSgcSubsanadas(detailRow) && enVentanaDocumentosSgc(detailRow) && (
                       <Button size="sm" className="w-full gap-1.5 sm:w-auto"
-                        onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                        title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                        onClick={() => openClienteUpload(detailRow, "anexos")}>
                         <Upload className="h-3.5 w-3.5" />
                         <span>Subir / reemplazar documentos</span>
                       </Button>
@@ -1275,13 +1466,13 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                 </ModalSection>
               )}
 
-              {!soloLectura && detailRow && enVentanaSubsanacionSgc(detailRow) && detailRow.flgActivo !== false && (sgcObservacionesAbiertas(detailRow).length === 0 || (tieneObservacionSgcContrato(detailRow) && !observacionesSgcSubsanadas(detailRow))) && (
-                <ModalSection title="Acción requerida">
+              {(esAdmin || !soloLectura) && detailRow && enVentanaSubsanacionSgc(detailRow) && !contratoClientePendienteFirma(detailRow) && detailRow.flgActivo !== false && observacionContratoSgcPendiente(detailRow) && (
+                <ModalSection title="Contrato observado por el área legal">
                   <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
                     <div className="flex items-start gap-3">
                       <Upload className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                       <div>
-                        <p className="text-xs font-semibold text-destructive">Corregir: subir contrato firmado</p>
+                        <p className="text-xs font-semibold text-destructive">Subsanar contrato</p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
                           {detailRow.sgcSubsanacionMotivo ?? detailRow.sgcDevolucionMotivo ?? "El área legal observó el contrato. Corrígelo y fírmalo de nuevo."}
                         </p>
@@ -1298,7 +1489,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           </ul>
                         )}
                         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          Descarga la versión vigente del contrato, fírmala y súbela para que la administración lo reenvíe al SGC.
+                          Firma el contrato corregido para que la administración lo reenvíe al SGC.
                         </p>
                       </div>
                     </div>
@@ -1309,23 +1500,16 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto" asChild>
                             <a href={adminDoc.url} target="_blank" rel="noopener noreferrer">
                               <FileText className="h-3.5 w-3.5" />
-                              <span>Descargar contrato</span>
+                              <span>Ver contrato</span>
                             </a>
                           </Button>
                         ) : null;
                       })()}
-                      <Button size="sm" disabled={soloLectura} title={soloLectura ? "Vista de solo lectura" : undefined} className="w-full gap-1.5 sm:w-auto"
-                        onClick={() => { void openClienteUpload(detailRow, "contrato"); }}>
+                      <Button size="sm" title={soloLectura ? "Modo prueba: no guarda ni firma nada" : undefined} className="w-full gap-1.5 sm:w-auto"
+                        onClick={() => openClienteUpload(detailRow, "contrato")}>
                         <PenLine className="h-3.5 w-3.5" />
                         <span>Firmar contrato</span>
                       </Button>
-                      {enVentanaDocumentosSgc(detailRow) && (
-                        <Button size="sm" variant="outline" className="w-full gap-1.5 sm:w-auto"
-                          onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
-                          <Upload className="h-3.5 w-3.5" />
-                          <span>Subir / reemplazar documentos</span>
-                        </Button>
-                      )}
                     </div>
                   </div>
                 </ModalSection>
@@ -1340,7 +1524,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                       <p className="text-xs font-semibold text-warning">Esperando contrato corregido</p>
                       <p className="mt-0.5 text-[11px] leading-relaxed text-warning">
                         La administración del IIMP está preparando una nueva versión del contrato.
-                        Cuando esté disponible podrás descargarla, firmarla y subirla.
+                        Cuando esté disponible podrás firmarla digitalmente desde aquí.
                       </p>
                       {detailRow.sgcSubsanacionMotivo && (
                         <p className="mt-1 text-[11px] italic text-muted-foreground">&quot;{detailRow.sgcSubsanacionMotivo}&quot;</p>
@@ -1349,7 +1533,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                   </div>
                   {enVentanaDocumentosSgc(detailRow) && (
                     <Button size="sm" variant="outline" className="w-full gap-1.5"
-                      onClick={() => { void openClienteUpload(detailRow, "anexos"); }}>
+                      title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
+                      onClick={() => openClienteUpload(detailRow, "anexos")}>
                       <Upload className="h-3.5 w-3.5" />
                       <span>Subir / reemplazar documentos</span>
                     </Button>
@@ -1533,13 +1718,67 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
             <ClienteUploadModal
               solicitud={clienteUploadRow}
               modo={clienteUploadModo}
-              onClose={() => setClienteUploadOpen(false)}
+              modoPrueba={esAdmin && clienteUploadPrueba}
+              onClose={() => { setClienteUploadOpen(false); setClienteUploadPrueba(false); }}
               onSaved={() => {
                 void load(page, search, perPage);
                 if (detailOpen && detailRow) void openDetail(detailRow.id);
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cambiar moneda */}
+      <Dialog open={!!monedaRow} onOpenChange={(open) => { if (!open && !cambiandoMoneda) setMonedaRow(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Settings2 className="h-4 w-4 text-primary" />
+              <span>Cambiar moneda del contrato</span>
+            </DialogTitle>
+          </DialogHeader>
+          {monedaRow && (
+            <div className="space-y-4 text-xs">
+              <p className="text-muted-foreground">
+                Solicitud <span className="font-mono font-semibold text-foreground">{standTitulo(monedaRow)}</span>
+              </p>
+              <div className="space-y-1.5">
+                <p className="font-medium text-foreground">Nueva moneda</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={nuevaMoneda === MONEDAS_CONTRATO.USD ? "default" : "outline"}
+                    onClick={() => setNuevaMoneda(MONEDAS_CONTRATO.USD)}
+                  >
+                    Dólares (USD)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={nuevaMoneda === MONEDAS_CONTRATO.PEN ? "default" : "outline"}
+                    onClick={() => setNuevaMoneda(MONEDAS_CONTRATO.PEN)}
+                  >
+                    Soles (PEN)
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-[11px] leading-relaxed text-muted-foreground">
+                Se recalculará el cronograma con el TC del evento. El contrato actual se marcará como reemplazado, se invalidarán las firmas locales y la solicitud volverá a revisión. No aplica si ya existe Facturación, pago, reserva IIMP o aprobación del SGC.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={cambiandoMoneda} onClick={() => setMonedaRow(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={cambiandoMoneda || !monedaRow || nuevaMoneda === monedaRow.moneda}
+              onClick={() => { void confirmarCambioMoneda(); }}
+            >
+              {cambiandoMoneda ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              Confirmar cambio
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1585,17 +1824,19 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
       {/* RF-08: recorte del pabellon con el stand destacado */}
       {recorteBloque && (
         <Dialog open onOpenChange={() => setRecorteBloque(null)}>
-          <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[92vh] w-[min(1150px,94vw)] flex-col gap-0 overflow-hidden !px-0 !py-0 sm:max-w-[1150px]">
+            <DialogHeader className="shrink-0 border-b border-border px-5 pb-3 pt-4 !pr-12 text-left">
               <DialogTitle>
                 <span>{recorteBloque.bloqueIds.length > 1 ? `Ubicación de los stands ${recorteBloque.etiqueta}` : `Ubicación del stand ${recorteBloque.etiqueta}`}</span>
               </DialogTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tu stand está destacado en el pabellón para que ubiques su posición respecto de los demás stands.
+              </p>
             </DialogHeader>
-            <p className="text-xs text-muted-foreground">
-              Tu stand está resaltado en el pabellón para que ubiques su posición respecto de los demás stands.
-            </p>
-            <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
-            <DialogFooter>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <RecortePlano key={recorteBloque.bloqueIds.join("|")} ref={recorteRef} bloqueIds={recorteBloque.bloqueIds} />
+            </div>
+            <DialogFooter className="shrink-0 border-t border-border px-5 py-3">
               <div className="flex w-full flex-wrap items-center justify-between gap-2">
                 {detailRow?.id === recorteBloque.solicitudId && detailRow?.recortePlanoUrl ? (
                   <a href={detailRow.recortePlanoUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">

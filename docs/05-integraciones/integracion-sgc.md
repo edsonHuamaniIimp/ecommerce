@@ -673,30 +673,83 @@ flowchart TD
 - [propuesta-observaciones-por-documento-sgc.md](./propuesta-observaciones-por-documento-sgc.md)
 - [integracion-factura-401-sie.md](./integracion-factura-401-sie.md) (401 de SIE resuelto)
 
-## Actualizaci?n 6-nov-2026: gu?a v7 ? una observaci?n = un archivo
+## Actualización 6-nov-2026: guía v7 — una observación = un archivo
 
 - Antes de reenviar se cuentan las observaciones abiertas. Cada una exige **un archivo**:
-  - con `documentId` ? una versi?n nueva de ese documento;
-  - con `documentId: null` / `requiresNewDocument: true` ? un archivo nuevo.
-- La UI muestra **?te piden N, llevas M?** y bloquea el reenv?o hasta cubrir todas.
+  - con `documentId` → una versión nueva de ese documento;
+  - con `documentId: null` / `requiresNewDocument: true` → un archivo nuevo.
+- La UI muestra **“te piden N, llevas M”** y bloquea el reenvío hasta cubrir todas.
   El servidor valida lo mismo y responde `409` con el detalle de faltantes.
-- Si el SGC responde `422 "Todav?a falta: ?"`, se muestra un mensaje guiado con el
+- Si el SGC responde `422 "Todavía falta: …"`, se muestra un mensaje guiado con el
   detalle, no el error crudo.
 - `missingDocuments[]` del detalle se incorpora al listado de faltantes (como
   observaciones nuevas) y `resolvedAt` se persiste cuando el SGC lo informa.
-- Reenv?o: si la observaci?n es solo de anexos, **no se sube una versi?n nueva del
-  contrato**; si la observaci?n es del contrato, s?. `observationCount` se deriva del
-  n?mero de observaciones abiertas.
-- Pendiente de una siguiente fase: recordatorios autom?ticos hasta que el cliente
+- Reenvío: si la observación es solo de anexos, **no se sube una versión nueva del
+  contrato**; si la observación es del contrato, sí. `observationCount` se deriva del
+  número de observaciones abiertas.
+- Pendiente de una siguiente fase: recordatorios automáticos hasta que el cliente
   subsane (requiere definir cadencia y canales).
-- El sync/cron tambi?n detecta **observaciones sueltas** (`documents[].observations[]`)
+- El sync/cron también detecta **observaciones sueltas** (`documents[].observations[]`)
   aunque el lifecycle no cambie; las guarda y notifica al cliente sin forzar el estado local.
 - La alerta de campana incluye el detalle de los documentos observados; el correo mantiene
   la lista completa y el motivo.
-## Actualizaci?n v8 (6-nov-2026): no subir durante la revisi?n
 
-- Mientras el expediente est? en revisi?n (despu?s de `/resend` y hasta `workflow.returned`/
+## Actualización v8 (6-nov-2026): no subir durante la revisión
+
+- Mientras el expediente está en revisión (después de `/resend` y hasta `workflow.returned`/
   `workflow.rejected`), el SGC responde `409` al reservar subida:
-  "La revisi?n est? en curso: espere a que el expediente se devuelva para corregir o subir archivos."
+  "La revisión est? en curso: espere a que el expediente se devuelva para corregir o subir archivos."
 - No se reintenta: la UI solo permite subir en borrador, devuelto o rechazado; el outbox marca
-  el intento como no reintentable y espera la devoluci?n.
+  el intento como no reintentable y espera la devolución.
+
+## Actualización local 12-nov-2026: vínculo explícito archivo ↔ observación SGC
+
+Objetivo: corregir anexos arbitrarios y múltiples documentos sin inferir por fecha o por
+`requisito` (que las observaciones del SGC no siempre incluyen).
+
+- `solicitud_documento` guarda `sgc_observation_id`, `sgc_document_id` y `sgc_title`.
+  - `sgc_observation_id`: observación exacta que ese archivo corrige.
+  - `sgc_document_id`: pieza del SGC que se versiona; `null` = archivo nuevo requerido.
+  - `sgc_title`: título exacto informado por el SGC cuando no existe una fila de
+    `ANEXOS_REQUERIDOS`.
+- `POST /api/solicitudes/upload-doc` acepta esos campos; el modal del cliente permite
+  seleccionar **varios archivos** y conserva los metadatos de la observación para cada uno.
+- `estadoCorreccionSgc` prioriza el vínculo por `observation_id`/`document_id`. Si hay
+  archivos nuevos con vínculo, un anexo cualquiera posterior ya no cubre una observación
+  arbitraria por el solo hecho de ser más nuevo. Se mantiene compatibilidad con correcciones
+  previas sin metadatos (matching por requisito/nombre/título).
+- `subirAnexosDeSolicitud` usa `sgc_document_id` para versionar la pieza correcta, usa el
+  título exacto de la observación y ordena las correcciones más recientes primero; una
+  versión anterior no consume el `documentId` de la corrección.
+- `sgc_expediente` guarda `contrato_regenerado_observation_id` / `contrato_regenerado_at` para
+  no regenerar dos veces la misma observación de contrato y limpiar la marca cuando el
+  expediente deja de estar devuelto.
+- Migración local: `prisma/migrations/20261111210000_add_sgc_observation_links`.
+  **Pendiente aplicarla en cada ambiente**; no se aplicó a producción en esta sesión.
+
+### Límites conocidos de esta fase
+
+- La API del SGC sigue siendo la autoridad: una observación solo queda resuelta cuando el
+  SGC la marca `resolved` o acepta el reenvío. La UI muestra “corrección registrada” vs
+  “corrección enviada al SGC”, pero no inventa una resolución local.
+- `SolicitudesApplicationService.detalle` hace sync-on-read con TTL de 2 minutos para casos
+  `observed`/`rejected`; así el detalle del cliente no depende de que un admin abra el panel.
+  Tras un reenvío exitoso también se refresca el expediente contra el SGC (best-effort).
+- El vínculo se guarda al subir el archivo. Documentos históricos sin
+  `sgc_observation_id`/`sgc_document_id` siguen usando el matching legacy.
+- Si una misma observación requiere más de un archivo, el modelo actual sigue la regla v7
+  “una observación = un archivo”; no se inventó una relación N:M sin acuerdo con el SGC.
+
+## Actualización 13-nov-2026: corrección excepcional sin el cliente
+
+- Se documentó el procedimiento para que un operador autorizado actualice documentos
+  observados y reenvíe al SGC sin esperar a que el cliente ingrese.
+- Solo aplica en casos extremos/urgentes, con autorización y auditoría.
+- **No** aplica a expedientes `active` (vigente), `finalized` (cerrado), `archived` o
+  `closed`, ni a documentos con aprobación final.
+- Observación individual: versión nueva por `documentId`, sin `observationId` suelto.
+- Grupo v11: `observationId` + `pieceId`; sin `pieces[]` no se puede adivinar la pieza.
+- Archivos deben quedar como documentos del cliente (`user_id` no nulo) para enviarse
+  como anexos; el contrato observado requiere firma válida del cliente.
+- Procedimiento completo:
+  [`docs/06-operacion/procedimiento-correccion-excepcional-sgc.md`](../06-operacion/procedimiento-correccion-excepcional-sgc.md).

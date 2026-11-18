@@ -437,6 +437,99 @@ export const plantillasEn: PlantillasEmail = {
     };
   },
 
+  "facturacion-recordatorio-solicitud": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Request your stand invoice - IIMP",
+      html: envoltura(
+        "Invoice request pending",
+        `
+        <p>Hello, the invoice for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> has not been requested yet.</p>
+        <p>Go to <strong>My documents</strong> in the Client Portal, review your installments and click <strong>Send invoice request</strong> on the first pending installment. If your company requires a PO, service entry sheet, supplier platform registration, valuation or other documents, you can declare and attach them in the same form.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Request my invoice</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Step-by-step guide: <a href="${manual}" style="color:#1b365d">Client Portal billing manual</a>.</p>
+      `,
+        PIE_EN,
+      ),
+    };
+  },
+
+  "facturacion-recordatorio-documentos": ({ razonSocial, standCodes, faltantes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Pending documents for your invoice - IIMP",
+      html: envoltura(
+        "Pending documents",
+        `
+        <p>Hello, the invoice request for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> has declared requirements whose documents have not been registered in the IIMP yet.</p>
+        <p style="font-size:13px;color:#475569"><strong>Pending documents:</strong></p>
+        ${listaHtml(faltantes.map(esc))}
+        <p>Go to <strong>My documents</strong>, open the <strong>Documents for your invoice</strong> panel of the installment and upload each pending document.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Upload documents</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Step-by-step guide: <a href="${manual}" style="color:#1b365d">Client Portal billing manual</a>.</p>
+      `,
+        PIE_EN,
+      ),
+    };
+  },
+
+  "facturacion-completar-requisitos": ({ razonSocial, standCodes }) => {
+    const portal = `${getAppUrl()}/dashboard/mis-pagos`;
+    const manual = `${getAppUrl()}/manual/facturacion`;
+    return {
+      subject: "Complete your invoice requirements - IIMP",
+      html: envoltura(
+        "Complete your invoice requirements",
+        `
+        <p>Hello, the invoice request for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> was sent, but it has <strong>no declared requirements</strong>.</p>
+        <p>So that Billing can issue your invoice without observations, complete the checklist with what your company requires:</p>
+        <ol style="font-size:13px;color:#475569;padding-left:18px">
+          <li style="margin-bottom:6px">Go to <strong>My documents</strong> in the Client Portal.</li>
+          <li style="margin-bottom:6px">Click <strong>Complete requirements</strong> on your request card.</li>
+          <li style="margin-bottom:6px">Select PO, service entry sheet, supplier platform registration, valuation, other or <strong>"None of the above"</strong>.</li>
+          <li style="margin-bottom:6px">Attach the applicable documents and save the changes.</li>
+        </ol>
+        <p style="font-size:13px;color:#475569">If your company does not require documents, select <strong>"None of the above"</strong> and save. You do not need to resend your request to the IIMP.</p>
+        <p style="text-align:center;margin:18px 0 6px 0">
+          <img src="${getAppUrl()}/manual/img/fact-completar-requisitos.png" alt="Complete requirements button in My documents" style="max-width:100%;border:1px solid #e2e8f0;border-radius:8px" />
+        </p>
+        <p style="text-align:center;margin:0 0 18px 0;font-size:12px;color:#64748b">In <strong>My documents</strong>, click the button outlined in red.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${portal}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Complete requirements</a>
+        </div>
+        <p style="font-size:13px;color:#475569">Step-by-step guide: <a href="${manual}" style="color:#1b365d">Client Portal billing manual</a>.</p>
+      `,
+        PIE_EN,
+      ),
+    };
+  },
+
+  "facturacion-factura-disponible": ({ razonSocial, standCodes, numero, fechaEmision }) => ({
+    subject: `Invoice available (${numero}) - IIMP`,
+    html: envoltura(
+      "Invoice available",
+      `
+      <p>The invoice for <strong>${esc(razonSocial)}</strong> for stand <strong>${esc(standCodes)}</strong> is now available in the Client Portal.</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+        ${fila("Stand", esc(standCodes))}
+        ${fila("Document", esc(numero))}
+        ${fechaEmision ? fila("Issue date", esc(fechaEmision)) : ""}
+      </table>
+      <div style="text-align:center;margin:20px 0">
+        <a href="${getAppUrl()}/dashboard/mis-pagos" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">View my invoice</a>
+      </div>
+      <p style="font-size:13px;color:#475569">Go to <strong>My documents</strong> and download it from the corresponding installment. You can also check the <a href="${getAppUrl()}/manual/facturacion" style="color:#1b365d">billing manual</a>.</p>
+    `,
+      PIE_EN,
+    ),
+  }),
+
   "dd-recibida": ({ codigo, razonSocial }) => ({
     subject: `Due diligence received (${codigo}) - IIMP`,
     html: envoltura(
@@ -541,6 +634,25 @@ export const plantillasEn: PlantillasEmail = {
         <div style="text-align:center;margin:20px 0">
           <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review my request</a>
         </div>
+      `,
+      PIE_EN,
+    ),
+  }),
+  "sgc-contrato-observado": ({ standCode, empresa, motivo, autoRegenerado, url }) => ({
+    subject: `Contract observed by the SGC - Stand ${standCode} - IIMP`,
+    html: envoltura(
+      "Contract observed by the SGC",
+      `
+      <p>The SGC observed the contract of <strong>${esc(empresa)}</strong> for stand <strong>${esc(standCode)}</strong>.</p>
+      <p style="font-size:13px;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+        ${autoRegenerado
+          ? "The contract was regenerated automatically. The client must sign the new version."
+          : "Review and regenerate the contract so the client can sign it."}
+      </p>
+      ${motivo ? `<p style="font-size:13px;color:#475569"><strong>Reason:</strong> ${esc(motivo)}</p>` : ""}
+      <div style="text-align:center;margin:20px 0">
+        <a href="${url}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review request</a>
+      </div>
       `,
       PIE_EN,
     ),

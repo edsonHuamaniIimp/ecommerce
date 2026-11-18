@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -12,7 +12,7 @@ import { errorReporting } from "@/lib/client/utils/error-reporting";
 import { loadPlanoDefinition } from "@/lib/shared/planos/registry";
 import type { PlanoDefinition, PlanoItem } from "@/lib/shared/planos/registry";
 import { LS_KEYS, BADGE_STYLES, CONTRATO_SIEMPRE_AL_FINAL, ESTADOS_STAND, ESTADOS_STAND_LEGACY, ERROR_LOG_PASOS_RESERVA, CATEGORIAS_IMAGEN, CATEGORIA_IMAGEN_LABELS, CATEGORIA_IMAGEN_ORDER, IGV_PORCENTAJE, MAX_STANDS_RESERVA_DEFAULT, normalizarCategoriasImagen, type CategoriaImagen } from "@/lib/shared/constants";
-import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
+import { estadoStandBadge, esStandNoDisponible } from "@/lib/shared/utils/estado-stand";
 import { codigoComercialStand } from "@/lib/shared/utils/stand-codigo";
 import { precioTexto, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { calcularImportes } from "@/lib/shared/utils/importes";
@@ -27,6 +27,7 @@ import { usePlanoCarrito, totalCarrito, urlPabellon, type CarritoStandInfo } fro
 import { useReservaForm } from "./reserva/use-reserva-form";
 import { ReservaModal } from "./reserva/reserva-modal";
 import { useSesion } from "@/hooks/use-sesion";
+import { eventosServiceClient } from "@/lib/client/api/services/eventos-service";
 import { usePortalConfig } from "@/hooks/use-portal-config";
 import { useStandEvents } from "@/hooks/use-stand-events";
 import { sincronizarEventoPublicoEnSesion } from "@/lib/client/sesion-evento";
@@ -403,7 +404,7 @@ map.set(String(bloqueId), {
             documentos: (Array.isArray(r.documentos) ? r.documentos : []) as string[],
             imagenes: (Array.isArray(r.imagenes) ? r.imagenes : []) as string[],
             imagenesCategorias: normalizarCategoriasImagen(r.imagenesCategorias),
-            reserved: (estado ?? "") === ESTADOS_STAND_LEGACY.RESERVADO || (estado ?? "") === ESTADOS_STAND_LEGACY.EN_EVALUACION || estado === ESTADOS_STAND.EN_EVALUACION || estado === ESTADOS_STAND.PRE_RESERVADO,
+            reserved: esStandNoDisponible(estado),
             dbId: String(r.id ?? ""),
           });
         }
@@ -470,6 +471,15 @@ map.set(String(bloqueId), {
   }, [bloqueInicial, dataReady, linkedMap, planoId, seleccionarSolo, carritoInfoDe]);
 
   const sinContrato = CONTRATO_SIEMPRE_AL_FINAL;
+  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  const [tipoCambioEventoCache, setTipoCambioEventoCache] = useState<{ eventoId: string | null; tipoCambio: number | null }>({
+    eventoId: null,
+    tipoCambio: null,
+  });
+  const tipoCambioEvento = tipoCambioEventoCache.eventoId === (sesionReserva?.eventoId ?? null)
+    ? tipoCambioEventoCache.tipoCambio
+    : null;
+
   const {
     reservaOpen, setReservaOpen,
     reservaStep, setReservaStep,
@@ -504,9 +514,28 @@ map.set(String(bloqueId), {
     representantesAdicionales,
     setRepresentantesAdicionales,
     firmarDigitalmente,
-  } = useReservaForm(idsGlobales, linkedMap, { sinContrato });
+    moneda,
+    setMoneda,
+  } = useReservaForm(idsGlobales, linkedMap, { sinContrato, tipoCambioEvento });
 
-  const { session: sesionReserva, cargando: sesionCargando, refrescar: refrescarSesion } = useSesion();
+  useEffect(() => {
+    const eventoId = sesionReserva?.eventoId;
+    if (!eventoId) return;
+    let activo = true;
+    eventosServiceClient.configuracionPublica(eventoId)
+      .then((data) => {
+        if (!activo) return;
+        const valor = typeof data.tipoCambio === "number" ? data.tipoCambio : Number(data.tipoCambio);
+        setTipoCambioEventoCache({
+          eventoId,
+          tipoCambio: Number.isFinite(valor) && valor > 0 ? valor : null,
+        });
+      })
+      .catch(() => {
+        if (activo) setTipoCambioEventoCache({ eventoId, tipoCambio: null });
+      });
+    return () => { activo = false; };
+  }, [sesionReserva?.eventoId, reservaOpen]);
 
   /** Verificando el perfil antes de abrir el wizard (bloquea el boton mientras consulta). */
   const [verificandoPerfil, setVerificandoPerfil] = useState(false);
@@ -1234,6 +1263,9 @@ map.set(String(bloqueId), {
         submitError={submitError}
         selectedCount={selectedCount}
         singleStand={singleStand}
+        moneda={moneda}
+        tipoCambio={tipoCambioEvento}
+        onMonedaChange={setMoneda}
         selectedLabels={selectedLabels}
         selectedItems={entradasCarrito.map(c => {
           const info = linkedMap.get(c.bloqueId);
@@ -1488,3 +1520,4 @@ function Legend({ color, label }: { color: string; label: string }) {
     </span>
   );
 }
+

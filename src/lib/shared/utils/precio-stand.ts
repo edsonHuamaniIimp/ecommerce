@@ -1,4 +1,4 @@
-import { MONEDAS, PRECIO_STAND_DEFAULT, PRECIOS_STAND_POR_TIPO } from "@/lib/shared/constants";
+﻿import { MONEDAS, PRECIO_STAND_DEFAULT, PRECIOS_STAND_POR_TIPO } from "@/lib/shared/constants";
 import { numberUtils } from "./number";
 
 /** Normaliza el tipo de stand: mayusculas y sin espacios ("E STANDAR_01" -> "ESTANDAR_01"). */
@@ -35,11 +35,17 @@ export interface PrecioStandFuente {
   rawData?: unknown;
 }
 
+/** Stand apto para reserva administrativa: activo, vinculado a 3D y con precio comercial explícito. */
+export interface StandReservableFuente extends PrecioStandFuente {
+  bloqueId?: string | null;
+  flgActivo?: boolean;
+}
+
 /** Numero extraido de `medidas` solo cuando el texto es un precio (no una medida tipo "3x3"). */
 function numeroDesdeMedidas(medidas: string | null | undefined): number | null {
   const texto = String(medidas ?? "").trim();
   if (!texto) return null;
-  const esPrecio = /US\$|USD|\$/i.test(texto) || /^[\d.,]+$/.test(texto);
+  const esPrecio = /US\$|USD|PEN|S\/|SOLES|\$/i.test(texto) || /^[\d.,]+$/.test(texto);
   if (!esPrecio) return null;
   const num = parseFloat(texto.replace(/[^0-9.]/g, ""));
   return Number.isFinite(num) ? num : null;
@@ -53,6 +59,46 @@ function numeroDesdeRawData(rawData: unknown): number | null {
   if (candidato === null || candidato === undefined) return null;
   const num = Number(String(candidato).replace(/[^0-9.]/g, ""));
   return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * Precio informado explÃ­citamente por el API/BD, incluyendo el valor 0.00.
+ * Devuelve null cuando el stand no trae ningÃºn dato de precio.
+ */
+export function precioComercialExplicito(stand: PrecioStandFuente): number | null {
+  const desdeMedidas = numeroDesdeMedidas(stand.medidas);
+  if (desdeMedidas !== null) return desdeMedidas;
+  return numeroDesdeRawData(stand.rawData);
+}
+
+/**
+ * Un stand es vinculable comercialmente si no trae un precio explÃ­cito invÃ¡lido.
+ * Los registros del API con `0.00` son datos incompletos/duplicados y no deben
+ * poder asociarse a un bloque 3D.
+ */
+export function esStandComercialVinculable(stand: PrecioStandFuente): boolean {
+  const precio = precioComercialExplicito(stand);
+  return precio === null || precio > 0;
+}
+
+/**
+ * Un stand solo puede reservarse administrativamente si tiene bloque 3D y un
+ * precio comercial explícito mayor a 0. No se usa el catálogo como respaldo.
+ */
+export function esStandComercialReservable(stand: StandReservableFuente): boolean {
+  return stand.flgActivo !== false
+    && Boolean(stand.bloqueId)
+    && (precioComercialExplicito(stand) ?? 0) > 0;
+}
+
+/**
+ * Precio para reportes: respeta el 0.00 explícito y solo usa el catálogo
+ * cuando el stand realmente no informa precio.
+ */
+export function resolverPrecioComercialStand(stand: PrecioStandFuente): number {
+  const explicito = precioComercialExplicito(stand);
+  if (explicito !== null) return explicito;
+  return precioNumericoDesdeTipo(stand.tipoStand) ?? PRECIO_STAND_DEFAULT;
 }
 
 /**

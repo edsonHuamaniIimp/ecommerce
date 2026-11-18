@@ -3,13 +3,16 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, PaisConteo, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_SGC, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_TIPO, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
-import { areasRevisionLocal, observadaPorArea } from "@/lib/shared/utils/revision-areas";
+import { observadaPorArea } from "@/lib/shared/utils/revision-areas";
+import { estadoSolicitudConSgc } from "@/lib/shared/utils/estado-solicitud";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { sumarMontos } from "@/lib/shared/utils/importes";
+import { validarPlanFacturacion } from "@/lib/shared/utils/cuotas";
+import { convertirNeto, simboloMoneda } from "@/lib/shared/utils/moneda";
 import { documentoDesdeEmailProvisional } from "@/lib/shared/utils/email";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -51,44 +54,9 @@ function mapRevision(r: RevisionRow): RevisionEntity {
     updatedBy: r.updatedBy,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    estadoAnterior: null,
     fuePrimeraRevision: false,
   };
-}
-
-function computeEstadoSolicitud(
-  revisiones: RevisionEntity[],
-  sgc?: { lifecycleStatus: string | null; devolucionRequiereCambio: boolean | null } | null,
-): string {
-  /* El rechazo/devolucion del SGC es una observacion para el cliente; no crea revision local. */
-  /*
-   * Devolucion/rechazo del SGC: se muestra como OBSERVADO y exige correccion.
-   * El flag null es data legacy (no guardaba `requiresDocumentChange`) y se
-   * trata como devolucion con cambio; solo false representa validacion interna.
-   * No se modifica la columna persistida, solo el estado calculado de la bandeja.
-   */
-  if (
-    (sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
-      sgc?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) &&
-    sgc.devolucionRequiereCambio !== false
-  ) {
-    return ESTADOS_SOLICITUD.OBSERVADO;
-  }
-  if (revisiones.length === 0) return ESTADOS_SOLICITUD.PENDIENTE;
-  const todasPendientes = revisiones.every((r) => r.estado === ESTADOS_REVISION.PENDIENTE);
-  if (todasPendientes) return ESTADOS_SOLICITUD.PENDIENTE;
-  /* Observacion local: el flujo se detiene hasta que el cliente reemplace y reenvie. */
-  if (revisiones.some((r) => r.estado === ESTADOS_REVISION.OBSERVADO)) return ESTADOS_SOLICITUD.OBSERVADO;
-  const algunaRespondio = revisiones.some((r) => r.estado !== ESTADOS_REVISION.PENDIENTE);
-  const todasRespondieron = areasRevisionLocal(revisiones, { sgcEnabled: isSgcEnabled() }).every((area) => {
-    const rev = revisiones.find((r) => r.area === area);
-    return rev && rev.estado !== "pendiente";
-  });
-  if (!todasRespondieron && algunaRespondio) return ESTADOS_SOLICITUD.EN_PROCESO;
-  if (todasRespondieron) {
-    const algunaRechazada = revisiones.some((r) => r.estado === ESTADOS_REVISION.RECHAZADO);
-    return algunaRechazada ? ESTADOS_SOLICITUD.RECHAZADO : ESTADOS_SOLICITUD.APROBADO;
-  }
-  return ESTADOS_SOLICITUD.PENDIENTE;
 }
 
 function motivoWebhookSgc(payload: Prisma.JsonValue): string {
@@ -96,24 +64,6 @@ function motivoWebhookSgc(payload: Prisma.JsonValue): string {
   return typeof data?.reason === "string" && data.reason.trim()
     ? data.reason.trim().slice(0, 500)
     : "Evento recibido del SGC";
-}
-
-/** El estado SGC observado/rechazado manda sobre el estado persistido anterior. */
-function estadoSolicitudConSgc(
-  estadoPersistido: string | null,
-  revisiones: RevisionEntity[],
-  sgc?: { lifecycleStatus: string | null; devolucionRequiereCambio: boolean | null } | null,
-): string {
-  const calculado = computeEstadoSolicitud(revisiones, sgc);
-  /* No revertir un estado terminal de pago por una respuesta tardia del SGC. */
-  if (
-    calculado === ESTADOS_SOLICITUD.OBSERVADO &&
-    estadoPersistido !== ESTADOS_SOLICITUD.PENDIENTE_PAGO &&
-    estadoPersistido !== ESTADOS_SOLICITUD.PAGADO
-  ) {
-    return calculado;
-  }
-  return estadoPersistido || calculado;
 }
 
 async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
@@ -132,9 +82,18 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     updatedAt: r.updatedAt,
   }));
 
+  let eventoId: string | null = null;
   let standCode = "";
   let standCodes: string[] = [];
-  let standsDetalle: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }> = [];
+  let standsDetalle: Array<{
+    standCode: string;
+    bloqueId: string | null;
+    planoId: string | null;
+    planoCodigo: string | null;
+    planoNombre: string | null;
+    precio?: number;
+    tipoStand?: string | null;
+  }> = [];
   let tipoStand: string | null = null;
   let medidas: string | null = null;
   let empresa: string | null = null;
@@ -155,9 +114,18 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     const stand = row.gessStand;
     if (stand) {
       /* El cliente ve el codigo comercial; el prefijo tecnico "BLOQUE-" del plano se omite. */
+      eventoId = stand.eventoId ?? null;
       standCode = codigoComercialStand(stand.standCode);
       standCodes = [standCode];
-      standsDetalle = [{ standCode, bloqueId: stand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }];
+      standsDetalle = [{
+        standCode,
+        bloqueId: stand.bloqueId,
+        planoId: null,
+        planoCodigo: null,
+        planoNombre: null,
+        precio: resolverPrecioStand(stand),
+        tipoStand: stand.tipoStand,
+      }];
       standApiId = stand.standApiId;
       empresaMontajistaId = stand.montajistaId;
       empresaMontajistaNombre = stand.montajistaNombre;
@@ -179,7 +147,15 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       include: { gessStand: true },
     });
     standCodes = stands.map((s) => codigoComercialStand(s.gessStand.standCode));
-    standsDetalle = stands.map((s) => ({ standCode: codigoComercialStand(s.gessStand.standCode), bloqueId: s.gessStand.bloqueId, planoId: null, planoCodigo: null, planoNombre: null }));
+    standsDetalle = stands.map((s) => ({
+      standCode: codigoComercialStand(s.gessStand.standCode),
+      bloqueId: s.gessStand.bloqueId,
+      planoId: null,
+      planoCodigo: null,
+      planoNombre: null,
+      precio: resolverPrecioStand(s.gessStand),
+      tipoStand: s.gessStand.tipoStand,
+    }));
     /* Plano (pabellon) de cada bloque, para agrupar ubicaciones por pabellon. */
     const bloquesReserva = standsDetalle.map((s) => s.bloqueId).filter((v): v is string => Boolean(v));
     if (bloquesReserva.length > 0) {
@@ -202,6 +178,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     const firstStand = stands[0];
     if (firstStand) {
       const first = firstStand.gessStand;
+      eventoId = first.eventoId ?? null;
       tipoStand = first.tipoStand;
       medidas = first.medidas;
       estado = first.estado;
@@ -230,6 +207,10 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       motivoObservacion: d.motivoObservacion,
       observadoPor: d.observadoPor,
       observadoAt: d.observadoAt,
+      sgcObservationId: d.sgcObservationId,
+      sgcDocumentId: d.sgcDocumentId,
+      sgcTitle: d.sgcTitle,
+      sgcPieceId: d.sgcPieceId,
       createdAt: d.createdAt,
     }));
 
@@ -244,6 +225,9 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
       categoria?: string | null; requisito?: string | null; nombre?: string | null; title?: string | null;
       message: string; severity?: string | null; status?: string | null;
       requiresDocumentChange?: boolean | null; requiresNewDocument?: boolean | null;
+      expectedDocuments?: number | null; expectedDocumentTitles?: string[] | null;
+      pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+      documentsMissing?: number | null; documentIds?: string[] | null;
       resolvedAt?: string | null; createdBy?: string | null; createdAt?: string | null;
     };
     const obsRaw = (row.sgcExpediente?.observaciones as Array<Record<string, unknown>> | null) ?? null;
@@ -288,6 +272,17 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
             status: typeof o.status === "string" ? o.status : null,
             requiresDocumentChange: typeof o.requiresDocumentChange === "boolean" ? o.requiresDocumentChange : null,
             requiresNewDocument: typeof o.requiresNewDocument === "boolean" ? o.requiresNewDocument : null,
+            expectedDocuments: typeof o.expectedDocuments === "number" ? o.expectedDocuments : null,
+            expectedDocumentTitles: Array.isArray(o.expectedDocumentTitles)
+              ? o.expectedDocumentTitles.filter((title): title is string => typeof title === "string")
+              : null,
+            pieces: Array.isArray(o.pieces)
+              ? (o.pieces as Array<{ id: string; title: string; acceptedDocumentId?: string | null }>)
+              : null,
+            documentsMissing: typeof o.documentsMissing === "number" ? o.documentsMissing : null,
+            documentIds: Array.isArray(o.documentIds)
+              ? o.documentIds.filter((id): id is string => typeof id === "string")
+              : null,
             resolvedAt: typeof o.resolvedAt === "string" ? o.resolvedAt : null,
             createdBy: typeof o.createdBy === "string" ? o.createdBy : null,
             createdAt: typeof o.createdAt === "string" ? o.createdAt : null,
@@ -350,6 +345,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
 
     return {
     id: solicitudId,
+    eventoId,
     gessStandId,
     standCode,
     standCodes,
@@ -360,12 +356,15 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     pais: paisEmpresa,
     email: row.email,
     userId: row.userId,
+    tipo: row.tipo ?? null,
     nombreUsuario,
     standApiId,
     bloqueId,
     pabellon,
     ubicacion,
     precio,
+    moneda: row.moneda ?? "USD",
+    tipoCambio: row.tipoCambio ?? null,
     documentosCategorias,
     empresaMontajistaId,
     empresaMontajistaNombre,
@@ -377,7 +376,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     iimpClienteCodigo: row.iimpClienteCodigo ?? null,
     iimpReserva: (row.iimpReserva ?? null) as unknown,
     iimpReservaAt: row.iimpReservaAt ?? null,
-    estadoSolicitud: estadoSolicitudConSgc(row.estado, revisiones, row.sgcExpediente),
+    estadoSolicitud: estadoSolicitudConSgc(row.estado, revisiones, row.sgcExpediente, isSgcEnabled()),
     flgActivo: row.flgActivo,
     contratoHabilitado: row.contratoHabilitado,
     documentos,
@@ -398,6 +397,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     sgcEstadoEnvio: row.sgcExpediente?.estadoEnvio ?? null,
     sgcLifecycleStatus: row.sgcExpediente?.lifecycleStatus ?? null,
     sgcStage: row.sgcExpediente?.stage ?? null,
+    sgcLastSyncedAt: row.sgcExpediente?.lastSyncedAt ?? null,
     sgcDevolucionMotivo: row.sgcExpediente?.devolucionMotivo ?? null,
     sgcDevolucionRequiereCambio: row.sgcExpediente?.devolucionRequiereCambio ?? null,
     sgcSubsanacionMotivo: row.sgcExpediente?.subsanacionMotivo ?? null,
@@ -462,6 +462,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     }
     if (params.userId) {
       and.push({ userId: params.userId });
+    }
+    if (params.tipo === SOLICITUDES_FILTRO_TIPO.RESERVA_EMPRESA) {
+      and.push({ tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA });
+    } else if (params.tipo === SOLICITUDES_FILTRO_TIPO.REGULAR) {
+      and.push({ tipo: null });
     }
     if (params.empresaId) {
       /* "Ver como": incluye a todos los usuarios vinculados a la empresa. */
@@ -579,6 +584,27 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     } else if (params.sgc === SOLICITUDES_FILTRO_SGC.RECHAZADO) {
       and.push({ sgcExpediente: { is: { lifecycleStatus: SGC_LIFECYCLE_STATUSES.REJECTED } } });
     }
+    if (params.contrato === SOLICITUDES_FILTRO_CONTRATO.SIN_GENERADO) {
+      and.push({
+        docsAdjuntos: {
+          none: {
+            flgActivo: true,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          },
+        },
+      });
+    } else if (params.contrato === SOLICITUDES_FILTRO_CONTRATO.SIN_FIRMADO) {
+      and.push({
+        docsAdjuntos: {
+          none: {
+            flgActivo: true,
+            categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          },
+        },
+      });
+    }
     if (params.desde || params.hasta) {
       and.push({
         createdAt: {
@@ -621,6 +647,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
             r.estado,
             r.revisiones as unknown as RevisionEntity[],
             r.sgcExpediente,
+            isSgcEnabled(),
           );
           if (params.estado && estado !== params.estado) return false;
           if (!params.observadoPor) return true;
@@ -674,6 +701,34 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
+  async listarIdsPorEmpresa(
+    empresaId: string,
+    ruc: string | null,
+    sieCode: string | null,
+  ): Promise<string[]> {
+    const { userIds, emails } = await usuariosDeEmpresa(empresaId);
+    const referencias = [ruc, sieCode].filter((v): v is string => Boolean(v));
+    const provisionales = ruc ? [{ email: { startsWith: `acceso-${ruc.toLowerCase()}@acceso.iimp` } }] : [];
+    const filas = await prisma.solicitud.findMany({
+      where: {
+        flgActivo: true,
+        OR: [
+          ...(userIds.length > 0 ? [{ userId: { in: userIds } }] : []),
+          ...(emails.length > 0 ? [{ email: { in: emails } }] : []),
+          ...provisionales,
+          ...(referencias.length > 0
+            ? [
+                { gessStand: { is: { empresa: { in: referencias } } } },
+                { stands: { some: { gessStand: { empresa: { in: referencias } } } } },
+              ]
+            : []),
+        ],
+      },
+      select: { id: true },
+    });
+    return filas.map((fila) => fila.id);
+  }
+
   async detalle(solicitudId: string): Promise<SolicitudRow | null> {
     const row = await prisma.solicitud.findUnique({
       where: { id: solicitudId },
@@ -723,6 +778,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         },
       });
       const result = mapRevision(updated);
+      result.estadoAnterior = existing.estado;
       result.fuePrimeraRevision = existing.estado === RESULTADOS_APROBACION.PENDIENTE;
       return result;
     }
@@ -738,6 +794,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       },
     });
     const result = mapRevision(created);
+    result.estadoAnterior = null;
     result.fuePrimeraRevision = true;
     return result;
   }
@@ -754,6 +811,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       data: { solicitudId, area, estado: ESTADOS_REVISION.PENDIENTE },
     });
     const result = mapRevision(created);
+    result.estadoAnterior = null;
     result.fuePrimeraRevision = false;
     return result;
   }
@@ -764,13 +822,18 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     email?: string,
     datosFacturacion?: DatosFacturacionSolicitud | null,
     auditoria?: { actor?: string | null; ip?: string | null },
+    moneda?: { moneda: string; tipoCambio: number | null },
+    tipo?: string | null,
   ): Promise<string> {
     const created = await prisma.solicitud.create({
       data: {
         gessStandId: standIds.length === 1 ? standIds[0] : null,
         userId: userId ?? null,
         email: email ?? null,
+        tipo: tipo ?? null,
         datosFacturacion: (datosFacturacion ?? undefined) as never,
+        moneda: moneda?.moneda ?? "USD",
+        tipoCambio: moneda?.tipoCambio ?? 1,
         createdBy: auditoria?.actor ?? null,
         updatedBy: auditoria?.actor ?? null,
         createdIp: auditoria?.ip ?? null,
@@ -878,58 +941,86 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   }
 
   async marcarOrdenPago(solicitudId: string): Promise<void> {
-    await prisma.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
+    await prisma.$transaction(async (tx) => {
+      const sol = await tx.solicitud.findUnique({
+        where: { id: solicitudId },
+        select: { gessStandId: true, planCuotas: true, moneda: true, tipoCambio: true },
+      });
+      if (!sol) throw new Error("Solicitud no encontrada");
 
-    const sol = await prisma.solicitud.findUnique({ where: { id: solicitudId }, select: { gessStandId: true, planCuotas: true } });
-    const stands = sol?.gessStandId
-      ? await prisma.gessStand.findMany({ where: { id: sol.gessStandId } })
-      : await prisma.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then(r => r.map(s => s.gessStand));
-    /*
-     * RF-10: el plan de pagos lo definio el cliente en el contrato (`solicitud.plan_cuotas`)
-     * y es la fuente de verdad de Facturacion. Sus montos YA incluyen IGV: el total a facturar
-     * debe ser la SUMA DE CUOTAS (el precio base del stand es neto). Sin plan (legacy/manual)
-     * se mantiene el comportamiento anterior (precio base del stand).
-     */
-    const plan = sol?.planCuotas as
-      | { modalidad?: string; cuotas?: Array<{ numero: number; monto: number; fechaVencimiento: string | null }> }
-      | null;
-    const cuotasPlan = plan?.cuotas ?? [];
-    const montoTotal = cuotasPlan.length > 0
-      ? sumarMontos(cuotasPlan)
-      : stands.reduce((sum, s) => sum + resolverPrecioStand(s), 0);
+      const stands = sol.gessStandId
+        ? await tx.gessStand.findMany({ where: { id: sol.gessStandId } })
+        : await tx.solicitudStand.findMany({ where: { solicitudId }, include: { gessStand: true } }).then((rows) => rows.map((row) => row.gessStand));
 
-    const existing = await prisma.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
-    const facturacion = existing
-      ? await prisma.facturacion.update({ where: { id: existing.id }, data: { montoTotal } })
-      : await prisma.facturacion.create({
-          data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: MONEDAS.US_DOLAR },
-        });
+      /*
+       * RF-10: el plan de pagos es la fuente de verdad de Facturacion. Sus montos
+       * YA incluyen IGV; se valida contra sus porcentajes antes de emitir la orden.
+       * Sin plan (legacy/manual) se calcula el total con IGV desde los stands.
+       */
+      const plan = sol.planCuotas as
+        | { modalidad?: string; cuotas?: Array<{ numero: number; porcentaje?: number; monto: number; fechaVencimiento: string | null }>; moneda?: string; tipoCambio?: number | null }
+        | null;
+      const cuotasPlan = plan?.cuotas ?? [];
+      const moneda = plan?.moneda ?? sol.moneda ?? MONEDAS.USD;
+      const tipoCambio = plan?.tipoCambio ?? sol.tipoCambio ?? 1;
+      const montoBaseUsd = sumarMontos(stands.map((stand) => ({ monto: resolverPrecioStand(stand) })));
+      const montoTotal = cuotasPlan.length > 0
+        ? validarPlanFacturacion(plan)
+        : convertirNeto(montoBaseUsd, moneda, tipoCambio);
 
-    /*
-     * Las cuotas ya pagadas no se tocan; las pendientes se alinean al plan.
-     */
-    if (cuotasPlan.length > 0) {
-      const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
-      await prisma.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
-      for (const cuota of cuotasPlan) {
-        const fecha = cuota.fechaVencimiento ? dateUtils.toDate(cuota.fechaVencimiento) : null;
-        const existente = await prisma.facturacionCuota.findFirst({
-          where: { facturacionId: facturacion.id, numero: cuota.numero },
-        });
-        if (existente) {
-          if (existente.estado === ESTADOS_CUOTA.PENDIENTE) {
-            await prisma.facturacionCuota.update({
-              where: { id: existente.id },
-              data: { monto: cuota.monto, fechaVencimiento: fecha },
+      const monedaFacturacion = simboloMoneda(moneda);
+      await tx.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
+
+      const existing = await tx.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
+      const facturacion = existing
+        ? await tx.facturacion.update({ where: { id: existing.id }, data: { montoTotal, moneda: monedaFacturacion } })
+        : await tx.facturacion.create({
+            data: { solicitudId, tipo: TIPOS_FACTURACION.MANUAL, montoTotal, moneda: monedaFacturacion },
+          });
+
+      /*
+       * Las cuotas pagadas se conservan; se exige que coincidan con el plan.
+       * Las pendientes se alinean y se verifica que la suma final sea exacta.
+       */
+      if (cuotasPlan.length > 0) {
+        const modoPago = plan?.modalidad === MODOS_PAGO.COMPLETO ? "completo" : "cuotas";
+        await tx.facturacion.update({ where: { id: facturacion.id }, data: { modoPago } });
+
+        const existentes = await tx.facturacionCuota.findMany({ where: { facturacionId: facturacion.id } });
+        const numerosPlan = new Set(cuotasPlan.map((cuota) => cuota.numero));
+        if (existentes.some((cuota) => !numerosPlan.has(cuota.numero))) {
+          throw new Error("La facturacion tiene cuotas que no pertenecen al plan del contrato");
+        }
+
+        for (const cuota of cuotasPlan) {
+          const fecha = cuota.fechaVencimiento ? dateUtils.toDate(cuota.fechaVencimiento) : null;
+          const existente = existentes.find((item) => item.numero === cuota.numero);
+          if (existente) {
+            if (existente.estado === ESTADOS_CUOTA.PAGADO && Math.abs(Number(existente.monto) - cuota.monto) > 0.005) {
+              throw new Error(`La cuota pagada ${cuota.numero} no coincide con el plan del contrato`);
+            }
+            if (existente.estado === ESTADOS_CUOTA.PENDIENTE) {
+              await tx.facturacionCuota.update({
+                where: { id: existente.id },
+                data: { monto: cuota.monto, fechaVencimiento: fecha },
+              });
+            }
+          } else {
+            await tx.facturacionCuota.create({
+              data: { facturacionId: facturacion.id, numero: cuota.numero, monto: cuota.monto, fechaVencimiento: fecha },
             });
           }
-        } else {
-          await prisma.facturacionCuota.create({
-            data: { facturacionId: facturacion.id, numero: cuota.numero, monto: cuota.monto, fechaVencimiento: fecha },
-          });
+        }
+
+        const finales = await tx.facturacionCuota.findMany({ where: { facturacionId: facturacion.id } });
+        if (finales.length !== cuotasPlan.length) {
+          throw new Error("La facturacion no tiene exactamente las cuotas del plan");
+        }
+        if (Math.abs(sumarMontos(finales.map((cuota) => ({ monto: Number(cuota.monto) }))) - montoTotal) > 0.005) {
+          throw new Error("La suma de cuotas de la facturacion no coincide con el total del contrato");
         }
       }
-    }
+    });
   }
 
   async obtenerHistorial(solicitudId: string): Promise<{
@@ -1008,6 +1099,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         updatedBy: r.updatedBy,
         createdAt: r.createdAt ?? dateUtils.now(),
         updatedAt: r.updatedAt ?? dateUtils.now(),
+        estadoAnterior: null,
         fuePrimeraRevision: false,
       })),
       historial: historial.map((h) => ({
@@ -1024,9 +1116,23 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }, origen?: string | null): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
-      data: { solicitudId, url, nombre, uploadedBy: email, userId, categoria: categoria ?? null, requisito: requisito ?? null, sha256: sha256 ?? null },
+      data: {
+        solicitudId,
+        url,
+        nombre,
+        uploadedBy: email,
+        userId,
+        categoria: categoria ?? null,
+        requisito: requisito ?? null,
+        sha256: sha256 ?? null,
+        origen: origen ?? null,
+        sgcObservationId: sgc?.observationId ?? null,
+        sgcDocumentId: sgc?.documentId ?? null,
+        sgcTitle: sgc?.title ?? null,
+        sgcPieceId: sgc?.pieceId ?? null,
+      },
     });
     return { ...doc };
   }
@@ -1166,6 +1272,54 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     });
   }
 
+  async cambiarMonedaSolicitud(
+    solicitudId: string,
+    data: {
+      moneda: string;
+      tipoCambio: number;
+      plan: PlanCuotasSolicitud;
+      actor: string | null;
+    },
+  ): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.solicitud.update({
+        where: { id: solicitudId },
+        data: {
+          moneda: data.moneda,
+          tipoCambio: data.tipoCambio,
+          planCuotas: data.plan as never,
+          contratoHabilitado: false,
+          estado: ESTADOS_SOLICITUD.PENDIENTE,
+          updatedBy: data.actor,
+        },
+      });
+
+      await tx.solicitudDocumento.updateMany({
+        where: {
+          solicitudId,
+          flgActivo: true,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          categoria: {
+            in: [
+              TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+              TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+            ],
+          },
+        },
+        data: { estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
+      });
+
+      await tx.revision.updateMany({
+        where: { solicitudId },
+        data: {
+          estado: RESULTADOS_APROBACION.PENDIENTE,
+          comentario: null,
+          updatedBy: data.actor,
+        },
+      });
+    });
+  }
+
   /**
    * RF-11: un unico contrato generado por el sistema por solicitud (idempotente).
    * Si ya existe uno vigente lo actualiza (refrescando `createdAt`: una regeneracion cuenta
@@ -1242,8 +1396,14 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     });
   }
 
-  async datosReservaIImp(solicitudId: string) {
-    const row = await prisma.solicitud.findUnique({
+  async actualizarRequisitosFacturacion(solicitudId: string, requisitos: unknown): Promise<void> {
+    await prisma.solicitud.update({
+      where: { id: solicitudId },
+      data: { requisitosFacturacion: (requisitos ?? null) as never },
+    });
+  }
+
+  async datosReservaIImp(solicitudId: string) {    const row = await prisma.solicitud.findUnique({
       where: { id: solicitudId },
       include: {
         gessStand: { select: { eventoId: true, standApiId: true, standCode: true } },
@@ -1258,6 +1418,8 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       iimpContrato: row.iimpContrato ?? null,
       iimpCuentaCorriente: row.iimpCuentaCorriente ?? null,
       email: row.email ?? null,
+      moneda: row.moneda ?? MONEDAS.USD,
+      tipoCambio: row.tipoCambio ?? null,
       tipoEvento: evento?.tipoEvento ?? null,
       codigoEvento: evento?.codigoEvento ?? null,
       stands: gessStands.map((s) => s.standApiId ?? s.standCode).filter(Boolean),

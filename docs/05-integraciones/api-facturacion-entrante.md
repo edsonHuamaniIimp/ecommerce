@@ -217,7 +217,7 @@ flowchart TD
 |---|---|
 | `0` PAGADA | La cuota pasa a **pagada**; si no quedan cuotas pendientes, la facturación de la reserva pasa a `pagado` y la solicitud también |
 | `1` PENDIENTE | Solo registra el documento; no cambia estados |
-| `2` ANULADA | Limpia el documento de la cuota (vuelve a **pendiente de documento**); no revierte estados de pago. La **justificación** queda en el historial y se muestra al cliente en "Mis pagos" (tooltip del documento anulado) |
+| `2` ANULADA | Limpia el documento de la cuota (vuelve a **pendiente de documento**); no revierte estados de pago. La **justificación** queda en el historial y se muestra al cliente en "Mis documentos" (tooltip del documento anulado) |
 
 Cada notificación además:
 1. Guarda el **nombre del documento** en la cuota (visible para el backoffice y el cliente).
@@ -276,12 +276,13 @@ Verificado por el equipo ContratosStands contra el túnel de pruebas (14-10-2026
 
 > **Homologado (14-10-2026):** el rechazo del documento se comunica con `estadoPago: 2`
 > (ANULADA), según la declaración del SIE (no hay código adicional de rechazo).
-> La validación de **OC/HES obligatorios** quedó implementada (UI + backend).
+> Los requisitos de facturación son **declarativos y referenciales** (OC, HES, plataforma,
+> valorización, otros o "ninguna"); la solicitud no se bloquea por falta de OC/HES.
 
 | # | Tema | Responsable |
 |---|---|---|
 | 1 | Endpoint para **recibir el voucher** de pago (paso 5 del flujo). Hoy ContratosStands registra los vouchers como archivos `DETRACCION`/`DIFERENCIA`/`PAGO_TOTAL` en la cuenta corriente (`/stands/archivos`); confirmar si el SIE los consume por esa vía o exige un endpoint propio | Equipo de facturación del IIMP |
-| 2 | `2` ANULADA después de PAGADA: confirmar si debe **revertir el estado de pago** de la cuota a pendiente (hoy solo limpia el documento) | Equipo de facturación del IIMP |
+| 2 | `2` ANULADA después de PAGADA: **resuelto** — no revierte el estado de pago de la cuota (solo limpia el documento). La corrección excepcional es manual y autorizada, con registro en el historial de facturación | ContratosStands / Facturación |
 | 3 | **Solicitud de rechazo** (ContratosStands → SIE): definir el canal/endpoint del SIE para que nuestro lado envíe su rechazo (bidireccional) | Equipo de facturación del IIMP |
 | 4 | Clave compartida (`x-api-key`): configurar `INTEGRACION_API_KEY` en QA y producción (sin la variable el endpoint rechaza todo con 401) y entregarla por canal seguro al SIE | Se entrega por canal seguro |
 
@@ -294,5 +295,7 @@ Verificado por el equipo ContratosStands contra el túnel de pruebas (14-10-2026
   la fecha real cuando la envía el SIE (o el IIMP al emitir); si no, muestra la fecha programada del plan.
   La fecha no puede derivarse del nombre del PDF.
 - Si el documento se reemite, basta con enviarlo de nuevo (reemplaza el anterior).
+- `estadoPago: 1` **no cambia el estado de la cuota**: si estaba pagada, sigue pagada; si
+  estaba pendiente, sigue pendiente. Solo `0` marca pagada y solo `2` limpia el documento.
 - `estadoPago` es **numérico** (`0`/`1`/`2`); el texto (`"PAGADO"`) responde `400`.
 - Para dudas de integración: equipo de Sistemas TI del IIMP.

@@ -49,11 +49,31 @@ const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
     tipo: "factura",
     numero: "F001-1234",
   },
+  "facturacion-recordatorio-solicitud": {
+    razonSocial: "Minera Cordillera S.A.C.",
+    standCodes: "BLOQUE-01",
+  },
+  "facturacion-recordatorio-documentos": {
+    razonSocial: "Minera Cordillera S.A.C.",
+    standCodes: "BLOQUE-01",
+    faltantes: ["Orden de compra (OC)", "Hoja de entrada (HES)"],
+  },
+  "facturacion-factura-disponible": {
+    razonSocial: "Minera Cordillera S.A.C.",
+    standCodes: "BLOQUE-01",
+    numero: "F001-1234",
+    fechaEmision: "2026-11-13",
+  },
+  "facturacion-completar-requisitos": {
+    razonSocial: "Minera Cordillera S.A.C.",
+    standCodes: "BLOQUE-01",
+  },
   "dd-recibida": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C." },
   "dd-observada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", observaciones: ["Vigencia de poderes vencida."] },
   "dd-aprobada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", fechaVencimiento: "2026-11-12" },
   "dd-rechazada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
   "dd-legal-revision": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
+  "sgc-contrato-observado": { standCode: "523", empresa: "PRODIMIN S.A.C.", motivo: "Corrige el contrato", autoRegenerado: true, url: "https://ejemplo.pe/dashboard/solicitudes" },
   "documentos-observados": {
     standCodes: "197",
     documentos: ["Vigencia de Poder (o equivalente, en caso de empresa extranjera)"],

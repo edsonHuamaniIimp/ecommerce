@@ -17,6 +17,7 @@ import type { RepresentanteAdicionalForm } from "@/lib/shared/utils/representant
 import type { CuotaConfig } from "./use-reserva-form";
 import { firmaReservaLista } from "./use-reserva-form";
 import type { ConfigCuotasEmpresa } from "@/lib/shared/utils/cuotas";
+import type { MonedaContrato } from "@/lib/shared/utils/moneda";
 
 interface Props {
   open: boolean;
@@ -42,6 +43,9 @@ interface Props {
   submitError: string | null;
   selectedCount: number;
   singleStand: boolean;
+  moneda: MonedaContrato;
+  tipoCambio: number | null;
+  onMonedaChange: (moneda: MonedaContrato) => void;
   selectedLabels: string;
   selectedItems: { id: string; standCode?: string | null; typeLabel: string; medidas: string | null; reserved: boolean; precio?: number }[];
   existingDocs: string[];
@@ -131,6 +135,7 @@ export function ReservaModal(props: Props) {
     open, onOpenChange, holdExpiresAt, autenticado, sesionCargando, onAuthenticated, step, onGoStep, stepDone, canGoStep,
     formDatos, onDatosChange, representantesAdicionales, onRepresentantesChange, docsRequisitos, subiendoRequisito, submitting, submitStage, submitError,
     selectedCount, selectedLabels, selectedItems,
+    moneda, tipoCambio, onMonedaChange,
     onAddRequisito, onRemoveRequisito, onSubmit,
     confirmado, onConfirmadoChange,
     aceptaRepresentante, onAceptaRepresentanteChange,
@@ -212,6 +217,9 @@ export function ReservaModal(props: Props) {
               {step === RESERVA_STEPS.CUOTAS && (
                 <StepPagos
                   precios={selectedItems.map((s) => s.precio ?? 0)}
+                  moneda={moneda}
+                  tipoCambio={tipoCambio}
+                  onMonedaChange={onMonedaChange}
                   configCuotas={configCuotas}
                   cuotas={cuotasPago}
                   onCuotasChange={onCuotasPagoChange}

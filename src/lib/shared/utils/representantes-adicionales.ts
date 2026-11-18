@@ -81,3 +81,15 @@ export function representanteAdicionalPayload(rep: RepresentanteAdicionalForm) {
     ...(rep.firmaUrl !== undefined ? { firmaUrl: rep.firmaUrl } : {}),
   };
 }
+
+/** true si ambas listas representan al mismo conjunto de representantes (documento + nombre). */
+export function mismoConjuntoRepresentantes(
+  a: Array<{ documento?: string | null; nombre?: string | null }>,
+  b: Array<{ documento?: string | null; nombre?: string | null }>,
+): boolean {
+  const clave = (rep: { documento?: string | null; nombre?: string | null }) =>
+    `${(rep.documento ?? "").trim().toUpperCase()}|${(rep.nombre ?? "").trim().toUpperCase()}`;
+  const setA = [...new Set(a.map(clave))].sort();
+  const setB = [...new Set(b.map(clave))].sort();
+  return setA.length === setB.length && setA.every((valor, indice) => valor === setB[indice]);
+}

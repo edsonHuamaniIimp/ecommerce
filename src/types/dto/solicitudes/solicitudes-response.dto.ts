@@ -1,4 +1,5 @@
 import type { ApiResponse } from "@/lib/server/api-response";
+import type { TipoDescuento, TipoDescuentoGlobal } from "@/lib/shared/constants";
 import type { SolicitudDdEstadoDTO } from "./solicitud-dd-estado.dto";
 
 interface ReevaluacionDTO {
@@ -25,22 +26,68 @@ interface RevisionDTO {
 
 export interface SolicitudDTO {
   id: string;
+  /** Version de evento de los stands (TC del evento). */
+  eventoId?: string | null;
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
   /** Stands de la solicitud con su bloque y pabellon de plano (ubicacion agrupada). */
-  standsDetalle?: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }>;
+  standsDetalle?: Array<{
+    standCode: string;
+    bloqueId: string | null;
+    planoId: string | null;
+    planoCodigo: string | null;
+    planoNombre: string | null;
+    /** Precio comercial unitario en USD. */
+    precio?: number;
+    tipoStand?: string | null;
+  }>;
   /** Identificador del stand en el API externo (para integraciones M2M). */
   standApiId?: string | null;
   tipoStand: string | null;
   medidas: string | null;
-  /** Precio de la reserva en USD (del stand simple o suma de la reserva multiple). */
+  /** Precio base de la reserva en USD (del stand simple o suma de la reserva multiple). */
   precio: number;
+  /** Moneda elegida para el contrato (USD | PEN). */
+  moneda: string;
+  /** Tipo de cambio aplicado al crear la solicitud (soles por dolar; 1 para USD). */
+  tipoCambio: number | null;
   empresa: string | null;
   /** Pais ISO alpha-2 de la empresa vinculada. */
   pais?: string | null;
   email: string | null;
   userId: string | null;
+  /** Tipo de solicitud (`reserva_empresa`); null para el flujo regular. */
+  tipo?: string | null;
+  /** Snapshot del cronograma de pagos (fechas/montos del contrato). */
+  planCuotas?: {
+    modalidad?: string;
+    moneda?: string;
+    netoLista?: number;
+    descuentoTipo?: TipoDescuento;
+    descuentoValor?: number;
+    descuentoPorcentaje?: number;
+    descuentoMonto?: number;
+    netoDescontado?: number;
+    igv?: number;
+    total?: number;
+    descuentosPorStand?: Array<{
+      standId: string;
+      standCode?: string;
+      precio: number;
+      tipo?: TipoDescuentoGlobal;
+      valor?: number;
+      porcentaje: number;
+      descuentoMonto: number;
+      neto: number;
+    }>;
+    cuotas?: Array<{
+      numero: number;
+      porcentaje: number;
+      monto: number;
+      fechaVencimiento: string | null;
+    }>;
+  } | null;
   /** Nombre del usuario solicitante (user_role.nombre + apellidos). */
   nombreUsuario?: string | null;
   bloqueId: string | null;
@@ -68,7 +115,7 @@ export interface SolicitudDTO {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-    docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; origen?: string | null; createdAt: string; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: string | null }>;
+    docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; sgcPieceId?: string | null; origen?: string | null; createdAt: string; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: string | null }>;
   revisiones: RevisionDTO[];
   reevaluaciones: ReevaluacionDTO[];
   revisionAsociado: RevisionDTO | null;
@@ -106,6 +153,11 @@ export interface SolicitudDTO {
     status?: string | null;
     requiresDocumentChange?: boolean | null;
     requiresNewDocument?: boolean | null;
+    expectedDocuments?: number | null;
+    expectedDocumentTitles?: string[] | null;
+    pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+    documentsMissing?: number | null;
+    documentIds?: string[] | null;
     resolvedAt?: string | null;
     createdBy?: string | null;
     createdAt?: string | null;

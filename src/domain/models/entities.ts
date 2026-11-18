@@ -1,4 +1,4 @@
-import type { Rol } from "@/lib/shared/constants";
+import type { Rol, TipoDescuento, TipoDescuentoGlobal } from "@/lib/shared/constants";
 
 /** Observacion del SGC sobre un documento (campo OPCIONAL de la integracion; puede no venir). */
 export interface SgcObservacionSolicitud {
@@ -20,6 +20,11 @@ export interface SgcObservacionSolicitud {
   requiresDocumentChange?: boolean | null;
   /** true = el faltante exige un archivo nuevo (documentId null). */
   requiresNewDocument?: boolean | null;
+  expectedDocuments?: number | null;
+  expectedDocumentTitles?: string[] | null;
+  pieces?: Array<{ id: string; title: string; acceptedDocumentId?: string | null }> | null;
+  documentsMissing?: number | null;
+  documentIds?: string[] | null;
   resolvedAt?: string | null;
   createdBy?: string | null;
   createdAt?: string | null;
@@ -88,6 +93,8 @@ export interface EventoEntity {
   flgActivo: boolean;
   flgVisible: boolean;
   plano: string;
+  /** Soles por dolar para contratos en PEN; null = PEN no habilitado. */
+  tipoCambio?: number | null;
   eventoPadre?: EventoPadreEntity;
   createdAt?: Date;
   updatedAt?: Date;
@@ -100,8 +107,10 @@ export interface GessStandEntity {
   standCode: string;
   tipoStand: string | null;
   medidas: string | null;
-  estado: string | null;
-  empresa: string | null;
+    estado: string | null;
+    /** Baja logica: false = registro desactivado. */
+    flgActivo?: boolean;
+    empresa: string | null;
   /** Logo de la empresa/usuario que reservo el stand (solo en la respuesta de listar). */
   empresaLogo?: string | null;
   /** Imagen referencial del tipo de stand (solo en la respuesta de listar). */
@@ -198,6 +207,8 @@ export interface RevisionEntity {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** Estado de la revisión antes de esta actualización (null = revisión nueva). */
+  estadoAnterior: string | null;
   fuePrimeraRevision: boolean;
 }
 
@@ -226,22 +237,39 @@ export interface RevisionHistorialEntity {
 
 export interface SolicitudRow {
   id: string;
+  /** Version de evento de los stands de la solicitud (para resolver el TC del evento). */
+  eventoId?: string | null;
   gessStandId: string | null;
   standCode: string;
   standCodes: string[];
   /** Stands de la solicitud con su bloque y pabellon de plano (para ubicacion agrupada). */
-  standsDetalle?: Array<{ standCode: string; bloqueId: string | null; planoId: string | null; planoCodigo: string | null; planoNombre: string | null }>;
+  standsDetalle?: Array<{
+    standCode: string;
+    bloqueId: string | null;
+    planoId: string | null;
+    planoCodigo: string | null;
+    planoNombre: string | null;
+    /** Precio comercial unitario en USD. */
+    precio?: number;
+    tipoStand?: string | null;
+  }>;
   /** Identificador del stand en el API externo (para integraciones M2M). */
   standApiId?: string | null;
   tipoStand: string | null;
   medidas: string | null;
-  /** Precio de la reserva en USD (del stand simple o suma de la reserva multiple). */
+  /** Precio base de la reserva en USD (del stand simple o suma de la reserva multiple). */
   precio?: number;
+  /** Moneda elegida para el contrato (USD | PEN). */
+  moneda?: string;
+  /** Tipo de cambio aplicado al crear la solicitud (soles por dolar; 1 para USD). */
+  tipoCambio?: number | null;
   empresa: string | null;
   /** Pais ISO alpha-2 de la empresa vinculada. */
   pais?: string | null;
   email: string | null;
   userId: string | null;
+  /** Tipo de solicitud (`reserva_empresa`); null para el flujo regular. */
+  tipo?: string | null;
   /** Nombre del usuario solicitante (user_role.nombre + apellidos). */
   nombreUsuario?: string | null;
   bloqueId: string | null;
@@ -275,7 +303,7 @@ export interface SolicitudRow {
   clienteDocsAdjuntosCount: number;
   /** Documentos del administrador/contrato (`userId` null). */
   docsAdminCount: number;
-  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; origen?: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
+  docsAdjuntos: Array<{ id: string; url: string; nombre: string; userId: string | null; uploadedBy: string | null; categoria: string | null; requisito: string | null; sgcObservationId?: string | null; sgcDocumentId?: string | null; sgcTitle?: string | null; sgcPieceId?: string | null; origen?: string | null; createdAt: Date; estado?: string | null; motivoObservacion?: string | null; observadoPor?: string | null; observadoAt?: Date | null }>;
   updatedAt: Date;
   createdAt: Date;
   revisiones: RevisionEntity[];
@@ -289,6 +317,8 @@ export interface SolicitudRow {
   sgcEstadoEnvio: string | null;
   sgcLifecycleStatus: string | null;
   sgcStage: string | null;
+  /** Ultima sincronizacion del expediente SGC (para sync-on-read con TTL). */
+  sgcLastSyncedAt?: Date | null;
   /** Motivo textual de la ultima devolucion/rechazo del SGC. */
   sgcDevolucionMotivo?: string | null;
   /** true/false si el SGC exige cambio documental; null = no informado. */
@@ -321,6 +351,37 @@ export interface PlanCuotasSolicitud {
   /** `completo` | `cuotas` | `tres_cuotas` | `personalizado` (ver MODOS_PAGO). */
   modalidad: string;
   cuotas: PlanCuotasItem[];
+  /** Moneda de los montos del plan (USD | PEN). */
+  moneda?: string;
+  /** Tipo de cambio aplicado al crear el plan (soles por dolar). */
+  tipoCambio?: number | null;
+  /** Snapshot comercial: descuento aplicado al neto, en porcentaje. */
+  descuentoPorcentaje?: number;
+  /** Tipo de descuento aplicado: `porcentaje`, `monto` o `por_stand`. */
+  descuentoTipo?: TipoDescuento;
+  /** Valor ingresado del descuento (porcentaje o monto). */
+  descuentoValor?: number;
+  /** Descuento aplicado por stand (modo unitario). */
+  descuentosPorStand?: Array<{
+    standId: string;
+    standCode?: string;
+    precio: number;
+    tipo?: TipoDescuentoGlobal;
+    valor?: number;
+    porcentaje: number;
+    descuentoMonto: number;
+    neto: number;
+  }>;
+  /** Neto de lista antes del descuento. */
+  netoLista?: number;
+  /** Importe descontado. */
+  descuentoMonto?: number;
+  /** Neto después del descuento, antes de IGV. */
+  netoDescontado?: number;
+  /** IGV calculado sobre el neto descontado. */
+  igv?: number;
+  /** Total del contrato (neto descontado + IGV). */
+  total?: number;
 }
 
 /**

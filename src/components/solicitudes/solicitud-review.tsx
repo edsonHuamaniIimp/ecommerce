@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
+import { Alert, AlertDescription, Button, Badge, Textarea, Label, Dialog, DialogContent, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DialogFooter, DialogHeader, DialogTitle } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertCircle, CheckCircle2, XCircle, Clock, UserCircle2, ChevronDown, ChevronLeft, ChevronRight, FileText, Pencil, Eye, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import {
   REVISION_AREAS,
@@ -12,6 +12,7 @@ import {
   BADGE_STYLES,
   PERMISSIONS,
   TIPOS_DOCUMENTO_SOLICITUD,
+  TIPOS_SOLICITUD,
   CATEGORIAS_DOCUMENTO,
   SGC_LIFECYCLE_STATUSES,
   SGC_SUBSANACION_MODOS,
@@ -21,11 +22,12 @@ import {
   ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
   MAESTRA_TABLAS,
   ANEXOS_REQUERIDOS,
+  ORIGENES_DOCUMENTO,
   type ResultadoAprobacion,
 } from "@/lib/shared/constants";
 import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
-import { anexosBloqueantesFaltantes, contratoFirmadoPendienteReemplazo, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, contratoFirmadoSubidoPorAsociado, esObservacionSgcContrato, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, modoSubsanacionEfectivo, sgcObservacionesAbiertas } from "@/lib/shared/utils/solicitud-documentos";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { contratosService } from "@/lib/client/api/services/contratos-service";
 import { sgcService } from "@/lib/client/api/services/sgc-service";
@@ -40,7 +42,7 @@ import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
 import { SgcDocumentoUpload } from "@/components/sgc/sgc-documento-upload";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
-import { puedeGenerarOrdenPago, sgcAprobado } from "@/lib/shared/utils/sgc-estado";
+import { puedeGenerarOrdenPago, sgcAprobado, sgcEnRevisionLegal } from "@/lib/shared/utils/sgc-estado";
 
 type SolicitudRow = SolicitudDTO;
 
@@ -134,14 +136,29 @@ export function SolicitudReview({
   const ddBloqueado = !ddCargando && (!ddEstado || !ddEstado.aptoParaContratar);
   const ddPendienteDeclaracion = ddEstado?.requiereDeclaracionVigencia === true;
   const isAdmin = userPermissions.includes(PERMISSIONS.ADMIN_FULL);
-  /* Bypass exclusivo de administradores: sin DD APTA pueden revisar y decidir igualmente. */
-  const ddAccionesBloqueadas = ddCargando || (ddBloqueado && !isAdmin);
+  const esReservaEmpresa = row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+  const firmaSubidaAsociado = esReservaEmpresa && contratoFirmadoSubidoPorAsociado(row);
+  /* La reserva administrativa no pasa por Debida Diligencia: el admin ya valido la empresa. */
+  const ddAccionesBloqueadas = !esReservaEmpresa && (ddCargando || (ddBloqueado && !isAdmin));
   const ddMensaje = ddEstado?.mensaje ?? (ddCargando ? null : "No se pudo verificar la Debida Diligencia de la empresa. La revisión permanece bloqueada.");
 
-  const areas = areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled });
+  const contratoPendienteFirma = esReservaEmpresa && contratoClientePendienteFirma(row);
+  const contratoFirmadoVigente = row.docsAdjuntos.some(
+    (doc) =>
+      doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO &&
+      (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+  );
+  const areas = esReservaEmpresa
+    ? [REVISION_AREAS.ASOCIADO]
+    : areasRevisionLocal(row.revisiones, { sgcEnabled: row.sgcEnabled });
   // El SGC es el ultimo paso (Legal delegada) SOLO si la integracion esta habilitada.
   const legalDelegada = legalDelegadaAlSgc(row.revisiones);
-  const mostrarSgc = row.sgcEnabled && legalDelegada;
+  const ingresoFlujoRegular =
+    !esReservaEmpresa ||
+    firmaSubidaAsociado ||
+    Boolean(row.sgcEstadoEnvio) ||
+    Boolean(row.sgcLifecycleStatus);
+  const mostrarSgc = ingresoFlujoRegular && row.sgcEnabled && legalDelegada;
   const sgcStepIndex = areas.length;
   const stepAreas: Record<number, string> = {
     ...Object.fromEntries(areas.map((area, idx) => [idx, area])),
@@ -195,6 +212,20 @@ export function SolicitudReview({
     } finally {
       setHabilitandoContrato(false);
     }
+  };
+
+  /** Confirmacion del flujo alterno: el Asociado registra el PDF firmado por el cliente. */
+  const confirmarSubidaFirmaAsociado = async (archivos: File[]): Promise<boolean> => {
+    const nombre = archivos[0]?.name ?? "contrato firmado";
+    const usuario = session?.email ?? "el Asociado";
+    return confirm({
+      title: "Registrar contrato firmado por el cliente",
+      description:
+        `Vas a registrar "${nombre}" como equivalente al contrato firmado por el cliente. ` +
+        `Quedara auditado que lo subio ${usuario}. Al aprobar, la solicitud pasara al SGC y no directamente a facturacion.`,
+      confirmLabel: "Subir contrato firmado",
+      cancelLabel: "Cancelar",
+    });
   };
 
   const aprobarLegalBypass = async () => {
@@ -257,6 +288,8 @@ export function SolicitudReview({
       d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO &&
       d.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO,
   );
+  /* Observacion del contrato desde el SGC (no marca el documento local como observado). */
+  const sgcContratoObservado = sgcObservacionesAbiertas(row).find(esObservacionSgcContrato) ?? null;
   /* El contrato firmado por el cliente fue observado y aun no tiene reemplazo. */
   const contratoFirmadoObservadoPendiente = contratoFirmadoPendienteReemplazo(row);
   /*
@@ -282,8 +315,16 @@ export function SolicitudReview({
       contratoAdminReemplazado &&
       dateUtils.isAfter(contratoAdminActivo.createdAt, contratoAdminReemplazado.createdAt),
   );
+  /* Si el admin regenero despues de la observacion del SGC, ya no se ofrece regenerar. */
+  const contratoRegeneradoSgc = Boolean(
+    sgcContratoObservado?.createdAt &&
+      contratoAdminActivo &&
+      dateUtils.isAfter(contratoAdminActivo.createdAt, sgcContratoObservado.createdAt),
+  );
   const contratoRegenerado =
-    contratoAdminRegenerado || (contratoFirmadoObservadoPendiente && tieneContratoAdminNuevo);
+    contratoAdminRegenerado ||
+    (contratoFirmadoObservadoPendiente && tieneContratoAdminNuevo) ||
+    contratoRegeneradoSgc;
   /* El cliente ya volvio a firmar la correccion: no corresponde regenerar otra vez. */
   const contratoCorregidoYaFirmado = hayFirmadoPosteriorAlContratoCorregido(row);
 
@@ -398,6 +439,12 @@ export function SolicitudReview({
   const currentArea = stepAreas[currentStep] ?? areas[0] ?? REVISION_AREAS.ASOCIADO;
   const currentRev = getRevision(row, currentArea);
   const canReview = canReviewArea(userPermissions, currentArea);
+  const puedeSubirFirmaAsociado =
+    esReservaEmpresa &&
+    row.sgcEnabled &&
+    currentArea === REVISION_AREAS.ASOCIADO &&
+    (isAdmin || canReview) &&
+    (contratoPendienteFirma || contratoFirmadoObservadoPendiente);
   const todasAprobadas = areas.every((area) => {
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
@@ -418,13 +465,14 @@ export function SolicitudReview({
 
   const requiereSgc = mostrarSgc;
   const sgcOk = sgcAprobado(row.sgcLifecycleStatus);
+  const sgcEnLegal = sgcEnRevisionLegal(row.sgcStage, row.sgcLifecycleStatus);
   // El SGC devolvio (observed) o rechazo (rejected): ahi si se puede reemplazar el contrato.
   const sgcSubsanable =
     row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
     row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
   // Con el contrato ya enviado al SGC no se ofrece reemplazarlo hasta que lo devuelva/rechace.
   const puedeReemplazarContrato = !row.sgcDocumentosEnviados || sgcSubsanable;
-  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
+  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {
@@ -439,6 +487,8 @@ export function SolicitudReview({
   /** Se puede observar mientras el paso Asociado esta editable. */
   const puedeObservar =
     !ddAccionesBloqueadas &&
+    !contratoPendienteFirma &&
+    !sgcEnLegal &&
     currentArea === REVISION_AREAS.ASOCIADO &&
     (!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) &&
     canReview;
@@ -499,7 +549,7 @@ export function SolicitudReview({
 
       {/* ===== BODY ===== */}
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-        {!ddCargando && ddBloqueado && (
+        {!esReservaEmpresa && !ddCargando && ddBloqueado && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
@@ -520,7 +570,7 @@ export function SolicitudReview({
 
         {/* Client documents */}
         {(() => {
-          const docs: Array<{ id?: string; url: string; nombre: string; fecha?: string; origen: string; categoria?: string; requisito?: string | null; estado?: string | null; motivoObservacion?: string | null; userId?: string | null }> = [];
+          const docs: Array<{ id?: string; url: string; nombre: string; fecha?: string; origen: string; origenDocumento?: string | null; uploadedBy?: string | null; categoria?: string; requisito?: string | null; estado?: string | null; motivoObservacion?: string | null; userId?: string | null }> = [];
 
           // Single-stand: documentos JSON field (client-submitted at solicitud creation)
           const jsonDocs = (row.documentos as string[]) ?? [];
@@ -531,7 +581,7 @@ export function SolicitudReview({
           // Docs del flujo nuevo (cliente y administrador): todos son observables
           const adjuntos = row.docsAdjuntos ?? [];
           for (const d of adjuntos) {
-            docs.push({ id: d.id, url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", categoria: d.categoria ?? undefined, requisito: d.requisito, estado: d.estado, motivoObservacion: d.motivoObservacion, userId: d.userId });
+            docs.push({ id: d.id, url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", origenDocumento: d.origen, uploadedBy: d.uploadedBy, categoria: d.categoria ?? undefined, requisito: d.requisito, estado: d.estado, motivoObservacion: d.motivoObservacion, userId: d.userId });
           }
 
           // Re-evaluacion documents
@@ -571,11 +621,16 @@ export function SolicitudReview({
               const ordenadas = [...versiones].sort((a, b) => fechaMs(b) - fechaMs(a));
               const actual = ordenadas.find((d) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) ?? ordenadas[0]!;
               const anteriores = ordenadas.filter((d) => d.url !== actual.url);
+              const subidoPorAsociado = actual.origenDocumento === ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO;
               const etiqueta = key === "contrato-admin"
                 ? "Contrato (administrador)"
                 : key === "contrato-firmado"
-                  ? "Contrato firmado (cliente)"
-                  : etiquetaRequisito(actual.requisito) ?? actual.nombre;
+                  ? subidoPorAsociado
+                    ? "Contrato firmado (subido por Asociado)"
+                    : "Contrato firmado (cliente)"
+                  : key === `categoria:${TIPOS_DOCUMENTO_SOLICITUD.ANEXO}`
+                    ? "Documentos anexos"
+                    : etiquetaRequisito(actual.requisito) ?? actual.nombre;
               return { key, actual, anteriores, etiqueta, fecha: fechaMs(ordenadas[0]!) };
             })
             .sort((a, b) => {
@@ -585,30 +640,75 @@ export function SolicitudReview({
 
           if (unique.length === 0) return null;
 
-          const accionesDoc = (doc: (typeof unique)[number]) => (
-            <div className="flex shrink-0 items-center gap-0.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
-                title="Vista previa"
-                onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Descargar" asChild>
-                <a href={doc.url} download={doc.nombre}>
-                  <Download className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Abrir en otra pestana" asChild>
-                <a href={doc.url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              </Button>
-            </div>
-          );
+          /** El DOCX se sube con la misma base que el PDF del contrato. */
+          const urlWordDesdePdf = (url: string): string | null => {
+            const coincidencia = url.match(/^(.*)\.pdf(\?.*)?$/i);
+            return coincidencia ? `${coincidencia[1]}.docx${coincidencia[2] ?? ""}` : null;
+          };
+          const nombreWord = (nombre: string) => nombre.replace(/\.pdf$/i, ".docx");
+
+          const accionesDoc = (doc: (typeof unique)[number], grupoKey?: string) => {
+            const esContratoAdmin = grupoKey === "contrato-admin";
+            const wordUrl = esContratoAdmin ? urlWordDesdePdf(doc.url) : null;
+            return (
+              <div className="flex shrink-0 items-center gap-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                  title="Vista previa"
+                  onClick={() => setPreviewDoc({ url: doc.url, nombre: doc.nombre })}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </Button>
+                {esContratoAdmin ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-primary"
+                        title="Descargar contrato (PDF o Word)"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      {/\.pdf(\?.*)?$/i.test(doc.url) && (
+                        <DropdownMenuItem asChild>
+                          <a href={doc.url} download={doc.nombre} className="cursor-pointer gap-2 text-xs">
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>PDF</span>
+                          </a>
+                        </DropdownMenuItem>
+                      )}
+                      {wordUrl && (
+                        <DropdownMenuItem asChild>
+                          <a href={wordUrl} download={nombreWord(doc.nombre)} className="cursor-pointer gap-2 text-xs">
+                            <FileText className="h-3.5 w-3.5" />
+                            <span>Word (.docx)</span>
+                          </a>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Descargar" asChild>
+                    <a href={doc.url} download={doc.nombre}>
+                      <Download className="h-3.5 w-3.5" />
+                    </a>
+                  </Button>
+                )}
+                <Button type="button" variant="ghost" size="icon" className="h-6 w-6 p-0 text-muted-foreground hover:text-primary" title="Abrir en otra pestana" asChild>
+                  <a href={doc.url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </div>
+            );
+          };
 
           return (
             <div className="border-t border-border pt-3">
@@ -633,14 +733,16 @@ export function SolicitudReview({
                 </div>
               </div>
               {(isAdmin || canReviewArea(userPermissions, REVISION_AREAS.ASOCIADO)) &&
-                (contratoAdminObservado || contratoFirmadoObservadoPendiente) && (
+                (contratoAdminObservado || contratoFirmadoObservadoPendiente || Boolean(sgcContratoObservado)) && (
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                   <p className="text-[11px] text-foreground">
                     {contratoRegenerado
                       ? "El contrato ya fue regenerado y enviado. Esperando que el cliente lo firme."
-                      : contratoAdminObservado
-                        ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
-                        : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
+                      : sgcContratoObservado
+                        ? "El área legal observó el contrato. Genera la versión corregida y habilita la firma del cliente."
+                        : contratoAdminObservado
+                          ? "El contrato fue observado. Genera la version corregida y habilita la firma del cliente."
+                          : "El contrato firmado por el cliente fue observado. Genera la version corregida y habilita la firma para que vuelva a firmarlo."}
                   </p>
                   {contratoRegenerado ? (
                     <Badge className={`pointer-events-none shrink-0 text-[9px] ${BADGE_STYLES.WARNING}`}>
@@ -683,7 +785,9 @@ export function SolicitudReview({
                           <p className="truncate text-[13px] font-medium text-foreground">{grupo.etiqueta}</p>
                           <p className="truncate text-[10px] text-muted-foreground">
                             {grupo.key === "contrato-admin" && "Emitido por el IIMP · "}
-                            {grupo.key === "contrato-firmado" && "Firmado por el cliente · "}
+                            {grupo.key === "contrato-firmado" && (actual.origenDocumento === ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO
+                              ? `Subido por el Asociado${actual.uploadedBy ? ` (${actual.uploadedBy})` : ""} · `
+                              : "Firmado por el cliente · ")}
                             {actual.nombre}
                           </p>
                           {actual.motivoObservacion && actual.estado === ESTADOS_DOCUMENTO_SOLICITUD.OBSERVADO && (
@@ -717,7 +821,7 @@ export function SolicitudReview({
                           </label>
                         )}
                         <span className="shrink-0 text-[10px] text-muted-foreground">{actual.fecha ? dateUtils.formatDateTime(actual.fecha) : "-"}</span>
-                        {accionesDoc(actual)}
+                        {accionesDoc(actual, grupo.key)}
                       </div>
                       {grupo.anteriores.length > 0 && (
                         <>
@@ -751,7 +855,7 @@ export function SolicitudReview({
                                     </Badge>
                                   )}
                                   <span className="shrink-0 text-[10px] text-muted-foreground">{doc.fecha ? dateUtils.formatDateTime(doc.fecha) : "-"}</span>
-                                  {accionesDoc(doc)}
+                                  {accionesDoc(doc, grupo.key)}
                                 </div>
                               ))}
                             </div>
@@ -902,6 +1006,48 @@ export function SolicitudReview({
           </Badge>
         </div>
 
+        {contratoPendienteFirma && (
+          <p className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning">
+            El cliente aun no firmo el contrato. La revision del Asociado se habilita cuando suba el contrato firmado.
+          </p>
+        )}
+
+        {puedeSubirFirmaAsociado && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-3">
+            <p className="text-xs font-semibold text-foreground">Firma del cliente</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              Si el cliente entregó el contrato firmado en PDF, puedes registrarlo aquí en su nombre.
+              Quedará auditado con tu usuario. Al aprobar, la solicitud pasará al SGC y luego a facturación.
+            </p>
+            {contratoFirmadoVigente && (
+              <p className="mt-1 text-[11px] font-medium text-warning">
+                Ya existe un contrato firmado vigente. Si subes uno nuevo, el anterior pasará al historial y el nuevo será el equivalente válido.
+              </p>
+            )}
+            <SgcDocumentoUpload
+              solicitudId={row.id}
+              tipo={TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO}
+              titulo="Contrato firmado equivalente"
+              hint={["Solo PDF.", "El archivo reemplaza la firma digital del cliente."]}
+              archivos={[]}
+              ctaVacio="Subir contrato firmado por el cliente"
+              ctaConArchivos="Reemplazar contrato firmado"
+              vacioTexto="Aun no hay un contrato firmado registrado."
+              varios={false}
+              subirFirmaAsociado
+              confirmarSubida={confirmarSubidaFirmaAsociado}
+              onAttached={() => onSaved(row)}
+            />
+          </div>
+        )}
+
+        {sgcEnLegal && (
+          <p className="rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-muted-foreground">
+            El expediente está en revisión Legal (SGC). Los cambios de estado están inhabilitados
+            hasta que el SGC lo devuelva.
+          </p>
+        )}
+
         {/* Audit info */}
         {currentRev?.createdBy && (
           <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
@@ -928,11 +1074,13 @@ export function SolicitudReview({
                 <p className="text-xs text-muted-foreground whitespace-pre-wrap">{currentRev.comentario}</p>
               </div>
             )}
-            {canReview && (!ddBloqueado || isAdmin) && (
+            {canReview && (!ddBloqueado || isAdmin || esReservaEmpresa) && (
               <Button
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs font-medium"
+                disabled={sgcEnLegal}
+                title={sgcEnLegal ? "El expediente está en revisión Legal (SGC)" : undefined}
                 onClick={() => setEditing(true)}
               >
                 <Pencil className="h-3 w-3" />
@@ -948,7 +1096,7 @@ export function SolicitudReview({
         )}
 
         {/* Pending or editing — show form */}
-        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin) && (
+        {(!currentRev || currentRev.estado === RESULTADOS_APROBACION.PENDIENTE || editing) && canReview && (!ddBloqueado || isAdmin || esReservaEmpresa) && !sgcEnLegal && (
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Comentario / Justificacion</Label>
@@ -981,8 +1129,8 @@ export function SolicitudReview({
               <Button
                 size="sm"
                 variant="outline"
-                disabled={ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
-                title={docsObservar.length > 0 ? "Desmarca los documentos para rechazar" : undefined}
+                disabled={contratoPendienteFirma || ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
+                title={contratoPendienteFirma ? "El cliente aun no firmo el contrato" : docsObservar.length > 0 ? "Desmarca los documentos para rechazar" : undefined}
                 className="gap-1.5 border-destructive/40 text-xs font-medium text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive disabled:border-border disabled:text-muted-foreground"
                 onClick={handleRechazar}
               >
@@ -1004,7 +1152,7 @@ export function SolicitudReview({
                   <Button
                     size="sm"
                     variant="outline"
-                    disabled={ddAccionesBloqueadas || !!submitting}
+                    disabled={contratoPendienteFirma || ddAccionesBloqueadas || !!submitting}
                     className="gap-1.5 border-primary/40 text-xs font-medium text-primary hover:bg-primary/10"
                     onClick={handleObservar}
                   >
@@ -1014,8 +1162,8 @@ export function SolicitudReview({
                 )}
                 <Button
                   size="sm"
-                  disabled={ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
-                  title={docsObservar.length > 0 ? "Desmarca los documentos para aprobar" : undefined}
+                  disabled={contratoPendienteFirma || ddAccionesBloqueadas || !!submitting || docsObservar.length > 0}
+                  title={contratoPendienteFirma ? "El cliente aun no firmo el contrato" : docsObservar.length > 0 ? "Desmarca los documentos para aprobar" : undefined}
                   className="gap-1.5 text-xs font-semibold"
                   onClick={() => handleReview(currentArea, RESULTADOS_APROBACION.APROBADO)}
                 >

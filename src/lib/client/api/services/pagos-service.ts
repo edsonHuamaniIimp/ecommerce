@@ -134,6 +134,15 @@ export const pagosService = {
       ...(requisitos ? { requisitos } : {}),
     });
   },
+
+  /** Completa el checklist de una solicitud ya enviada sin requisitos (no reenvia la reserva). */
+  completarRequisitos(cuotaId: string, requisitos: RequisitosFacturacionDTO, archivos: ArchivoIImpInputDTO[] = []) {
+    return internalApi.post<{ ok: boolean }>("/api/pagos/completar-requisitos", {
+      cuotaId,
+      ...(archivos.length > 0 ? { archivos } : {}),
+      requisitos,
+    });
+  },
   /** Archivos (links) de la cuenta corriente del IIMP asociada a la cuota. */
   listarArchivos(cuotaId: string) {
     return internalApi.get<ArchivoCuentaDTO[]>(`/api/pagos/archivos?cuotaId=${encodeURIComponent(cuotaId)}`);

@@ -113,6 +113,22 @@ export interface DatosComprobanteFiscal {
   url: string;
 }
 
+/** Candidato a recordatorio: facturacion en proceso con saldo pendiente. */
+export interface RecordatorioCandidatoRow {
+  facturacionId: string;
+  solicitudId: string;
+  standCode: string;
+  empresa: string | null;
+  /** Correo de facturacion del snapshot; si falta, el correo del usuario solicitante. */
+  email: string | null;
+  moneda: string;
+  cuotasPendientes: number;
+  montoPendiente: number;
+  requisitos: FacturacionRow["requisitos"];
+  iimpContrato: string | null;
+  iimpCuentaCorriente: string | null;
+}
+
 /** Notificacion del sistema de facturacion externo: nombre del documento + estado de pago. */
 export interface NotificacionFacturaExterna {
   documento: string;
@@ -148,4 +164,8 @@ export interface IFacturacionRepository {
   esPropietarioDeCuota(cuotaId: string, ident: ClienteIdent): Promise<boolean>;
   /** Facturacion (con cuotas) a la que pertenece una cuota. */
   facturacionDeCuota(cuotaId: string): Promise<FacturacionRow | null>;
+  /** Facturaciones en proceso con empresa, correo, requisitos y saldo pendiente (recordatorios). */
+  listarCandidatosRecordatorio(): Promise<RecordatorioCandidatoRow[]>;
+  /** Auditoria: registra un recordatorio enviado en el historial de la facturacion. */
+  registrarNotificacionRecordatorio(facturacionId: string, detalle: string, createdBy: string): Promise<void>;
 }

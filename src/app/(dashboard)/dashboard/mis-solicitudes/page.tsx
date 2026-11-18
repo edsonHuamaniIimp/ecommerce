@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -24,6 +24,7 @@ export default function MisSolicitudesPage() {
       descripcion={empresaVerComo ? `Solicitudes de ${empresaVerComo.razonSocial} (solo lectura).` : "Estado de tus solicitudes de alquiler de stands en el evento actual."}
       cargando={cargando}
       tieneEvento={Boolean(eventoId)}
+      ancho="completo"
       accion={
         !empresaVerComo ? (
           <Button asChild variant="outline" className="gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
@@ -41,7 +42,7 @@ export default function MisSolicitudesPage() {
           {empresaVerComo && (
             <Badge className="gap-1.5 bg-info/10 text-[11px] font-semibold text-info">
               <Eye className="h-3 w-3" />
-              <span>Viendo como {empresaVerComo.razonSocial} · Solo lectura</span>
+              <span>Viendo como {empresaVerComo.razonSocial} Â· Solo lectura</span>
             </Badge>
           )}
         </div>

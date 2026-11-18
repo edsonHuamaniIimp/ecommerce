@@ -13,6 +13,8 @@ export interface GessPaginationParams {
   planoCodigo?: string;
   /** Solo stands sin bloque vinculado. */
   sinPabellon?: boolean;
+  /** Solo stands con bloque 3D vinculado (bandeja de pre-reservas). */
+  soloVinculados?: boolean;
 }
 
 export interface GessPaginatedResult {
