@@ -152,6 +152,53 @@ jobs:
           tags: |
             ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+
+  # ─── Imagen de backup (pg_dump) → ECR (tag fijo db-backup) ─────────────────
+  # Usada por la tarea ECS programada (EventBridge) del módulo terraform "backups".
+  build-db-backup:
+    name: Build imagen db-backup → ECR (arm64)
+    runs-on: ubuntu-24.04-arm
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verificar secrets ECR
+        id: check-ecr
+        run: |
+          if [ -z "${{ secrets.ECR_REGISTRY }}" ] || [ -z "${{ secrets.ECR_REPOSITORY }}" ]; then
+            echo "ECR no configurado. Saltando build de db-backup."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configurar credenciales AWS
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
+
+      - name: Setup Buildx
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login ECR
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build y push (arm64 nativo)
+        if: steps.check-ecr.outputs.skip != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: docker/db-backup
+          file: docker/db-backup/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:db-backup
           build-args: |
             NEXT_PUBLIC_API_URL=/api
             NEXT_PUBLIC_API_MOCK=0

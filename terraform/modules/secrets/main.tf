@@ -1,6 +1,19 @@
 # Módulo secrets: Secrets Manager con los secretos de la aplicación
 # R3: hashtag base por default_tags del provider; aquí solo component.
 # Los secretos opcionales (integraciones) solo se crean si su valor viene no vacío.
+# Backups: replicación de los secretos a la región DR (bloque `replica` nativo).
+
+variable "enable_replica" {
+  description = "Replicar los secretos a la region DR (us-east-2). Si se pierde la region primaria, los secretos se pueden reconstruir."
+  type        = bool
+  default     = true
+}
+
+variable "dr_region" {
+  description = "Region DR de las replicas"
+  type        = string
+  default     = "us-east-2"
+}
 
 variable "environment" {
   description = "Entorno (qa | prod)"
@@ -133,6 +146,14 @@ locals {
 
 # ── DATABASE_URL (Prisma) ───────────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "database_url" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   name = "${local.name}-database-url"
   tags = local.tags
 }
@@ -150,6 +171,14 @@ resource "aws_secretsmanager_secret_version" "database_url" {
 
 # ── JWT_SECRET (sesión/roles) ───────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "jwt_secret" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   name = "${local.name}-jwt-secret"
   tags = local.tags
 }
@@ -166,6 +195,14 @@ resource "random_password" "jwt" {
 
 # ── SUNAT_API_TOKEN (solo si viene valor) ───────────────────────────────────
 resource "aws_secretsmanager_secret" "sunat_api_token" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.sunat_api_token != "" ? 1 : 0
   name  = "${local.name}-sunat-api-token"
   tags  = local.tags
@@ -179,6 +216,14 @@ resource "aws_secretsmanager_secret_version" "sunat_api_token" {
 
 # ── Resend (correos) ────────────────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "resend_api_key" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.resend_api_key != "" ? 1 : 0
   name  = "${local.name}-resend-api-key"
   tags  = local.tags
@@ -192,6 +237,14 @@ resource "aws_secretsmanager_secret_version" "resend_api_key" {
 
 # ── KBServicios (auspicios) ─────────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "kbservicios_api_key" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.kbservicios_api_key != "" ? 1 : 0
   name  = "${local.name}-kbservicios-api-key"
   tags  = local.tags
@@ -205,6 +258,14 @@ resource "aws_secretsmanager_secret_version" "kbservicios_api_key" {
 
 # ── Niubiz (pasarela de pagos) ──────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "niubizz_user" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.niubizz_user != "" ? 1 : 0
   name  = "${local.name}-niubizz-user"
   tags  = local.tags
@@ -217,6 +278,14 @@ resource "aws_secretsmanager_secret_version" "niubizz_user" {
 }
 
 resource "aws_secretsmanager_secret" "niubizz_password" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.niubizz_password != "" ? 1 : 0
   name  = "${local.name}-niubizz-password"
   tags  = local.tags
@@ -230,6 +299,14 @@ resource "aws_secretsmanager_secret_version" "niubizz_password" {
 
 # ── Proxy IIMP ──────────────────────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "iimp_proxy_pass" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.iimp_proxy_pass != "" ? 1 : 0
   name  = "${local.name}-iimp-proxy-pass"
   tags  = local.tags
@@ -243,6 +320,14 @@ resource "aws_secretsmanager_secret_version" "iimp_proxy_pass" {
 
 # ── Clave M2M con montaje ───────────────────────────────────────────────────
 resource "aws_secretsmanager_secret" "integracion_api_key" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.integracion_api_key != "" ? 1 : 0
   name  = "${local.name}-integracion-api-key"
   tags  = local.tags
@@ -256,6 +341,14 @@ resource "aws_secretsmanager_secret_version" "integracion_api_key" {
 
 # ── API de stands del IIMP (liststand, Vinculacion) ─────────────────────────
 resource "aws_secretsmanager_secret" "liststand_usuario" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.liststand_usuario != "" ? 1 : 0
   name  = "${local.name}-liststand-usuario"
   tags  = local.tags
@@ -268,6 +361,14 @@ resource "aws_secretsmanager_secret_version" "liststand_usuario" {
 }
 
 resource "aws_secretsmanager_secret" "liststand_clave" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.liststand_clave != "" ? 1 : 0
   name  = "${local.name}-liststand-clave"
   tags  = local.tags
@@ -281,6 +382,14 @@ resource "aws_secretsmanager_secret_version" "liststand_clave" {
 
 # ── servicio-persona (personas del ecosistema IIMP) ─────────────────────────
 resource "aws_secretsmanager_secret" "personas_api_usuario" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.personas_api_usuario != "" ? 1 : 0
   name  = "${local.name}-personas-api-usuario"
   tags  = local.tags
@@ -293,6 +402,14 @@ resource "aws_secretsmanager_secret_version" "personas_api_usuario" {
 }
 
 resource "aws_secretsmanager_secret" "personas_api_clave" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.personas_api_clave != "" ? 1 : 0
   name  = "${local.name}-personas-api-clave"
   tags  = local.tags
@@ -306,6 +423,14 @@ resource "aws_secretsmanager_secret_version" "personas_api_clave" {
 
 # -- SGC / cron de reconciliacion --------------------------------------------
 resource "aws_secretsmanager_secret" "cron_secret" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.cron_secret != "" ? 1 : 0
   name  = "${local.name}-cron-secret"
   tags  = local.tags
@@ -318,6 +443,14 @@ resource "aws_secretsmanager_secret_version" "cron_secret" {
 }
 
 resource "aws_secretsmanager_secret" "sgc_api_key" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.sgc_api_key != "" ? 1 : 0
   name  = "${local.name}-sgc-api-key"
   tags  = local.tags
@@ -330,6 +463,14 @@ resource "aws_secretsmanager_secret_version" "sgc_api_key" {
 }
 
 resource "aws_secretsmanager_secret" "sgc_webhook_secret" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
   count = var.sgc_webhook_secret != "" ? 1 : 0
   name  = "${local.name}-sgc-webhook-secret"
   tags  = local.tags
@@ -343,7 +484,11 @@ resource "aws_secretsmanager_secret_version" "sgc_webhook_secret" {
 
 output "secret_arns" {
   description = "ARNs de los secretos existentes (para la task definition)"
-  value = merge(
+  value       = local.todas
+}
+
+locals {
+  todas = merge(
     {
       database_url = aws_secretsmanager_secret.database_url.arn
       jwt_secret   = aws_secretsmanager_secret.jwt_secret.arn

@@ -661,3 +661,82 @@ variable "state_dynamodb_table" {
   type        = string
   default     = "iimp-contratos-stands-terraform-locks"
 }
+
+# ── Backups (protección de datos — plan: docs/06-operacion/plan-backups.md) ─
+variable "dr_region" {
+  description = "Region DR de los backups (CRR de documentos y replicas de secretos)"
+  type        = string
+  default     = "us-east-2"
+}
+
+variable "enable_crr" {
+  description = "Replicar los documentos S3 a la region DR (backup real de la gestion documental)"
+  type        = bool
+  default     = true
+}
+
+variable "secrets_replica_enabled" {
+  description = "Replicar los secretos de Secrets Manager a la region DR"
+  type        = bool
+  default     = true
+}
+
+variable "backup_schedule" {
+  description = "Cron de AWS Backup para el EFS de uploads (UTC)"
+  type        = string
+  default     = "cron(0 2 * * ? *)"
+}
+
+variable "backup_retention_days" {
+  description = "Retencion de los recovery points de AWS Backup (rotacion automatica)"
+  type        = number
+  default     = 35
+}
+
+variable "dump_schedule_cron" {
+  description = "Cron de EventBridge del pg_dump diario (UTC)"
+  type        = string
+  default     = "cron(30 3 * * ? *)"
+}
+
+variable "dump_enabled" {
+  description = "Activar la tarea diaria de pg_dump"
+  type        = bool
+  default     = true
+}
+
+variable "db_backup_bucket_prefix" {
+  description = "Prefijo del bucket de dumps logicos de la BD"
+  type        = string
+  default     = "iimp-ctrst-db-backups"
+}
+
+variable "dump_expire_days" {
+  description = "Dias para expirar el dump mas antiguo (rotacion automatica)"
+  type        = number
+  default     = 90
+}
+
+variable "backup_image_tag" {
+  description = "Tag de la imagen de backup en ECR (lo pushea el CI: docker/db-backup)"
+  type        = string
+  default     = "db-backup"
+}
+
+variable "backup_task_cpu" {
+  description = "CPU de la tarea de pg_dump (Fargate)"
+  type        = string
+  default     = "256"
+}
+
+variable "backup_task_memory" {
+  description = "Memoria de la tarea de pg_dump (Fargate, MB)"
+  type        = string
+  default     = "512"
+}
+
+variable "backup_alert_email" {
+  description = "Correo de alertas de fallo de backup — vacio = usa budget_alert_email"
+  type        = string
+  default     = ""
+}

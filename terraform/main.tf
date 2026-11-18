@@ -72,6 +72,22 @@ provider "aws" {
   }
 }
 
+# Región DR (backups: CRR de documentos + réplicas de secretos)
+provider "aws" {
+  alias   = "dr"
+  region  = var.dr_region
+  profile = var.aws_profile != "" ? var.aws_profile : null
+
+  default_tags {
+    tags = {
+      project     = "contratos-stands"
+      environment = var.environment
+      managed-by  = "terraform"
+      cost-center = "eventos-iimp"
+    }
+  }
+}
+
 # ── Certificado TLS (ACM en us-east-1) ──────────────────────────────────────
 module "acm" {
   source = "./modules/acm"
@@ -124,10 +140,16 @@ module "aurora" {
 module "storage" {
   source = "./modules/storage"
 
+  providers = {
+    aws    = aws
+    aws.dr = aws.dr
+  }
+
   environment                        = var.environment
   bucket_name_prefix                 = var.bucket_name_prefix
   intelligent_tiering_days           = var.s3_intelligent_tiering_days
   noncurrent_version_expiration_days = var.s3_noncurrent_version_expiration_days
+  enable_crr                         = var.enable_crr
 
   common_tags = local.common_tags
 }
@@ -171,6 +193,8 @@ module "secrets" {
   cron_secret          = var.cron_secret
   sgc_api_key          = var.sgc_api_key
   sgc_webhook_secret   = var.sgc_webhook_secret
+  enable_replica       = var.secrets_replica_enabled
+  dr_region            = var.dr_region
 
   common_tags = local.common_tags
 }
@@ -284,6 +308,34 @@ module "observability" {
   budget_amount_usd            = var.budget_amount_usd
   budget_alert_email           = var.budget_alert_email
   budget_alert_percentages     = var.budget_alert_percentages
+
+  common_tags = local.common_tags
+}
+
+# ── Backups (AWS Backup EFS + dumps lógicos + alertas) ──────────────────────
+module "backups" {
+  source = "./modules/backups"
+
+  environment             = var.environment
+  aws_region              = var.aws_region
+  vpc_id                  = module.network.vpc_id
+  task_subnet_ids         = var.enable_nat_gateway ? module.network.private_subnet_ids : module.network.public_subnet_ids
+  assign_public_ip        = !var.enable_nat_gateway
+  cluster_name            = module.ecs.cluster_name
+  ecr_repository_url      = module.ecs.ecr_repository_url
+  database_url_secret_arn = module.secrets.secret_arns["database_url"]
+  efs_arn                 = module.uploads.file_system_arn
+  backup_schedule         = var.backup_schedule
+  backup_retention_days   = var.backup_retention_days
+  dump_schedule_cron      = var.dump_schedule_cron
+  dump_enabled            = var.dump_enabled
+  db_backup_bucket_prefix = var.db_backup_bucket_prefix
+  dump_expire_days        = var.dump_expire_days
+  backup_image_tag        = var.backup_image_tag
+  backup_task_cpu         = var.backup_task_cpu
+  backup_task_memory      = var.backup_task_memory
+  log_retention_days      = var.log_retention_days
+  alert_email             = var.backup_alert_email != "" ? var.backup_alert_email : var.budget_alert_email
 
   common_tags = local.common_tags
 }
