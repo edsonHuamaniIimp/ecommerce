@@ -544,6 +544,12 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
     expect(contratoService.generar).toHaveBeenCalledWith(expect.objectContaining({
       solicitudId: "sol-1",
       userEmail: "representante@empresa.pe",
+      contrato: expect.objectContaining({
+        razonSocial: "Empresa de Prueba S.A.C.",
+        ruc: "20123456789",
+        representante: "Representante Legal",
+        representanteDni: "12345678",
+      }),
     }));
     expect(solicitudesRepo.habilitarContrato).toHaveBeenCalledWith("sol-1");
     expect(solicitudesRepo.marcarOrdenPago).not.toHaveBeenCalled();
