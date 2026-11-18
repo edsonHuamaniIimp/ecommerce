@@ -1484,8 +1484,36 @@ export class DebidaDiligenciaApplicationService {
     return (await this.repo.findExpedientePorId(expediente.id)) ?? expediente;
   }
 
+  /**
+   * Puente matriz -> expediente: la matriz ya valido los vinculos y el resultado
+   * final APTO debe quedar tambien en el estado legacy que consume el resto del
+   * sistema (reservas, bandeja, notificaciones e historial).
+   */
+  async aprobarDesdeMatriz(expedienteId: string, session: DdSession): Promise<void> {
+    this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
+    const expediente = await this.repo.findExpedientePorId(expedienteId);
+    if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    if (expediente.estado === DD_ESTADOS.APROBADA) return;
+
+    await this.revisar(
+      {
+        expedienteId,
+        accion: DD_ACCIONES_REVISION.APROBAR,
+        motivo: "Conclusión final APTO registrada desde la matriz.",
+        documentosObservados: [],
+        observaciones: [],
+      },
+      session,
+      { omitirValidacionComunicaciones: true },
+    );
+  }
+
   /** Resolucion de Logistica: aprobar, observar o rechazar. */
-  async revisar(dto: DdRevisarRequestDTO, session: DdSession): Promise<DdExpedienteEntity> {
+  async revisar(
+    dto: DdRevisarRequestDTO,
+    session: DdSession,
+    opciones: { omitirValidacionComunicaciones?: boolean } = {},
+  ): Promise<DdExpedienteEntity> {
     this.exigirPermiso(session, PERMISSIONS.DD_REVISION);
     const expediente = await this.repo.findExpedientePorId(dto.expedienteId);
     if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
@@ -1510,12 +1538,13 @@ export class DebidaDiligenciaApplicationService {
       );
     }
 
-    if (dto.accion === DD_ACCIONES_REVISION.APROBAR) {
+    if (dto.accion === DD_ACCIONES_REVISION.APROBAR && !opciones.omitirValidacionComunicaciones) {
       const casos = expediente.reputacion ?? [];
       const pendientes = casos.filter(
         (caso) =>
           (caso.resultado !== DD_REPUTACION_RESULTADOS.SIN_HALLAZGOS &&
-            caso.resultado !== DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES) ||
+            caso.resultado !== DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES &&
+            caso.resultado !== DD_REPUTACION_RESULTADOS.ACEPTADO) ||
           (caso.estado !== DD_REPUTACION_ESTADOS.SIN_HALLAZGOS &&
             caso.estado !== DD_REPUTACION_ESTADOS.CERRADA),
       );

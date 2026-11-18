@@ -96,8 +96,16 @@ export interface DdMatrizAdjuntoNuevo {
  * (empresa/persona): no modifica el estado del expediente ni el acceso a reservas.
  * Cada area (SIG, Reputacional, Compliance) edita solo su seccion segun su permiso.
  */
+export type DdMatrizAprobarExpediente = (
+  expedienteId: string,
+  session: DdSession,
+) => Promise<void>;
+
 export class DdMatrizEvaluacionApplicationService {
-  constructor(private readonly repo: IDdMatrizEvaluacionRepository) {}
+  constructor(
+    private readonly repo: IDdMatrizEvaluacionRepository,
+    private readonly aprobarExpediente?: DdMatrizAprobarExpediente,
+  ) {}
 
   private tienePermiso(session: DdSession, permiso: string): boolean {
     return session.roles.includes(ROLES.ADMIN) || session.permissions.includes(permiso);
@@ -462,13 +470,16 @@ export class DdMatrizEvaluacionApplicationService {
 
     await this.cerrarEmpresaSiTodosAptos(actualizado, session);
 
-    const empresa =
-      actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
-        ? ((await this.repo.findVinculo(actualizado.id)) ?? actualizado)
-        : await this.repo.findVinculoEmpresa(actualizado.expediente.expedienteId);
-    const vinculoFinal = actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
-      ? (empresa ?? actualizado)
-      : actualizado;
+      const empresa =
+        actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+          ? ((await this.repo.findVinculo(actualizado.id)) ?? actualizado)
+          : await this.repo.findVinculoEmpresa(actualizado.expediente.expedienteId);
+      if (empresa?.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.APTO) {
+        await this.aprobarExpediente?.(actualizado.expediente.expedienteId, session);
+      }
+      const vinculoFinal = actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
+        ? (empresa ?? actualizado)
+        : actualizado;
     return {
       vinculo: vinculoFinal,
       empresa,

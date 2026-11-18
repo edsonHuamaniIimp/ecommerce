@@ -105,6 +105,13 @@ const sgcOutboxRepo = new SgcOutboxPrismaRepository();
 const sgcOutbox = new SgcOutboxApplicationService(sgcOutboxRepo, sgcIntegracion, sgcConfig);
 const auditoria = new AuditoriaApplicationService(new AuditoriaPrismaRepository());
 const standEvents = new PusherStandEventPublisher();
+const debidaDiligenciaApp = new DebidaDiligenciaApplicationService(
+  debidaDiligenciaRepo,
+  authRepo,
+  debidaDiligenciaNotificacion,
+  debidaDiligenciaDocumentoValidator,
+  ddConfiguracionRepo,
+);
 
 export const services = {
   eventos: new EventoApplicationService(eventoRepo),
@@ -134,13 +141,16 @@ export const services = {
   usuarios: new UsuariosApplicationService(usuarioRepo, authRepo, empresaRepo, roleRepo, personaClient),
   configuracion: configuracionApp,
   auditoria,
-  ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(new DdMatrizEvaluacionPrismaRepository()),
+  ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(
+    new DdMatrizEvaluacionPrismaRepository(),
+    (expedienteId, session) => debidaDiligenciaApp.aprobarDesdeMatriz(expedienteId, session),
+  ),
   ddClasificarArchivos: new DdClasificarArchivosApplicationService(
     process.env.GEMINI_API_KEY?.trim()
       ? new GeminiClasificadorArchivosClient()
       : new OpenAiClasificadorArchivosClient(),
   ),
-  debidaDiligencia: new DebidaDiligenciaApplicationService(debidaDiligenciaRepo, authRepo, debidaDiligenciaNotificacion, debidaDiligenciaDocumentoValidator, ddConfiguracionRepo),
+  debidaDiligencia: debidaDiligenciaApp,
   ddConfiguracion: new DdConfiguracionApplicationService(ddConfiguracionRepo),
   gessRepo,
   roleRepo,
