@@ -425,6 +425,45 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("15/06/2027");
   });
 
+  it("permite al admin editar el descuento individual por stand y persiste el snapshot", async () => {
+    const { svc, solicitudes } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        precio: 1000,
+        standsDetalle: [{
+          standCode: "A-1",
+          bloqueId: "A-1",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 1000,
+          tipoStand: "Estandar",
+        }],
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      descuentosPorStand: [{ standCode: "A-1", tipo: "porcentaje", valor: 10 }],
+      userSub: "admin",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    expect(solicitudes.guardarPlanCuotas).toHaveBeenCalledWith(
+      "11111111-1111-4111-8111-111111111111",
+      expect.objectContaining({
+        descuentoTipo: "por_stand",
+        descuentoMonto: 100,
+        netoDescontado: 900,
+        total: 1062,
+        descuentosPorStand: [
+          expect.objectContaining({ standCode: "A-1", tipo: "porcentaje", valor: 10, neto: 900 }),
+        ],
+      }),
+    );
+  });
+
   it("rechaza a un usuario ajeno sin permisos", async () => {
     const { svc, storage } = build();
 

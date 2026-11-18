@@ -137,6 +137,8 @@ export interface GenerarContratoInput {
   /** Descuento comercial administrado desde la bandeja (solo admin). */
   descuentoTipo?: TipoDescuentoGlobal;
   descuentoValor?: number;
+  /** Descuento individual por stand; excluyente con el descuento global. */
+  descuentosPorStand?: Array<{ standCode: string; tipo: TipoDescuentoGlobal; valor: number }>;
   /** Idioma del documento (es|en); si falta se resuelve el del cliente. */
   idioma?: Idioma;
   /** Firma digital del cliente (imagen base64) para estamparla en el contrato. */
@@ -304,31 +306,89 @@ export class ContratoApplicationService {
     }
     const netoLista = convertirNeto(detalle.precio ?? 0, moneda, tipoCambio);
     const planPersistido = detalle.planCuotas;
-    const descuentoTipo = input.descuentoTipo ?? planPersistido?.descuentoTipo ?? TIPOS_DESCUENTO.PORCENTAJE;
-    const descuentoValor = input.descuentoValor ?? planPersistido?.descuentoValor ?? planPersistido?.descuentoPorcentaje ?? 0;
-    if ((input.descuentoTipo !== undefined || input.descuentoValor !== undefined) && !isAdmin) {
-      throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
+    let descuentoTipo = input.descuentoTipo ?? planPersistido?.descuentoTipo ?? TIPOS_DESCUENTO.PORCENTAJE;
+    let descuentoValor = input.descuentoValor ?? planPersistido?.descuentoValor ?? planPersistido?.descuentoPorcentaje ?? 0;
+    let descuentoPorcentaje = 0;
+    let neto: number;
+    let descuentosDetalle = planPersistido?.descuentosPorStand ?? null;
+
+    if (input.descuentosPorStand) {
+      if (!isAdmin) {
+        throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
+      }
+      if (input.descuentoTipo !== undefined || input.descuentoValor !== undefined) {
+        throw new DomainError("No se puede combinar descuento global con descuento por stand.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const stands = detalle.standsDetalle ?? [];
+      if (stands.length === 0 || stands.length !== input.descuentosPorStand.length) {
+        throw new DomainError("El descuento por stand no coincide con los stands de la solicitud.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const detalles: NonNullable<typeof descuentosDetalle> = [];
+      for (const stand of stands) {
+        const item = input.descuentosPorStand.find((descuento) => descuento.standCode === stand.standCode);
+        if (!item) {
+          throw new DomainError(`Falta el descuento del stand ${stand.standCode}.`, API_ERROR_CODES.VALIDATION, 400);
+        }
+        const precio = convertirNeto(stand.precio ?? 0, moneda, tipoCambio);
+        const valido = item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? descuentoPorcentajeValido(item.valor)
+          : descuentoMontoValido(precio, item.valor);
+        if (!valido) {
+          throw new DomainError(`El descuento del stand ${stand.standCode} es invalido.`, API_ERROR_CODES.VALIDATION, 400);
+        }
+        const descuento = item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? redondear2(precio - aplicarDescuentoNeto(precio, item.valor))
+          : redondear2(item.valor);
+        const netoStand = item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+          ? aplicarDescuentoNeto(precio, item.valor)
+          : aplicarDescuentoMonto(precio, item.valor);
+        detalles.push({
+          standId: stand.standCode,
+          standCode: stand.standCode,
+          precio,
+          tipo: item.tipo,
+          valor: item.valor,
+          porcentaje: item.tipo === TIPOS_DESCUENTO.PORCENTAJE
+            ? item.valor
+            : redondear2(precio > 0 ? (descuento * 100) / precio : 0),
+          descuentoMonto: descuento,
+          neto: netoStand,
+        });
+      }
+      descuentoTipo = TIPOS_DESCUENTO.POR_STAND;
+      descuentoValor = 0;
+      descuentoPorcentaje = 0;
+      descuentosDetalle = detalles;
+      neto = redondear2(detalles.reduce((total, detalleStand) => total + detalleStand.neto, 0));
+    } else {
+      if ((input.descuentoTipo !== undefined || input.descuentoValor !== undefined) && !isAdmin) {
+        throw new DomainError("Solo un administrador puede modificar el descuento del plan.", API_ERROR_CODES.FORBIDDEN, 403);
+      }
+      if (descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE && !descuentoPorcentajeValido(descuentoValor)) {
+        throw new DomainError("El porcentaje de descuento es invalido.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      if (descuentoTipo === TIPOS_DESCUENTO.MONTO && !descuentoMontoValido(netoLista, descuentoValor)) {
+        throw new DomainError("El monto de descuento es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      const descuentoPorStandSinInput =
+        descuentoTipo === TIPOS_DESCUENTO.POR_STAND &&
+        input.descuentoTipo === undefined &&
+        input.descuentoValor === undefined;
+      const descuentoMontoGuardado = planPersistido?.descuentoMonto ?? 0;
+      if (descuentoPorStandSinInput && !descuentoMontoValido(netoLista, descuentoMontoGuardado)) {
+        throw new DomainError("El descuento por stand del plan es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
+      }
+      descuentoPorcentaje = descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE ? descuentoValor : 0;
+      neto = descuentoPorStandSinInput
+        ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
+        : descuentoTipo === TIPOS_DESCUENTO.MONTO
+          ? aplicarDescuentoMonto(netoLista, descuentoValor)
+          : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+      descuentosDetalle = descuentoTipo === TIPOS_DESCUENTO.POR_STAND
+        ? (planPersistido?.descuentosPorStand ?? null)
+        : null;
     }
-    if (descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE && !descuentoPorcentajeValido(descuentoValor)) {
-      throw new DomainError("El porcentaje de descuento es invalido.", API_ERROR_CODES.VALIDATION, 400);
-    }
-    if (descuentoTipo === TIPOS_DESCUENTO.MONTO && !descuentoMontoValido(netoLista, descuentoValor)) {
-      throw new DomainError("El monto de descuento es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
-    }
-    const descuentoPorStandSinInput =
-      descuentoTipo === TIPOS_DESCUENTO.POR_STAND &&
-      input.descuentoTipo === undefined &&
-      input.descuentoValor === undefined;
-    const descuentoMontoGuardado = planPersistido?.descuentoMonto ?? 0;
-    if (descuentoPorStandSinInput && !descuentoMontoValido(netoLista, descuentoMontoGuardado)) {
-      throw new DomainError("El descuento por stand del plan es invalido o supera el neto.", API_ERROR_CODES.VALIDATION, 400);
-    }
-    const descuentoPorcentaje = descuentoTipo === TIPOS_DESCUENTO.PORCENTAJE ? descuentoValor : 0;
-    const neto = descuentoPorStandSinInput
-      ? aplicarDescuentoMonto(netoLista, descuentoMontoGuardado)
-      : descuentoTipo === TIPOS_DESCUENTO.MONTO
-        ? aplicarDescuentoMonto(netoLista, descuentoValor)
-        : aplicarDescuentoNeto(netoLista, descuentoPorcentaje);
+
     const { importes, plan, porcentajes, modalidad } = this.calcularPlan(
       neto,
       cuotasSolicitadas,
@@ -338,10 +398,13 @@ export class ContratoApplicationService {
         modalidadPersistida: usandoPlanPersistido ? detalle.planCuotas?.modalidad : undefined,
       },
     );
+    const planParaTabla = descuentosDetalle
+      ? { ...(planPersistido ?? { modalidad: "", cuotas: [] }), descuentosPorStand: descuentosDetalle }
+      : planPersistido;
     const tablaEconomica = detalle.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA
       ? this.construirTablaEconomica({
           stands: detalle.standsDetalle,
-          plan: detalle.planCuotas,
+          plan: planParaTabla,
           moneda,
           tipoCambio,
           netoLista,
@@ -362,7 +425,7 @@ export class ContratoApplicationService {
       descuentoPorcentaje,
       descuentoTipo,
       descuentoValor,
-      ...(descuentoTipo === TIPOS_DESCUENTO.POR_STAND && planPersistido?.descuentosPorStand ? { descuentosPorStand: planPersistido.descuentosPorStand } : {}),
+      ...(descuentosDetalle ? { descuentosPorStand: descuentosDetalle } : {}),
       netoLista,
       descuentoMonto: redondear2(netoLista - neto),
       netoDescontado: neto,

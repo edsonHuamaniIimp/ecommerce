@@ -28,7 +28,7 @@ import { SolicitudReview } from "./solicitud-review";
 import { NotificarModal } from "./notificar-modal";
 import { HistorialModal } from "./historial-modal";
 import { SgcExpedientePanel } from "@/components/sgc/sgc-expediente-panel";
-import { EditarPlanSolicitudModal } from "./editar-plan-solicitud-modal";
+import { EditarReservaEmpresaWizard } from "./editar-reserva-empresa-wizard";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import { useSearchParams } from "next/navigation";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -984,7 +984,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                     <Pencil className="h-3.5 w-3.5" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent side="top"><span>Editar plan y montos</span></TooltipContent>
+                                <TooltipContent side="top"><span>Editar reserva (3 pasos)</span></TooltipContent>
                               </Tooltip>
                             )}
                               {hasViewPerm &&
@@ -1467,7 +1467,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
       </Dialog>
 
       {editarPlanRow && (
-        <EditarPlanSolicitudModal
+        <EditarReservaEmpresaWizard
           solicitud={editarPlanRow}
           onClose={() => setEditarPlanRow(null)}
           onSaved={() => { void load(); }}
