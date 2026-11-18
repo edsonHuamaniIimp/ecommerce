@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Button, Input } from "@nrivera-iimp/ui-kit-iimp";
-import { LayoutDashboard, Building2, Map as MapIcon, Wrench, Shield, Calendar, FileText, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, Settings, BarChart3, Megaphone, ShieldCheck, Scale, Table2, History, UserPlus, Search, ChevronDown, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Building2, Map as MapIcon, Wrench, Shield, Calendar, FileText, FileCheck2, ClipboardList, ClipboardCheck, FolderOpen, X, Gem, CreditCard, FlaskConical, Wallet, Users, Bookmark, Settings, BarChart3, Megaphone, ShieldCheck, Scale, Table2, History, UserPlus, Search, ChevronDown, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@nrivera-iimp/ui-kit-iimp";
 import Link from "next/link";
 import Image from "next/image";
@@ -65,9 +65,10 @@ const navItems: NavItem[] = [
   /* Modulo Debida Diligencia: items y permisos propios (dd:*). */
   { href: DD_RUTAS.BASE, label: "Mi debida diligencia", icon: ShieldCheck, permission: PERMISSIONS.DD_FORMULARIO, section: "Debida Diligencia", soloCliente: true },
   { href: DD_RUTAS.MIS_DILIGENCIAS, label: "Mis debidas diligencias", icon: History, permission: PERMISSIONS.DD_FORMULARIO, section: "Debida Diligencia", soloCliente: true },
-  { href: DD_RUTAS.BASE, label: "Panel DD", icon: BarChart3, permission: PERMISSIONS.DD_PANEL, section: "Debida Diligencia" },
-  { href: DD_RUTAS.BANDEJA, label: "Bandeja DD", icon: ClipboardCheck, permission: PERMISSIONS.DD_REVISION, section: "Debida Diligencia" },
   { href: DD_RUTAS.MATRIZ, label: "Matriz DD", icon: Table2, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
+  { href: DD_RUTAS.INFORMES, label: "Informes DD", icon: FileCheck2, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
+  { href: DD_RUTAS.CONFIGURACION, label: "Administración DD", icon: SlidersHorizontal, anyOf: [PERMISSIONS.DD_ADMIN, PERMISSIONS.ADMIN_FULL], section: "Debida Diligencia" },
+  { href: DD_RUTAS.REPOSITORIO, label: "Centro documental", icon: FolderOpen, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
   { href: DD_RUTAS.LEGAL, label: "Revisión legal", icon: Scale, permission: PERMISSIONS.DD_LEGAL, section: "Debida Diligencia" },
   { href: DD_RUTAS.REPUTACION, label: "Revisión reputacional", icon: Megaphone, permission: PERMISSIONS.DD_REPUTACION, section: "Debida Diligencia" },
 ];
