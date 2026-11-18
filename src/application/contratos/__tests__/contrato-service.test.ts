@@ -130,7 +130,10 @@ function build(overrides: { detalle?: Partial<SolicitudRow>; empresa?: Partial<E
     upsertContratoSistema: vi.fn().mockResolvedValue(undefined),
   } as unknown as ISolicitudesRepository;
   const empresa = { ...empresaEntity(), ...overrides.empresa };
-  const empresas = { findById: vi.fn().mockResolvedValue(empresa) } as unknown as IEmpresaRepository;
+  const empresas = {
+    findById: vi.fn().mockResolvedValue(empresa),
+    findByRuc: vi.fn().mockResolvedValue(null),
+  } as unknown as IEmpresaRepository;
   const planos = {
     ubicacionDeBloque: vi.fn().mockResolvedValue({
       plano: { id: "p1", codigo: "gess", nombre: "Pabellon GESS", tipo: "simple" },
@@ -153,7 +156,7 @@ function build(overrides: { detalle?: Partial<SolicitudRow>; empresa?: Partial<E
   } as unknown as StorageAdapter;
 
   const svc = new ContratoApplicationService(solicitudes, empresas, planos, gess, auth, storage);
-  return { svc, solicitudes, storage, auth, gess };
+  return { svc, solicitudes, storage, auth, gess, empresas };
 }
 
 function textoDocx(buffer: Buffer): string {
@@ -251,6 +254,57 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("08223908");
     expect(texto).toContain("GRONDEL HUGO JOHAN FREDERIK");
     expect(texto).toContain("Calle de la Embajada 123");
+  });
+
+  it("recupera la empresa por RUC cuando el correo de la reserva no está vinculado", async () => {
+    const { svc, auth, solicitudes, storage, empresas } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        email: "hugo.grondel@minbuza.nl",
+        pais: "NL",
+        standsDetalle: [{
+          standCode: "211",
+          bloqueId: "211",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+    vi.mocked(auth.findEmpresaIdDeUsuario).mockResolvedValue(null);
+    vi.mocked(empresas.findByRuc).mockResolvedValue({
+      ...empresaEntity(),
+      ruc: "20461180494",
+      razonSocial: "EMBAJADA REAL DE LOS PAISES BAJOS",
+      representanteLegalNombre: "GRONDEL HUGO JOHAN FREDERIK",
+      representanteLegalTipoDocumento: "4",
+      representanteLegalDni: "06422025",
+    } as never);
+    (solicitudes as unknown as { datosReservaIImp: ReturnType<typeof vi.fn> }).datosReservaIImp = vi.fn(async () => ({
+      datosFacturacion: {
+        razonSocial: "EMBAJADA REAL DE LOS PAISES BAJOS",
+        tipoDocumento: "6",
+        numeroDocumento: "20461180494",
+        direccion: "Av. Jose A. Larco 1301",
+        contacto: "GRONDEL HUGO JOHAN FREDERIK",
+        email: "hugo.grondel@minbuza.nl",
+        telefono: null,
+        tipoComprobante: "factura",
+      },
+    }));
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "admin",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    expect(empresas.findByRuc).toHaveBeenCalledWith("20461180494");
+    const texto = textoDocx(vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer);
+    expect(texto).toContain("Carné de Extranjería N° 06422025");
   });
 
   it("agrega IGV 18% siempre (tambien en boleta) y con pago completo marca la Modalidad 1", async () => {
