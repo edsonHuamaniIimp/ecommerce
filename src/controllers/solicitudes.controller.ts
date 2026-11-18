@@ -686,12 +686,13 @@ export const solicitudesController = {
       requisito: raw.requisito ?? null,
       permitirAnexosIniciales: raw.permitirAnexosIniciales === true,
       firmaDigital: raw.firmaDigital === true,
+      subirFirmaAsociado: raw.subirFirmaAsociado === true,
       sgcObservationId: raw.sgcObservationId ?? null,
       sgcDocumentId: raw.sgcDocumentId ?? null,
       sgcTitle: raw.sgcTitle ?? null,
       sgcPieceId: raw.sgcPieceId ?? null,
     });
-    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null });
+    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null, subirFirmaAsociado: raw.subirFirmaAsociado === true });
     return success(doc);
   },
 

@@ -1116,7 +1116,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     };
   }
 
-  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }): Promise<Record<string, unknown>> {
+  async crearDocumentoAdjunto(solicitudId: string, url: string, nombre: string, userId: string | null, email: string, categoria?: string | null, requisito?: string | null, sha256?: string | null, sgc?: { observationId?: string | null; documentId?: string | null; title?: string | null; pieceId?: string | null }, origen?: string | null): Promise<Record<string, unknown>> {
     const doc = await prisma.solicitudDocumento.create({
       data: {
         solicitudId,
@@ -1127,6 +1127,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         categoria: categoria ?? null,
         requisito: requisito ?? null,
         sha256: sha256 ?? null,
+        origen: origen ?? null,
         sgcObservationId: sgc?.observationId ?? null,
         sgcDocumentId: sgc?.documentId ?? null,
         sgcTitle: sgc?.title ?? null,

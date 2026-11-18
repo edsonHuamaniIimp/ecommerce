@@ -2995,10 +2995,11 @@ export const TIPOS_DOCUMENTO_SOLICITUD_LABELS: Record<string, string> = {
   [TIPOS_DOCUMENTO_SOLICITUD.ANEXO]: "Anexo",
 };
 
-/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano. */
+/** Origen de un contrato adjunto: `generado` = plantilla del sistema (firmable digitalmente) | `personalizado` = PDF subido a mano | `subido_asociado` = equivalente firmado cargado por el Asociado. */
 export const ORIGENES_DOCUMENTO = {
   GENERADO: "generado",
   PERSONALIZADO: "personalizado",
+  SUBIDO_ASOCIADO: "subido_asociado",
 } as const;
 export type OrigenDocumento = (typeof ORIGENES_DOCUMENTO)[keyof typeof ORIGENES_DOCUMENTO];
 
