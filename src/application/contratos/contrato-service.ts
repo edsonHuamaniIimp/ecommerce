@@ -269,11 +269,19 @@ export class ContratoApplicationService {
       ? (detalle.email ?? input.userEmail)
       : (input.userEmail ?? detalle.email);
     const empresaId = emailPropietario ? await this.auth.findEmpresaIdDeUsuario(emailPropietario) : null;
-    const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    let empresa = empresaId ? await this.empresas.findById(empresaId) : null;
     const datosReserva = typeof this.solicitudes.datosReservaIImp === "function"
       ? await this.solicitudes.datosReservaIImp(input.solicitudId).catch(() => null)
       : null;
     const snapshotFacturacion = datosReserva?.datosFacturacion ?? null;
+    /*
+     * Las reservas administrativas pueden tener el email de contacto sin vincular
+     * a la cuenta de la empresa. En ese caso se recupera la ficha por el documento
+     * fiscal del snapshot para no perder los datos contractuales del representante.
+     */
+    if (!empresa && snapshotFacturacion?.numeroDocumento) {
+      empresa = await this.empresas.findByRuc(snapshotFacturacion.numeroDocumento).catch(() => null);
+    }
     const contratoSnapshot: DatosContrato | null = snapshotFacturacion
       ? {
           razonSocial: snapshotFacturacion.razonSocial,
@@ -882,7 +890,7 @@ export class ContratoApplicationService {
     estamparFirmas?: boolean;
     base: string;
   }): Promise<ContratoGenerado> {
-    const { idioma, empresa, modulos, gruposPabellon, importes, plan, porcentajes, firmaExhibidorBase64, base } = params;
+    const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
     const esContratoOperador = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA;
     const esCompleto = params.modalidad === MODOS_PAGO.COMPLETO;
     const esMitad = params.modalidad === MODOS_PAGO.CUOTAS;
@@ -900,11 +908,6 @@ export class ContratoApplicationService {
     const fechaFirmaTexto = esContratoEn
       ? `${String(hoy.getDate()).padStart(2, "0")} ${mesesEn[hoy.getMonth()]} ${hoy.getFullYear()}`
       : `${String(hoy.getDate()).padStart(2, "0")} de ${mesesEs[hoy.getMonth()]} de ${hoy.getFullYear()}`;
-    const fechaLarga = (iso: string | null) => {
-      if (!iso) return "";
-      const [anio, mes, dia] = iso.split("-").map(Number);
-      return `${String(dia).padStart(2, "0")} de ${mesesEs[(mes ?? 0) - 1] ?? ""} de ${anio}`;
-    };
     const textoUbicacionGeneral = esContratoEn ? "General location - Pavilions map" : "Ubicacion general - Mapa de pabellones";
     const textoObjetoSocial = esContratoEn ? "activities related to its line of business" : "actividades propias de su giro comercial";
     const textoActividad = esContratoEn ? "exhibition of products and services" : "exhibicion de productos y servicios";
@@ -1101,15 +1104,6 @@ export class ContratoApplicationService {
     })();
     const metrajeTexto = numberUtils.numero(metrajeTotal, { decimales: Number.isInteger(metrajeTotal) ? 0 : 2 });
     const paisOperador = nombrePais(params.pais) || params.pais || "-";
-    const cuotaMonto = (indice: number) => plan[indice] ? monto(plan[indice].monto) : "";
-    const cuotaFecha = (indice: number) => plan[indice] ? fechaLarga(plan[indice].fechaVencimiento) : "";
-    const cuotaPorcentaje = (indice: number) => {
-      const porcentaje = porcentajes[indice];
-      return porcentaje === undefined
-        ? ""
-        : `${numberUtils.numero(porcentaje, { decimales: Number.isInteger(porcentaje) ? 0 : 2 })}%`;
-    };
-
     const data = {
       razon_social: razonSocial,
       ruc,
@@ -1156,6 +1150,7 @@ export class ContratoApplicationService {
         porcentaje: c.porcentaje,
         monto: monto(c.monto),
         fecha: fechaCorta(c.fechaVencimiento),
+        simbolo: simboloMoneda(params.moneda),
       })),
       firmante_nombre_cargo: [
         representanteLegal !== "-" ? `${representanteLegal} - ${textoCargoRepresentante}` : "",
@@ -1180,15 +1175,6 @@ export class ContratoApplicationService {
       cantidad_modulos: String(modulos.length),
       pabellones_modulos: pabellonesModulos || "-",
       tipos_modulos: tiposModulos || "-",
-      cuota_1_monto: cuotaMonto(0),
-      cuota_2_monto: cuotaMonto(1),
-      cuota_3_monto: cuotaMonto(2),
-      cuota_1_porcentaje: cuotaPorcentaje(0),
-      cuota_2_porcentaje: cuotaPorcentaje(1),
-      cuota_3_porcentaje: cuotaPorcentaje(2),
-      fecha_cuota_1: cuotaFecha(0),
-      fecha_cuota_2: cuotaFecha(1),
-      fecha_cuota_3: cuotaFecha(2),
     };
 
     /* Render DOCX en el idioma resuelto (respaldo al español si falta la plantilla). */
@@ -1199,8 +1185,8 @@ export class ContratoApplicationService {
     const rutaRespaldo = path.join(process.cwd(), ...plantillas[IDIOMAS.ES]);
     const plantilla = fs.readFileSync(fs.existsSync(rutaPlantilla) ? rutaPlantilla : rutaRespaldo);
     const zip = new PizZip(plantilla);
-    const ANCHO_MAX_PLANO_CONTRATO = 900;
-    const ALTO_MAX_PLANO_CONTRATO = 480;
+    const ANCHO_MAX_PLANO_CONTRATO = 700;
+    const ALTO_MAX_PLANO_CONTRATO = 440;
     const imageModule = new ImageModule({
       centered: false,
       fileType: "docx",

@@ -14,6 +14,7 @@ import {
   SGC_ESTADO_ENVIO,
   SGC_IDEMPOTENCY_PREFIX,
   SGC_LIFECYCLE_STATUSES,
+  SGC_STAGES,
   SGC_OBSERVACION_ESTADOS,
   TIPOS_DOCUMENTO_SOLICITUD,
   TIPOS_SOLICITUD,
@@ -421,5 +422,68 @@ describe("SgcIntegracionApplicationService.reenviarCorreccionAlSgc", () => {
         documentId: "sgc-contract-1",
       }),
     );
+  });
+});
+
+describe("SgcIntegracionApplicationService.enviarExpedienteAlSgc", () => {
+  it("inicia la ronda con resend cuando el SGC queda en draft", async () => {
+    const repo = sgcRepoMock(expediente({
+      contractId: "contract-1",
+      estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+    }));
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.DRAFT,
+      stage: SGC_STAGES.DRAFTING,
+      version: 1,
+      documents: [],
+    } as never);
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
+    vi.spyOn(svc, "subirContratoDeSolicitud").mockResolvedValue(null);
+    vi.spyOn(svc, "subirAnexosDeSolicitud").mockResolvedValue([]);
+    vi.spyOn(svc, "consultarExpediente").mockResolvedValue(null);
+
+    await svc.enviarExpedienteAlSgc("sol-1", "admin@iimp.org.pe");
+
+    expect(client.reabrirExpediente).toHaveBeenCalledWith(
+      "contract-1",
+      expect.stringContaining("/inicial-v1"),
+    );
+  });
+
+  it("no reabre una revision ya iniciada", async () => {
+    const repo = sgcRepoMock(expediente({
+      contractId: "contract-1",
+      estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+    }));
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      stage: SGC_STAGES.DRAFTING,
+      version: 3,
+      documents: [],
+    } as never);
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle()),
+      repo,
+      client,
+      documentoOrigenMock(),
+      CONFIG,
+    );
+    vi.spyOn(svc, "subirContratoDeSolicitud").mockResolvedValue(null);
+    vi.spyOn(svc, "subirAnexosDeSolicitud").mockResolvedValue([]);
+    vi.spyOn(svc, "reenviarCorreccionAlSgc").mockResolvedValue({ reenviado: true, documento: null });
+    vi.spyOn(svc, "consultarExpediente").mockResolvedValue(null);
+
+    await svc.enviarExpedienteAlSgc("sol-1", "admin@iimp.org.pe");
+
+    expect(client.reabrirExpediente).not.toHaveBeenCalled();
   });
 });
