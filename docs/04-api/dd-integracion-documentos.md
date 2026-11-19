@@ -90,6 +90,7 @@ curl --get "https://ecommerce.sistemasiimp.org.pe/api/integracion/dd/empresas/do
               {
                 "id": "uuid",
                 "tipo": "ficha_ruc",
+                "titulo": "Ficha RUC o identificación fiscal",
                 "nombre": "ficha-ruc.pdf",
                 "url": "/uploads/ficha-ruc.pdf",
                 "estado": "aprobado",
@@ -131,6 +132,15 @@ curl --get "https://ecommerce.sistemasiimp.org.pe/api/integracion/dd/empresas/do
 Los documentos se devuelven con todas sus versiones. `versionActual` es la última
 versión; si un documento antiguo no tiene historial de versiones, se devuelve una
 versión sintética `1` a partir del documento actual.
+
+Cada documento incluye:
+
+- `tipo`: código interno (`ficha_ruc`, `poderes`, etc.).
+- `titulo`: título legible del documento.
+- `nombre`: nombre del archivo de la versión actual.
+- `url`: URL de la versión actual.
+- `versiones[]`: historial completo, con `version`, `nombre`, `url`, `creadoPor` y
+  `createdAt`.
 
 ## Consideraciones
 

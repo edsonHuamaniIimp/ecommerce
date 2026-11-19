@@ -4,6 +4,12 @@ import type {
   DdIntegracionEmpresaEntity,
   DdIntegracionExpedienteEntity,
 } from "@/domain/models/dd-integracion";
+import {
+  DD_DOCUMENTO_ADICIONAL,
+  DD_DOCUMENTO_VIGENCIA,
+  DD_DOCUMENTOS,
+  DD_DOCUMENTOS_REQUERIDOS,
+} from "@/lib/shared/constants";
 import type {
   DdIntegracionDocumentoDTO,
   DdIntegracionDocumentosResponseDTO,
@@ -15,10 +21,22 @@ function fecha(valor: Date | null): string | null {
   return valor ? valor.toISOString() : null;
 }
 
+function tituloDocumento(tipo: string): string {
+  return (
+    DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ??
+    (tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA
+      ? DD_DOCUMENTO_VIGENCIA.titulo
+      : tipo === DD_DOCUMENTOS.ADICIONAL
+        ? DD_DOCUMENTO_ADICIONAL.titulo
+        : tipo)
+  );
+}
+
 function mapDocumento(documento: DdIntegracionDocumentoEntity): DdIntegracionDocumentoDTO {
   return {
     id: documento.id,
     tipo: documento.tipo,
+    titulo: tituloDocumento(documento.tipo),
     nombre: documento.nombre,
     url: documento.url,
     estado: documento.estado,

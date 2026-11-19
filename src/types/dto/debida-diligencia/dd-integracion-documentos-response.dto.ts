@@ -10,6 +10,7 @@ export interface DdIntegracionDocumentoVersionDTO {
 export interface DdIntegracionDocumentoDTO {
   id: string;
   tipo: string;
+  titulo: string;
   nombre: string;
   url: string;
   estado: string;
