@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DdMatrizEvaluacionApplicationService } from "../dd-matriz-evaluacion-service";
 import type { DdMatrizAdjuntoEntity, DdMatrizVinculoEntity } from "@/domain/models/dd-matriz-evaluacion";
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
@@ -64,7 +64,7 @@ function vinculo(parcial: Partial<DdMatrizVinculoEntity> = {}): DdMatrizVinculoE
       eventoId: "evento-1",
       eventoLabel: "PERUMIN 2027",
       codigo: "DD-2026-0001",
-      estado: "aprobada",
+      estado: "en_revision",
       empresaRazonSocial: "YURA S.A.",
       empresaRuc: "20100000001",
       empresaDireccionFiscal: null,
@@ -353,6 +353,34 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     expect(repo.actualizarVinculo.mock.calls[0]?.[1].finalComentario).toBe(
       "Hallazgo crítico confirmado.",
     );
+  });
+
+  it("no permite modificar un resultado final cerrado", async () => {
+    const { servicio } = crear(
+      vinculo({ resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO }),
+    );
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+        finalComentario: "Intento de cambio.",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("no permite registrar un final sobre un expediente legacy ya aprobado", async () => {
+    const base = vinculo({ resultadoFinal: null });
+    const { servicio } = crear({
+      ...base,
+      expediente: { ...base.expediente, estado: "aprobada" },
+    });
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO,
+        finalComentario: "Intento legacy.",
+      }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it("pais: SIG fija el pais (acepta nombre o ISO) y el pais decide el ambito", async () => {
