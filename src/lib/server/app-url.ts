@@ -4,6 +4,8 @@
  * `NEXT_PUBLIC_APP_URL` (build-time) y a localhost en desarrollo.
  */
 export function getAppUrl(): string {
-  const url = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const url = process.env.APP_URL?.trim()
+    || process.env["NEXT_PUBLIC_APP_URL"]?.trim()
+    || "http://localhost:3000";
   return url.replace(/\/+$/, "");
 }

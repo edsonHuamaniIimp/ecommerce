@@ -17,8 +17,16 @@ const REGEX_LINK_HTTP = /^https?:\/\/\S+$/i;
  * app: el IIMP exige http(s) y no puede resolver rutas internas nuestras.
  */
 export function normalizarLinkArchivoIImp(link: string, baseUrl: string = APP_URL): string {
-  if (link.startsWith("/")) return new URL(link, baseUrl).toString();
-  return link;
+  if (!link.startsWith("/")) return link;
+  const base = baseUrl?.trim();
+  if (!base) {
+    throw new DomainError("La URL base de la aplicacion no esta configurada", API_ERROR_CODES.INTERNAL, 500);
+  }
+  try {
+    return new URL(link, base).toString();
+  } catch {
+    throw new DomainError("El enlace del archivo no es una URL valida", API_ERROR_CODES.VALIDATION, 400);
+  }
 }
 
 /**

@@ -43,7 +43,11 @@ export const PUBLIC_API_ROUTES = [
 ] as const;
 
 /** URL base de la aplicacion. En produccion se configura via variable de entorno. */
-export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const publicAppUrl = process.env["NEXT_PUBLIC_APP_URL"]?.trim();
+export const APP_URL =
+  process.env.APP_URL?.trim()
+  || publicAppUrl
+  || "http://localhost:3000";
 
 /* ================================================================
    Verticales (alineadas con UI Kit y theming)
