@@ -1,6 +1,7 @@
 ﻿import type {
   DdDocumentoEstado,
   DdDocumentoTipo,
+  DdTipoDocumentoVinculo,
   DdTipoVinculoPersona,
   DdVinculo,
 } from "@/lib/shared/constants";
@@ -24,6 +25,7 @@ export interface DdGuardarRequestDTO {
   beneficiarios: {
     nombre: string;
     documento: string;
+    tipoDocumento?: DdTipoDocumentoVinculo | null;
     nacionalidad: string;
     porcentaje: number;
     tipoVinculoPersona?: DdTipoVinculoPersona | null;

@@ -17,6 +17,7 @@ import {
   DD_PORCENTAJE_MAX,
   DD_REPUTACION_ORDEN,
   DD_REPUTACION_RESULTADOS,
+  DD_TIPOS_DOCUMENTO_VINCULO,
   DD_TIPOS_VINCULO_PERSONA,
   DD_VINCULOS,
   REGEX_EMAIL,
@@ -57,6 +58,7 @@ const tipoDocumentoSchema = z.enum(valores(DD_DOCUMENTOS)).nullable().default(nu
 const beneficiarioSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre o razón social es obligatorio").max(200),
   documento: z.string().trim().min(1, "El documento es obligatorio").max(30),
+  tipoDocumento: z.enum(valores(DD_TIPOS_DOCUMENTO_VINCULO)).nullable().optional(),
   nacionalidad: z
     .string()
     .trim()

@@ -25,4 +25,10 @@ export interface IDebidaDiligenciaNotificacionPort {
   expedienteRechazado(datos: DdNotificacionRechazada): Promise<void>;
   notificarLogistica(email: string, mensaje: string, url: string): Promise<void>;
   notificarLegal(datos: { codigo: string; razonSocial: string; motivo: string | null }): Promise<void>;
+  /** Avisa a los usuarios con acceso a la matriz que el cliente reenvió la documentación. */
+  notificarReenvioLogistica(datos: {
+    codigo: string;
+    razonSocial: string;
+    observacionesRespondidas: number;
+  }): Promise<void>;
 }

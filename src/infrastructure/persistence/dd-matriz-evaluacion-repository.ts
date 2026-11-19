@@ -31,6 +31,7 @@ import {
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_REPUTACION_ESTADOS,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
+  DD_TIPOS_DOCUMENTO_VINCULO,
   DD_TIPOS_VINCULO_PERSONA,
   DD_TIPO_VINCULO_PERSONA_LABELS,
   DD_VINCULO_LABELS,
@@ -394,7 +395,15 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
           select: { razonSocial: true, ruc: true, direccionFiscal: true, pais: true, estadoContribuyente: true, actividadEconomica: true },
         },
         beneficiarios: {
-          select: { id: true, nombre: true, documento: true, nacionalidad: true, porcentaje: true, tipoVinculoPersona: true },
+          select: {
+            id: true,
+            nombre: true,
+            documento: true,
+            tipoDocumento: true,
+            nacionalidad: true,
+            porcentaje: true,
+            tipoVinculoPersona: true,
+          },
           orderBy: { orden: "asc" },
         },
       },
@@ -453,8 +462,10 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       for (const b of exp.beneficiarios) {
         const pais = resolverPais({ nacionalidad: b.nacionalidad });
         const rol = b.tipoVinculoPersona ?? DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL;
-        const tipoDocumento = tipoDocumentoBeneficiario(b.documento);
         const empresaVinculada = rol === DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA;
+        const tipoDocumento = empresaVinculada
+          ? DD_TIPOS_DOCUMENTO_VINCULO.RUC
+          : b.tipoDocumento ?? tipoDocumentoBeneficiario(b.documento);
         const porcentajeAplica =
           DD_VINCULOS_PERSONA_CON_PORCENTAJE.includes(rol as (typeof DD_VINCULOS_PERSONA_CON_PORCENTAJE)[number]) &&
           Number(b.porcentaje) > 0;

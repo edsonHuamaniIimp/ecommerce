@@ -36,6 +36,7 @@ export interface DdBeneficiarioDTO {
   orden: number;
   nombre: string;
   documento: string;
+  tipoDocumento: string | null;
   nacionalidad: string;
   porcentaje: number;
   /** Rol del vínculo: representante, apoderado, director, beneficiario, socio o empresa vinculada. */

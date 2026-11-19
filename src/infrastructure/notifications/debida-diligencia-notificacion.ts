@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/server/db";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { ALERTA_TIPOS, DD_RUTAS, ROLES } from "@/lib/shared/constants";
+import { ALERTA_TIPOS, DD_RUTAS, PERMISSIONS, ROLES } from "@/lib/shared/constants";
 import type {
   DdNotificacionAprobada,
   DdNotificacionBase,
@@ -121,6 +121,56 @@ export class DebidaDiligenciaNotificacion implements IDebidaDiligenciaNotificaci
       });
     } catch {
       /* La notificacion no debe bloquear la resolucion del caso. */
+    }
+  }
+
+  async notificarReenvioLogistica(datos: {
+    codigo: string;
+    razonSocial: string;
+    observacionesRespondidas: number;
+  }): Promise<void> {
+    try {
+      const usuarios = await prisma.userRole.findMany({
+        where: {
+          flgActivo: true,
+          role: {
+            OR: [
+              { permisos: { has: PERMISSIONS.DD_MATRIZ } },
+              { permisos: { has: PERMISSIONS.ADMIN_FULL } },
+            ],
+          },
+        },
+        select: { userId: true, email: true },
+      });
+      const destinatarios = [...new Map(usuarios.map((usuario) => [usuario.userId, usuario])).values()];
+      if (destinatarios.length === 0) return;
+
+      const mensaje = `${datos.razonSocial} (${datos.codigo}) reenvió ${datos.observacionesRespondidas} observación(es) y está lista para revisar en la matriz.`;
+      await prisma.alerta.createMany({
+        data: destinatarios.map((usuario) => ({
+          userId: usuario.userId,
+          tipo: ALERTA_TIPOS.DD_REENVIO,
+          titulo: "Debida diligencia subsanada",
+          mensaje,
+          url: DD_RUTAS.MATRIZ,
+        })),
+      });
+      await Promise.all(
+        destinatarios.map((usuario) =>
+          enviarEmailPlantilla({
+            plantilla: "dd-subsanada",
+            to: usuario.email,
+            idioma: null,
+            datos: {
+              codigo: datos.codigo,
+              razonSocial: datos.razonSocial,
+              observacionesRespondidas: datos.observacionesRespondidas,
+            },
+          }).catch(() => undefined),
+        ),
+      );
+    } catch {
+      /* La notificacion no debe bloquear el reenvio del cliente. */
     }
   }
 }

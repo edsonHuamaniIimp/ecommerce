@@ -370,7 +370,10 @@ export function DdLegalBandeja() {
                       </p>
                       {seleccionado.beneficiarios.slice(0, 3).map((beneficiario) => (
                         <p key={beneficiario.id} className="truncate text-[11px] text-foreground">
-                          {beneficiario.nombre} <span className="text-muted-foreground">· {beneficiario.documento}</span>
+                          {beneficiario.nombre}{" "}
+                          <span className="text-muted-foreground">
+                            · {[beneficiario.tipoDocumento, beneficiario.documento].filter(Boolean).join(" ")}
+                          </span>
                         </p>
                       ))}
                       {seleccionado.beneficiarios.length > 3 ? (

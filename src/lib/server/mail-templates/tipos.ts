@@ -101,6 +101,8 @@ export interface DatosPlantilla {
   "dd-rechazada": { codigo: string; razonSocial: string; motivo: string };
   /** Debida Diligencia: expediente derivado a revision legal. */
   "dd-legal-revision": { codigo: string; razonSocial: string; motivo: string };
+  /** Debida Diligencia: cliente reenvio documentos observados (aviso interno). */
+  "dd-subsanada": { codigo: string; razonSocial: string; observacionesRespondidas: number };
   /** Solicitud de reserva observada: el cliente debe reemplazar documentos y reenviar. */
   "documentos-observados": {
     standCodes: string;

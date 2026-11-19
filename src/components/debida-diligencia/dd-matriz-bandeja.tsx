@@ -98,7 +98,10 @@ import {
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
-import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import {
+  etiquetaCantidadVinculos,
+  resultadoFinalEfectivo,
+} from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
@@ -1015,7 +1018,9 @@ export function DdMatrizBandeja() {
                       <span className="shrink-0 text-[9px] text-muted-foreground">
                         Enviado {dateUtils.format(grupo.fechaIngreso)}
                       </span>
-                      <span className="shrink-0 text-[9px] text-muted-foreground">{grupo.filas.length} vínculo(s)</span>
+                      <span className="shrink-0 text-[9px] text-muted-foreground">
+                        {etiquetaCantidadVinculos(grupo.filas.length)}
+                      </span>
                     </button>
                     <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${abiertos.has(grupo.expedienteId) ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
                       <div className={`overflow-hidden ${abiertos.has(grupo.expedienteId) ? "" : "pointer-events-none"}`}>
@@ -1171,14 +1176,9 @@ export function DdMatrizBandeja() {
                                   <span>{grupo.motivo}</span>
                                 </Badge>
                               ) : null}
-                              {grupo.eventoProyecto ? (
-                                <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INFO}`}>
-                                  <span>{grupo.eventoProyecto}</span>
-                                </Badge>
-                              ) : null}
-                              <span className="ml-auto text-[10px] text-muted-foreground">
-                                {grupo.filas.length} vínculo(s) registrado(s)
-                              </span>
+                      <span className="ml-auto text-[10px] text-muted-foreground">
+                        {etiquetaCantidadVinculos(grupo.filas.length)}
+                      </span>
                             </button>
                             <Button
                               type="button"

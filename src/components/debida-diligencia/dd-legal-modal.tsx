@@ -330,7 +330,9 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                           <p className="text-[10px] text-muted-foreground">
                             {beneficiario.tipoVinculoPersona ?? "Beneficiario"} ·{" "}
                             {beneficiario.porcentaje.toFixed(2)}%
-                            {beneficiario.documento ? ` · ${beneficiario.documento}` : ""}
+                            {beneficiario.documento
+                              ? ` · ${[beneficiario.tipoDocumento, beneficiario.documento].filter(Boolean).join(" ")}`
+                              : ""}
                           </p>
                         </div>
                         <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}>

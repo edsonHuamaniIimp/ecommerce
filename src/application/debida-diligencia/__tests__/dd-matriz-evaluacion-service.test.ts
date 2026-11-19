@@ -326,7 +326,7 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     expect(cambios?.finalComentario).toBe("Observación menor sustentada");
   });
 
-  it("exige comentario interno para cualquier resultado final", async () => {
+  it("exige comentario interno salvo en documentación observada", async () => {
     const { servicio } = crear(vinculo());
     await expect(
       servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
@@ -334,6 +334,13 @@ describe("DdMatrizEvaluacionApplicationService", () => {
         resultadoFinal: "APTO",
       }),
     ).rejects.toMatchObject({ status: 400 });
+
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+      }),
+    ).resolves.toBeDefined();
   });
 
   it("exige comentario interno cuando el resultado final es NO APTO", async () => {

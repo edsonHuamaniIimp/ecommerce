@@ -20,10 +20,11 @@ import {
   TabsTrigger,
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertCircle, CheckCircle2, Eye, FileText, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, FileText, History, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { DdEstadoBadge, DdDocumentoBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
+import { DdHistorialDialog } from "./dd-historial-dialog";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { DdRadioIndicator } from "./dd-radio-indicator";
 import { DdRevisionMatrizTab } from "./dd-revision-matriz-tab";
@@ -144,13 +145,13 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const [finalBloqueado, setFinalBloqueado] = useState(false);
   const [comentarioFinal, setComentarioFinal] = useState("");
   const [comentarioClienteFinal, setComentarioClienteFinal] = useState("");
-  const [documentosObservadosFinal, setDocumentosObservadosFinal] = useState<DdDocumentoTipo[]>([]);
   const [revalidacionGuardando, setRevalidacionGuardando] = useState(false);
   const [textoRevalidacion, setTextoRevalidacion] = useState("");
   const [revalidacionError, setRevalidacionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [vinculosCompletos, setVinculosCompletos] = useState(false);
   const [guardandoDeclaracion, setGuardandoDeclaracion] = useState(false);
+  const [historialOpen, setHistorialOpen] = useState(false);
   const [previewDocumento, setPreviewDocumento] = useState<{ url: string; nombre: string } | null>(null);
 
   useEffect(() => {
@@ -261,6 +262,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       DD_DOCUMENTOS_REQUERIDOS.some((requisito) => requisito.tipo === documento.tipo) &&
       documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO,
   ).length;
+  const reenviado = dateUtils.isAfter(detalle?.fechaEnvio, detalle?.fechaRevision);
   const reputacion = detalle?.reputacion ?? [];
   const reputacionConHallazgos = reputacion.some(
     (caso) =>
@@ -295,6 +297,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     (opcion) => opcion.value !== DD_ACCIONES_REVISION.RECHAZAR,
   );
   const sinDecision = enLegal || rechazadaCerrada;
+  const documentoObservadoFinal =
+    resultadoFinalSeleccionado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+  const marcandoDocumentos = onResultadoFinal
+    ? documentoObservadoFinal && !finalBloqueado
+    : accion === DD_ACCIONES_REVISION.OBSERVAR && !sinDecision;
   const accionPermitida =
     !sinDecision &&
     (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR) &&
@@ -388,7 +395,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   };
 
   const alternarDocumento = (tipo: DdDocumentoTipo) => {
-    if (sinDecision || accion !== DD_ACCIONES_REVISION.OBSERVAR) return;
+    if (!marcandoDocumentos || guardandoFinal !== null) return;
     setDocumentosObservados((prev) =>
       prev.includes(tipo) ? prev.filter((t) => t !== tipo) : [...prev, tipo],
     );
@@ -440,12 +447,12 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
 
   const registrarResultadoFinal = async (resultado: DdMatrizResultadoFinal) => {
     if (!onResultadoFinal || guardandoFinal) return;
-    if (!comentarioFinal.trim()) {
+    const esDocumentacionObservada =
+      resultado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+    if (!esDocumentacionObservada && !comentarioFinal.trim()) {
       setError("Escribe el comentario interno antes de registrar la conclusión final");
       return;
     }
-    const esDocumentacionObservada =
-      resultado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
     if (esDocumentacionObservada && !comentarioClienteFinal.trim()) {
       setError("Escribe el comentario para el cliente antes de registrar la conclusión final");
       return;
@@ -462,8 +469,8 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     setError(null);
     try {
       await onResultadoFinal(resultado, comentarioFinal.trim() || undefined, {
-        clienteComentario: comentarioClienteFinal.trim() || null,
-        documentosObservados: documentosObservadosFinal,
+        clienteComentario: esDocumentacionObservada ? comentarioClienteFinal.trim() || null : null,
+        documentosObservados: esDocumentacionObservada ? documentosObservados : [],
       });
       toast.success(`Resultado final: ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`);
       onDone();
@@ -562,9 +569,21 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     <Dialog open onOpenChange={(valor) => { if (!valor) onClose(); }}>
       <DialogContent className="flex max-h-[92vh] flex-col overflow-hidden p-0 sm:max-w-5xl">
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 text-left">
-          <div className="flex flex-wrap items-center gap-2">
-            <DialogTitle className="text-base font-semibold">Revisar debida diligencia</DialogTitle>
-            <DdEstadoBadge estado={detalle?.estado ?? fila.estado} />
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="text-base font-semibold">Revisar debida diligencia</DialogTitle>
+              <DdEstadoBadge estado={detalle?.estado ?? fila.estado} />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setHistorialOpen(true)}
+            >
+              <History className="h-3.5 w-3.5" />
+              <span>Historial</span>
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             {fila.empresa.razonSocial} · RUC {fila.empresa.ruc} · {fila.codigo}
@@ -576,6 +595,15 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
               <span><strong className="text-foreground">Enviado:</strong> {dateUtils.format(detalle.fechaEnvio)}</span>
               <span><strong className="text-foreground">Documentos:</strong> {documentosCargados}/{DD_DOCUMENTOS_REQUERIDOS.length}{observadosCount > 0 ? ` · ${observadosCount} observado(s)` : ""}</span>
               <span><strong className="text-foreground">Representante:</strong> {detalle.representanteNombre ?? "—"}</span>
+            </div>
+          ) : null}
+          {reenviado ? (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-success/40 bg-success/10 p-3 text-xs text-foreground">
+              <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+              <p>
+                <span className="font-semibold text-success">El cliente subsanó la documentación.</span>{" "}
+                Reenviado el {dateUtils.formatDateTime(detalle?.fechaEnvio)}. Revisa las nuevas versiones antes de emitir una decisión.
+              </p>
             </div>
           ) : null}
         </DialogHeader>
@@ -691,7 +719,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                             <div className="min-w-0">
                               <p className="truncate text-xs font-medium text-foreground">{beneficiario.nombre}</p>
                               <p className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                                <span>Documento: {beneficiario.documento}</span>
+                                <span>
+                                  Documento:{" "}
+                                  {[beneficiario.tipoDocumento, beneficiario.documento].filter(Boolean).join(" ")}
+                                </span>
                                 <span aria-hidden="true">·</span>
                                 <span className="inline-flex items-center gap-1">
                                   <DdPaisBandera pais={paisDeTexto(beneficiario.nacionalidad)} />
@@ -863,14 +894,14 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
 
                   <section className="space-y-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Documentos {accion === DD_ACCIONES_REVISION.OBSERVAR ? <span className="text-destructive">*</span> : null}
+                      Documentos {marcandoDocumentos ? <span className="text-destructive">*</span> : null}
                     </h3>
                     <p className="text-[11px] text-muted-foreground">
                       {sinDecision
                         ? "El expediente está cerrado para Logística; no se pueden modificar documentos ni observaciones."
-                        : accion === DD_ACCIONES_REVISION.OBSERVAR
-                          ? "Marca documentos si la corrección es documental. Si la observación es general, describe el motivo en el comentario."
-                          : "Revisa el contenido antes de tomar una decisión."}
+                        : marcandoDocumentos
+                          ? "Marca los documentos que el cliente debe subsanar. El comentario para el cliente se completa en la conclusión final."
+                          : "Revisa el contenido antes de tomar una decisión. Al elegir DOCUMENTACIÓN OBSERVADA podrás marcar los documentos a subsanar."}
                     </p>
                     <div className="space-y-2">
                       {documentosAdicionales.map((requisito) => {
@@ -947,11 +978,12 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                                 ) : null}
                               </div>
                             </div>
-                            {accion === DD_ACCIONES_REVISION.OBSERVAR && !sinDecision ? (
+                            {marcandoDocumentos ? (
                               <label className={`flex shrink-0 items-center gap-2 text-[11px] font-medium ${marcado ? "text-warning" : "text-muted-foreground"}`}>
                                 <Checkbox
                                   checked={marcado}
                                   aria-required
+                                  disabled={guardandoFinal !== null}
                                   onCheckedChange={() => alternarDocumento(requisito.tipo)}
                                 />
                                 <span>Observar *</span>
@@ -1193,16 +1225,24 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                         </button>
                       ))}
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 rounded-lg border border-primary/25 bg-secondary/30 p-3">
                       <Label htmlFor="final-comentario" className="text-[10px] font-medium uppercase text-muted-foreground">
-                        <span>Comentario interno</span>
+                        <span>
+                          Comentario interno{" "}
+                          {documentoObservadoFinal ? (
+                            <span className="normal-case text-muted-foreground">(opcional)</span>
+                          ) : (
+                            <span className="text-destructive">*</span>
+                          )}
+                        </span>
                       </Label>
                       <Textarea
                         id="final-comentario"
-                        className="min-h-20 text-xs"
+                        className="min-h-20 bg-card text-xs"
                         maxLength={DD_MATRIZ_FINAL_COMENTARIO_MAX}
                         disabled={!resultadoFinalSeleccionado || finalBloqueado}
                         value={comentarioFinal}
+                        aria-required={!documentoObservadoFinal}
                         onChange={(event) => { setComentarioFinal(event.target.value); setError(null); }}
                         placeholder={
                           resultadoFinalSeleccionado
@@ -1210,65 +1250,44 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                             : "Selecciona un estado final para habilitar el comentario."
                         }
                       />
-                      <p className="text-[10px] text-muted-foreground">
-                        Obligatorio para cualquier estado final. Solo visible para el equipo interno.
+                      <p className={`text-[10px] ${documentoObservadoFinal || comentarioFinal.trim() ? "text-muted-foreground" : "font-medium text-warning"}`}>
+                        {documentoObservadoFinal
+                          ? "Opcional para DOCUMENTACIÓN OBSERVADA. Solo visible para el equipo interno."
+                          : comentarioFinal.trim()
+                            ? "Solo visible para el equipo interno."
+                            : "Falta este comentario para habilitar el botón."}
                       </p>
                     </div>
 
-                    {resultadoFinalSeleccionado ===
-                    DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA ? (
-                      <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50/50 p-3">
-                        <div className="space-y-1">
-                          <Label
-                            htmlFor="final-comentario-cliente"
-                            className="text-[10px] font-medium uppercase text-muted-foreground"
-                          >
-                            <span>Comentario para el cliente</span>
-                          </Label>
-                          <Textarea
-                            id="final-comentario-cliente"
-                            className="min-h-20 bg-card text-xs"
-                            maxLength={1000}
-                            disabled={guardandoFinal !== null}
-                            value={comentarioClienteFinal}
-                            onChange={(event) => {
-                              setComentarioClienteFinal(event.target.value);
-                              setError(null);
-                            }}
-                            placeholder="Indica qué documentación debe subsanar el cliente."
-                          />
-                          <p className="text-[10px] text-muted-foreground">
-                            Obligatorio. Este texto sí se envía al cliente.
+                    {documentoObservadoFinal ? (
+                      <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50/50 p-3">
+                        <Label
+                          htmlFor="final-comentario-cliente"
+                          className="text-[10px] font-medium uppercase text-muted-foreground"
+                        >
+                          <span>Comentario para el cliente</span>
+                        </Label>
+                        <Textarea
+                          id="final-comentario-cliente"
+                          className="min-h-20 bg-card text-xs"
+                          maxLength={1000}
+                          disabled={guardandoFinal !== null}
+                          value={comentarioClienteFinal}
+                          onChange={(event) => {
+                            setComentarioClienteFinal(event.target.value);
+                            setError(null);
+                          }}
+                          placeholder="Indica qué documentación debe subsanar el cliente."
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          Obligatorio. Este texto sí se envía al cliente. Marca los documentos a subsanar en la pestaña{" "}
+                          <span className="font-semibold text-foreground">Documentos</span>.
+                        </p>
+                        {documentosObservados.length > 0 ? (
+                          <p className="text-[10px] font-medium text-warning">
+                            {documentosObservados.length} documento(s) marcado(s) para subsanación.
                           </p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <p className="text-[10px] font-medium uppercase text-muted-foreground">
-                            Documentos a subsanar
-                          </p>
-                          <div className="grid gap-1.5">
-                            {documentosAdicionales.map((documento) => (
-                              <label
-                                key={documento.tipo}
-                                className="flex items-start gap-2 text-[11px] text-foreground"
-                              >
-                                <Checkbox
-                                  className="mt-0.5"
-                                  checked={documentosObservadosFinal.includes(documento.tipo)}
-                                  onCheckedChange={(valor) => {
-                                    setDocumentosObservadosFinal((previos) =>
-                                      valor === true
-                                        ? [...new Set([...previos, documento.tipo])]
-                                        : previos.filter((tipo) => tipo !== documento.tipo),
-                                    );
-                                    setError(null);
-                                  }}
-                                  disabled={guardandoFinal !== null}
-                                />
-                                <span>{documento.titulo}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -1279,10 +1298,8 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                       disabled={
                         finalBloqueado ||
                         !resultadoFinalSeleccionado ||
-                        !comentarioFinal.trim() ||
-                        (resultadoFinalSeleccionado ===
-                          DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA &&
-                          !comentarioClienteFinal.trim()) ||
+                        (!documentoObservadoFinal && !comentarioFinal.trim()) ||
+                        (documentoObservadoFinal && !comentarioClienteFinal.trim()) ||
                         guardandoFinal !== null
                       }
                       onClick={() => {
@@ -1404,6 +1421,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
             </aside>
           </div>
         )}
+        <DdHistorialDialog
+          expedienteId={fila.id}
+          open={historialOpen}
+          onOpenChange={setHistorialOpen}
+        />
         <DdDocumentoPreviewDialog
           documento={previewDocumento}
           onClose={() => setPreviewDocumento(null)}

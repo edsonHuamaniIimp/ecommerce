@@ -1437,9 +1437,11 @@ model DebidaDiligenciaBeneficiario {
   id           String  @id @default(uuid())
   expedienteId String  @map("expediente_id")
   orden        Int     @default(0)
-  nombre       String  @db.VarChar(200)
-  documento    String  @db.VarChar(30)
-  nacionalidad String  @db.VarChar(80)
+  nombre        String  @db.VarChar(200)
+  documento     String  @db.VarChar(30)
+  /// Tipo de documento declarado (DD_TIPOS_DOCUMENTO_VINCULO): DNI | Carnet de extranjería | Pasaporte | RUC.
+  tipoDocumento String? @map("tipo_documento") @db.VarChar(30)
+  nacionalidad  String  @db.VarChar(80)
   porcentaje   Decimal @db.Decimal(5, 2)
   /// Rol de la persona dentro de la empresa (DD_TIPOS_VINCULO_PERSONA): representante_legal | apoderado | director | gerente | beneficiario_final | socio_10 | empresa_vinculada.
   tipoVinculoPersona String? @map("tipo_vinculo_persona") @db.VarChar(40)

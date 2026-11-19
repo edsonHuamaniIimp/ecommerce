@@ -2819,10 +2819,17 @@ components:
           type: string
         documento:
           type: string
+        tipoDocumento:
+          type: string
+          nullable: true
+          description: "DNI, Carnet de extranjería, Pasaporte o RUC (DD_TIPOS_DOCUMENTO_VINCULO)."
         nacionalidad:
           type: string
         porcentaje:
           type: number
+        tipoVinculoPersona:
+          type: string
+          nullable: true
     DdDocumento:
       type: object
       properties:
@@ -3235,10 +3242,17 @@ components:
                 type: string
               documento:
                 type: string
+              tipoDocumento:
+                type: string
+                nullable: true
+                description: "DNI, Carnet de extranjería, Pasaporte o RUC. Empresa vinculada = RUC."
               nacionalidad:
                 type: string
               porcentaje:
                 type: number
+              tipoVinculoPersona:
+                type: string
+                nullable: true
         documentos:
           type: array
           items:
@@ -3345,8 +3359,10 @@ components:
               orden: { type: integer }
               nombre: { type: string }
               documento: { type: string }
+              tipoDocumento: { type: string, nullable: true }
               nacionalidad: { type: string }
               porcentaje: { type: number }
+              tipoVinculoPersona: { type: string, nullable: true }
         documentoCargados:
           type: integer
         documentoTotal:

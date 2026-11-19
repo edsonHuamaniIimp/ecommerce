@@ -1,10 +1,15 @@
 import {
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_PORCENTAJE_PARTICIPACION_MIN,
+  DD_TIPOS_DOCUMENTO_VINCULO,
+  DD_TIPOS_DOCUMENTO_VINCULO_PERSONA,
+  DD_TIPOS_VINCULO_PERSONA,
   DD_VIGENCIA_MESES,
   DD_VINCULOS_PERSONA_CON_PORCENTAJE,
+  type DdTipoDocumentoVinculo,
   type DdTipoVinculoPersona,
 } from "@/lib/shared/constants";
+import { esPaisPeru } from "./pais";
 
 /**
  * Indica si el rol de la persona vinculada exige porcentaje de participación.
@@ -30,6 +35,50 @@ export function porcentajeParticipacionValido(
   }
   if (porcentaje < 0 || porcentaje > 100) return false;
   return requerido ? porcentaje >= DD_PORCENTAJE_PARTICIPACION_MIN : true;
+}
+
+/** Una empresa vinculada siempre se identifica con RUC. */
+export function esEmpresaVinculada(tipoVinculoPersona?: string | null): boolean {
+  return tipoVinculoPersona === DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA;
+}
+
+/** Tipo de documento que corresponde por defecto al rol declarado. */
+export function tipoDocumentoPredeterminadoVinculo(
+  tipoVinculoPersona?: string | null,
+): DdTipoDocumentoVinculo {
+  return esEmpresaVinculada(tipoVinculoPersona)
+    ? DD_TIPOS_DOCUMENTO_VINCULO.RUC
+    : DD_TIPOS_DOCUMENTO_VINCULO.DNI;
+}
+
+/**
+ * Normaliza el tipo de documento del vínculo: empresa vinculada siempre RUC;
+ * personas solo DNI, carnet de extranjería o pasaporte.
+ */
+export function normalizarTipoDocumentoVinculo(
+  tipoVinculoPersona: string | null | undefined,
+  tipoDocumento: string | null | undefined,
+  nacionalidad?: string | null,
+): DdTipoDocumentoVinculo {
+  if (esEmpresaVinculada(tipoVinculoPersona)) return DD_TIPOS_DOCUMENTO_VINCULO.RUC;
+  if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC) return DD_TIPOS_DOCUMENTO_VINCULO.RUC;
+  if (tipoDocumento && (DD_TIPOS_DOCUMENTO_VINCULO_PERSONA as readonly string[]).includes(tipoDocumento)) {
+    return tipoDocumento as DdTipoDocumentoVinculo;
+  }
+  return nacionalidad && !esPaisPeru(nacionalidad)
+    ? DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE
+    : DD_TIPOS_DOCUMENTO_VINCULO.DNI;
+}
+
+/** Solo DNI y RUC admiten consulta RENIEC/SUNAT. */
+export function tipoDocumentoVinculoConConsulta(
+  tipoVinculoPersona: string | null | undefined,
+  tipoDocumento: string | null | undefined,
+): "DNI" | "RUC" | null {
+  const tipo = normalizarTipoDocumentoVinculo(tipoVinculoPersona, tipoDocumento);
+  if (tipo === DD_TIPOS_DOCUMENTO_VINCULO.DNI) return "DNI";
+  if (tipo === DD_TIPOS_DOCUMENTO_VINCULO.RUC && esEmpresaVinculada(tipoVinculoPersona)) return "RUC";
+  return null;
 }
 
 /**

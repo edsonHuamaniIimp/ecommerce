@@ -440,9 +440,12 @@ export class DdMatrizEvaluacionApplicationService {
         cambios.resultadoFinal !== undefined ? cambios.resultadoFinal : vinculo.resultadoFinal;
       const comentarioEfectivo =
         cambios.finalComentario !== undefined ? cambios.finalComentario : vinculo.finalComentario;
+      const requiereComentarioInterno =
+        finalEfectivo !== DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
       if (
         (dto.resultadoFinal !== undefined || dto.finalComentario !== undefined) &&
         finalEfectivo &&
+        requiereComentarioInterno &&
         !comentarioEfectivo?.trim()
       ) {
         throw new DomainError(

@@ -42,6 +42,7 @@ export interface DdBeneficiarioEntity {
   orden: number;
   nombre: string;
   documento: string;
+  tipoDocumento: string | null;
   nacionalidad: string;
   porcentaje: number;
   tipoVinculoPersona: string | null;
@@ -594,6 +595,7 @@ export interface DdGuardarData {
     orden: number;
     nombre: string;
     documento: string;
+    tipoDocumento: string | null;
     nacionalidad: string;
     porcentaje: number;
       tipoVinculoPersona: string | null;

@@ -247,6 +247,63 @@ describe("ddUtils.validarDocumentos", () => {
   });
 });
 
+describe("ddUtils.agruparObservacionesPorComentario", () => {
+  it("muestra una sola vez un comentario compartido y conserva sus documentos", () => {
+    const grupos = ddUtils.agruparObservacionesPorComentario([
+      {
+        id: "o-1",
+        area: "logistica",
+        texto: "Los documentos adjuntos son falsos.",
+        createdAt: "2026-11-19T10:00:00.000Z",
+        documentoTipo: DD_DOCUMENTOS.FICHA_RUC,
+      },
+      {
+        id: "o-2",
+        area: "logistica",
+        texto: "Los documentos adjuntos son falsos.",
+        createdAt: "2026-11-19T10:00:00.000Z",
+        documentoTipo: DD_DOCUMENTOS.PODERES,
+      },
+      {
+        id: "o-3",
+        area: "logistica",
+        texto: "Los documentos adjuntos son falsos.",
+        createdAt: "2026-11-19T10:00:00.000Z",
+        documentoTipo: DD_DOCUMENTOS.IDENTIDAD_REPRESENTANTE,
+      },
+    ]);
+
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0]?.texto).toBe("Los documentos adjuntos son falsos.");
+    expect(grupos[0]?.documentos).toEqual([
+      DD_DOCUMENTOS.FICHA_RUC,
+      DD_DOCUMENTOS.PODERES,
+      DD_DOCUMENTOS.IDENTIDAD_REPRESENTANTE,
+    ]);
+  });
+
+  it("separa comentarios distintos o de distinta área", () => {
+    const grupos = ddUtils.agruparObservacionesPorComentario([
+      {
+        id: "o-1",
+        area: "logistica",
+        texto: "Corregir ficha.",
+        createdAt: "2026-11-19T10:00:00.000Z",
+        documentoTipo: DD_DOCUMENTOS.FICHA_RUC,
+      },
+      {
+        id: "o-2",
+        area: "legal",
+        texto: "Corregir ficha.",
+        createdAt: "2026-11-19T10:00:00.000Z",
+        documentoTipo: DD_DOCUMENTOS.FICHA_RUC,
+      },
+    ]);
+
+    expect(grupos).toHaveLength(2);
+  });
+});
+
 describe("ddNombresARevisar", () => {
   it("incluye empresa, representante y beneficiarios sin duplicados", () => {
     const nombres = ddUtils.nombresARevisar({
@@ -305,8 +362,9 @@ describe("validaciones por paso", () => {
       representanteNacionalidad: "Perú",
       beneficiarios: [
         {
-          nombre: "Inversiones Sur S.A.C.",
-          documento: "20123456789",
+          nombre: "María Torres",
+          documento: "12345678",
+          tipoDocumento: "DNI",
           nacionalidad: "Perú",
           porcentaje: "0",
           tipoVinculoPersona: "beneficiario_final",
@@ -332,6 +390,84 @@ describe("validaciones por paso", () => {
         beneficiarios: [{ ...datos.beneficiarios[0]!, tipoVinculoPersona: "" }],
       }),
     ).toContain("Seleccione el tipo de vínculo");
+  });
+
+  it("exige RUC para empresa vinculada y lo rechaza en personas", () => {
+    const base = {
+      representanteNombre: "María Torres",
+      representanteDocumento: "09876543",
+      representanteNacionalidad: "Perú",
+      beneficiarios: [
+        {
+          nombre: "Inversiones Sur S.A.C.",
+          documento: "20123456789",
+          tipoDocumento: "RUC",
+          nacionalidad: "Perú",
+          porcentaje: "0",
+          tipoVinculoPersona: "empresa_vinculada",
+        },
+      ],
+    };
+    expect(ddUtils.validarRepresentante(base)).toBeNull();
+    expect(
+      ddUtils.validarRepresentante({
+        ...base,
+        beneficiarios: [{ ...base.beneficiarios[0]!, tipoDocumento: "DNI" }],
+      }),
+    ).toContain("debe identificarse con RUC");
+    expect(
+      ddUtils.validarRepresentante({
+        ...base,
+        beneficiarios: [{
+          ...base.beneficiarios[0]!,
+          nombre: "María Torres",
+          documento: "12345678",
+          tipoDocumento: "RUC",
+          tipoVinculoPersona: "beneficiario_final",
+        }],
+      }),
+    ).toContain("El RUC solo aplica");
+  });
+
+  it("valida la longitud del DNI y del RUC", () => {
+    const base = {
+      representanteNombre: "María Torres",
+      representanteDocumento: "09876543",
+      representanteNacionalidad: "Perú",
+      beneficiarios: [
+        {
+          nombre: "María Torres",
+          documento: "12345678",
+          tipoDocumento: "DNI",
+          nacionalidad: "Perú",
+          porcentaje: "0",
+          tipoVinculoPersona: "beneficiario_final",
+        },
+      ],
+    };
+    expect(
+      ddUtils.validarRepresentante({
+        ...base,
+        beneficiarios: [{ ...base.beneficiarios[0]!, documento: "1234567" }],
+      }),
+    ).toContain("debe tener 8 dígitos");
+    expect(
+      ddUtils.validarRepresentante({
+        ...base,
+        beneficiarios: [{
+          ...base.beneficiarios[0]!,
+          tipoDocumento: "RUC",
+          tipoVinculoPersona: "empresa_vinculada",
+          documento: "2012345678",
+        }],
+      }),
+    ).toContain("debe tener 11 dígitos");
+    expect(
+      ddUtils.validarRepresentante({
+        ...base,
+        beneficiarios: [{ ...base.beneficiarios[0]!, tipoDocumento: "" }],
+      }),
+    ).toContain("Complete los datos");
   });
 
   it("mapea el resultado reputacional al estado persistido", () => {

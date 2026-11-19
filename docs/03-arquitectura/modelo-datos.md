@@ -576,6 +576,10 @@ mapa (RF-08). El tipo se guarda con su clave canónica (resuelve alias: `ISLA` �
 - **`debida_diligencia_beneficiario.tipo_vinculo_persona`** — rol de la persona
   (`DD_TIPOS_VINCULO_PERSONA`); el porcentaje es obligatorio solo para beneficiario
   final y socio 10%+.
+- **`debida_diligencia_beneficiario.tipo_documento`** — tipo declarado
+  (`DD_TIPOS_DOCUMENTO_VINCULO`). Empresa vinculada siempre `RUC`; personas DNI,
+  carnet de extranjería o pasaporte. RENIEC/SUNAT solo para DNI/RUC con nacionalidad
+  peruana.
 - **`dd_matriz_vinculo.relacion_comercial_id`** — enlaza cada fila de la matriz con su
   relación comercial (nullable en filas legacy).
 - Migración aditiva: `20261106120000_dd_v2_relacion_comercial`.

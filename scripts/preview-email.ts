@@ -87,6 +87,7 @@ const DATOS: { [K in PlantillaEmailKind]: DatosPlantilla[K] } = {
   "dd-aprobada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", fechaVencimiento: "2026-11-12" },
   "dd-rechazada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
   "dd-legal-revision": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", motivo: "Documentacion inconsistente." },
+  "dd-subsanada": { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C.", observacionesRespondidas: 4 },
 };
 
 const plantilla = (process.argv[2] ?? "revision-resultado") as PlantillaEmailKind;

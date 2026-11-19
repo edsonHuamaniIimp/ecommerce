@@ -1718,6 +1718,22 @@ export const DD_TIPOS_DOCUMENTO_REPRESENTANTE = {
 export type DdTipoDocumentoRepresentante =
   (typeof DD_TIPOS_DOCUMENTO_REPRESENTANTE)[keyof typeof DD_TIPOS_DOCUMENTO_REPRESENTANTE];
 
+/** Tipo de documento de una persona o empresa vinculada. */
+export const DD_TIPOS_DOCUMENTO_VINCULO = {
+  ...DD_TIPOS_DOCUMENTO_REPRESENTANTE,
+  RUC: "RUC",
+} as const;
+
+export type DdTipoDocumentoVinculo =
+  (typeof DD_TIPOS_DOCUMENTO_VINCULO)[keyof typeof DD_TIPOS_DOCUMENTO_VINCULO];
+
+/** Tipos de documento que puede declarar una persona vinculada. */
+export const DD_TIPOS_DOCUMENTO_VINCULO_PERSONA = [
+  DD_TIPOS_DOCUMENTO_VINCULO.DNI,
+  DD_TIPOS_DOCUMENTO_VINCULO.CARNE_EXTRANJERIA,
+  DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE,
+] as const;
+
 export const DD_DOCUMENTOS = {
   FICHA_RUC: "ficha_ruc",
   PODERES: "poderes",
@@ -3237,6 +3253,7 @@ export const ALERTA_TIPOS = {
   DOCUMENTOS_OBSERVADOS: "documentos_observados",
   DD_REPUTACION: "debida_diligencia_reputacion",
   DD_LEGAL: "debida_diligencia_legal",
+  DD_REENVIO: "debida_diligencia_reenvio",
 } as const;
 
 /** Modos de la notificacion manual al cliente desde la bandeja de solicitudes. */

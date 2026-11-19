@@ -16,6 +16,7 @@ import {
   Info,
   Loader2,
   Plus,
+  Search,
   ShieldCheck,
   Trash2,
   UserRound,
@@ -27,9 +28,15 @@ import {
   DD_PORCENTAJE_MAX,
   DD_TIPO_VINCULO_PERSONA_LABELS,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
+  DD_TIPOS_DOCUMENTO_VINCULO,
+  DD_TIPOS_DOCUMENTO_VINCULO_PERSONA,
   DD_TIPOS_VINCULO_PERSONA,
   type DdTipoVinculoPersona,
 } from "@/lib/shared/constants";
+import {
+  esEmpresaVinculada,
+  tipoDocumentoVinculoConConsulta,
+} from "@/lib/shared/utils/debida-diligencia-v2";
 import { esPaisPeru } from "@/lib/shared/utils/pais";
 import type { BeneficiarioForm, FormState } from "./dd-wizard";
 
@@ -45,6 +52,7 @@ interface Props {
   cambiarNacionalidadRepresentante: (valor: string) => void;
   cambiarTipoDocumentoRepresentante: (valor: string) => void;
   actualizarDocumentoBeneficiario: (beneficiario: BeneficiarioForm, valor: string) => void;
+  buscarBeneficiario: (beneficiario: BeneficiarioForm) => void;
   cambiarBeneficiario: (id: string, campo: keyof Omit<BeneficiarioForm, "id">, valor: string) => void;
   agregarBeneficiario: () => void;
   quitarBeneficiario: (id: string) => void;
@@ -62,6 +70,7 @@ export function DdWizardPaso3({
   cambiarNacionalidadRepresentante,
   cambiarTipoDocumentoRepresentante,
   actualizarDocumentoBeneficiario,
+  buscarBeneficiario,
   cambiarBeneficiario,
   agregarBeneficiario,
   quitarBeneficiario,
@@ -85,6 +94,16 @@ export function DdWizardPaso3({
         </div>
 
         <div className="grid gap-4 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-2">
+          <div>
+            <Label className="text-xs"><span>Nacionalidad *</span></Label>
+            <PaisSelect
+              id="representanteNacionalidad"
+              value={form.representanteNacionalidad}
+              onChange={cambiarNacionalidadRepresentante}
+              valueMode="nombre"
+              mostrarCodigo={false}
+            />
+          </div>
           <div className="sm:col-span-2">
             <Label className="text-xs"><span>Nombre y apellidos completos *</span></Label>
             <Input
@@ -137,16 +156,6 @@ export function DdWizardPaso3({
               </p>
             ) : null}
           </div>
-          <div>
-            <Label className="text-xs"><span>Nacionalidad *</span></Label>
-            <PaisSelect
-              id="representanteNacionalidad"
-              value={form.representanteNacionalidad}
-              onChange={cambiarNacionalidadRepresentante}
-              valueMode="nombre"
-              mostrarCodigo={false}
-            />
-          </div>
         </div>
       </section>
 
@@ -178,7 +187,21 @@ export function DdWizardPaso3({
           </div>
         ) : (
           <div className="space-y-3">
-            {beneficiarios.map((beneficiario, indice) => (
+            {beneficiarios.map((beneficiario, indice) => {
+              const empresaVinculada = esEmpresaVinculada(beneficiario.tipoVinculoPersona);
+              const tipoConsulta = tipoDocumentoVinculoConConsulta(
+                beneficiario.tipoVinculoPersona,
+                beneficiario.tipoDocumento,
+              );
+              const consultaPermitida = esPaisPeru(beneficiario.nacionalidad) && tipoConsulta !== null;
+              const tituloConsulta = !esPaisPeru(beneficiario.nacionalidad)
+                ? "Solo se consulta RENIEC/SUNAT para vínculos con nacionalidad peruana."
+                : tipoConsulta === "RUC"
+                  ? "Buscar RUC en SUNAT"
+                  : tipoConsulta === "DNI"
+                    ? "Buscar DNI en RENIEC"
+                    : "La consulta solo aplica a DNI o RUC.";
+              return (
               <div key={beneficiario.id} className="overflow-hidden rounded-xl border border-border bg-card">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-secondary/30 px-3 py-2.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -211,19 +234,91 @@ export function DdWizardPaso3({
 
                 <div className="grid gap-3 p-3 sm:grid-cols-2">
                   <div>
-                    <Label className="text-[11px]"><span>Documento *</span></Label>
-                    <Input
-                      value={beneficiario.documento}
-                      onChange={(event) => actualizarDocumentoBeneficiario(beneficiario, event.target.value)}
-                      className="mt-1 h-8 w-full font-mono text-xs"
-                      placeholder="N.º de documento"
-                      inputMode={esPaisPeru(beneficiario.nacionalidad) ? "numeric" : "text"}
-                      autoComplete="off"
-                      maxLength={20}
+                    <Label className="text-[11px]"><span>Nacionalidad *</span></Label>
+                    <PaisSelect
+                      id={`beneficiarioNacionalidad-${beneficiario.id}`}
+                      value={beneficiario.nacionalidad}
+                      onChange={(valor) => cambiarBeneficiario(beneficiario.id, "nacionalidad", valor)}
+                      valueMode="nombre"
+                      mostrarCodigo={false}
                     />
+                  </div>
+                  <div>
+                    <Label className="text-[11px]"><span>Tipo de documento *</span></Label>
+                    <Select
+                      value={beneficiario.tipoDocumento}
+                      onValueChange={(valor) => cambiarBeneficiario(beneficiario.id, "tipoDocumento", valor)}
+                      disabled={empresaVinculada}
+                    >
+                      <SelectTrigger className="mt-1 h-8 w-full text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(empresaVinculada
+                          ? [DD_TIPOS_DOCUMENTO_VINCULO.RUC]
+                          : DD_TIPOS_DOCUMENTO_VINCULO_PERSONA
+                        ).map((tipo) => (
+                          <SelectItem key={tipo} value={tipo}>
+                            <span>{tipo}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {empresaVinculada ? (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        La empresa vinculada se identifica con RUC.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <Label className="text-[11px]"><span>Documento *</span></Label>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Input
+                        value={beneficiario.documento}
+                        onChange={(event) => actualizarDocumentoBeneficiario(beneficiario, event.target.value)}
+                        className="h-8 w-full font-mono text-xs"
+                        placeholder={
+                          beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC
+                            ? "RUC de 11 dígitos"
+                            : beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI
+                              ? "DNI de 8 dígitos"
+                              : "N.º de documento"
+                        }
+                        inputMode={
+                          beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC ||
+                          beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI
+                            ? "numeric"
+                            : "text"
+                        }
+                        autoComplete="off"
+                        maxLength={
+                          beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC
+                            ? 11
+                            : beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI
+                              ? 8
+                              : 20
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 shrink-0 p-0"
+                        disabled={!consultaPermitida || buscandoBeneficiario === beneficiario.id}
+                        onClick={() => buscarBeneficiario(beneficiario)}
+                        title={tituloConsulta}
+                        aria-label={`Buscar documento del vínculo ${indice + 1}`}
+                      >
+                        {buscandoBeneficiario === beneficiario.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Search className="h-3.5 w-3.5" />}
+                      </Button>
+                    </div>
                     {!esPaisPeru(beneficiario.nacionalidad) ? (
                       <p className="mt-1 text-[10px] text-muted-foreground">
-                        Documento del país de origen; no se consulta RENIEC/SUNAT.
+                        {beneficiario.nacionalidad
+                          ? "Documento del país de origen; no se consulta RENIEC/SUNAT."
+                          : "Seleccione la nacionalidad para habilitar la consulta."}
                       </p>
                     ) : null}
                     {buscandoBeneficiario === beneficiario.id ? (
@@ -266,16 +361,6 @@ export function DdWizardPaso3({
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-[11px]"><span>Nacionalidad *</span></Label>
-                    <PaisSelect
-                      id={`beneficiarioNacionalidad-${beneficiario.id}`}
-                      value={beneficiario.nacionalidad}
-                      onChange={(valor) => cambiarBeneficiario(beneficiario.id, "nacionalidad", valor)}
-                      valueMode="nombre"
-                      mostrarCodigo={false}
-                    />
-                  </div>
-                  <div>
                     <Label className="text-[11px]"><span>Participación</span></Label>
                     <div className="relative mt-1">
                       <Input
@@ -296,7 +381,8 @@ export function DdWizardPaso3({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

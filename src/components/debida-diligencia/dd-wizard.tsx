@@ -62,17 +62,24 @@ import {
   DD_OBSERVACION_ESTADOS,
   DD_PAIS_DEFAULT,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
+  DD_TIPOS_DOCUMENTO_VINCULO,
   DD_PASOS,
   DD_RUTAS,
   REGEX_DNI,
   REGEX_RUC,
   type DdDocumentoEstado,
   type DdDocumentoTipo,
+  type DdTipoDocumentoVinculo,
   type DdTipoVinculoPersona,
   type DdVinculo,
 } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import {
+  esEmpresaVinculada,
+  normalizarTipoDocumentoVinculo,
+  tipoDocumentoVinculoConConsulta,
+} from "@/lib/shared/utils/debida-diligencia-v2";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { esPaisPeru } from "@/lib/shared/utils/pais";
 import type {
@@ -86,6 +93,7 @@ export interface BeneficiarioForm {
   id: string;
   nombre: string;
   documento: string;
+  tipoDocumento: string;
   nacionalidad: string;
   porcentaje: string;
   tipoVinculoPersona: string;
@@ -141,6 +149,7 @@ function nuevoBeneficiario(): BeneficiarioForm {
       : `b-${Math.random().toString(36).slice(2, 12)}`,
     nombre: "",
     documento: "",
+    tipoDocumento: DD_TIPOS_DOCUMENTO_VINCULO.DNI,
     nacionalidad: "",
     porcentaje: "0",
     tipoVinculoPersona: "",
@@ -185,6 +194,11 @@ function beneficiariosDesde(expediente: DdExpedienteDTO | null): BeneficiarioFor
     id: b.id,
     nombre: b.nombre,
     documento: b.documento,
+    tipoDocumento: normalizarTipoDocumentoVinculo(
+      b.tipoVinculoPersona,
+      b.tipoDocumento,
+      b.nacionalidad,
+    ),
     nacionalidad: b.nacionalidad,
     porcentaje: String(b.porcentaje),
     tipoVinculoPersona: b.tipoVinculoPersona ?? "",
@@ -236,6 +250,8 @@ export function DdWizard({
     const documento = documentos.find((item) => item.tipo === observacion.documentoTipo);
     return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
   });
+  const observacionesAgrupadas = ddUtils.agruparObservacionesPorComentario(observacionesAbiertas);
+  const textosObservaciones = new Set(observacionesAgrupadas.map((observacion) => observacion.texto.trim()));
   const documentosVisibles: {
     tipo: DdDocumentoTipo;
     titulo: string;
@@ -251,7 +267,9 @@ export function DdWizard({
     expedienteInicial?.estado === DD_ESTADOS.OBSERVADA || observacionesAbiertas.length > 0;
   /* Comentarios de documentos observados (se muestran una sola vez). */
   const comentariosDocumentos = [...new Set(
-    documentosObservados.map((documento) => documento.observacion?.trim() ?? "").filter((texto) => texto.length > 0),
+    documentosObservados
+      .map((documento) => documento.observacion?.trim() ?? "")
+      .filter((texto) => texto.length > 0 && !textosObservaciones.has(texto)),
   )];
   const tiposObservados = new Set([
     ...documentosObservados.map((documento) => documento.tipo),
@@ -268,6 +286,12 @@ export function DdWizard({
   const estaEnCorreccion = (documento: DocumentoForm) =>
     documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ||
     (documento.estado === DD_DOCUMENTO_ESTADOS.CARGADO && tiposObservados.has(documento.tipo));
+  const documentosObligatoriosPendientes = DD_DOCUMENTOS_REQUERIDOS.filter((requisito) => {
+    const documento = documentos.find((item) => item.tipo === requisito.tipo);
+    return !documento || (enSubsanacion && documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO);
+  });
+  const obligatoriosCargados =
+    DD_DOCUMENTOS_REQUERIDOS.length - documentosObligatoriosPendientes.length;
   const puedeSubirDocumento = (documento: DocumentoForm | null) =>
     !enSubsanacion || !documento || estaEnCorreccion(documento);
   const etiquetaSubida = (documento: DocumentoForm | null) => {
@@ -322,9 +346,42 @@ export function DdWizard({
 
   const cambiarBeneficiario = (id: string, campo: keyof Omit<BeneficiarioForm, "id">, valor: string) => {
     setBeneficiarios((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, [campo]: valor } : b)),
+      prev.map((b) => {
+        if (b.id !== id) return b;
+        if (campo === "tipoVinculoPersona") {
+          return {
+            ...b,
+            tipoVinculoPersona: valor,
+            tipoDocumento: esEmpresaVinculada(valor)
+              ? DD_TIPOS_DOCUMENTO_VINCULO.RUC
+              : esPaisPeru(b.nacionalidad)
+                ? DD_TIPOS_DOCUMENTO_VINCULO.DNI
+                : DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE,
+          };
+        }
+        if (campo === "tipoDocumento") {
+          if (esEmpresaVinculada(b.tipoVinculoPersona)) return b;
+          return { ...b, tipoDocumento: valor };
+        }
+        if (campo === "nacionalidad") {
+          if (esEmpresaVinculada(b.tipoVinculoPersona)) return { ...b, nacionalidad: valor };
+          return {
+            ...b,
+            nacionalidad: valor,
+            tipoDocumento: esPaisPeru(valor)
+              ? DD_TIPOS_DOCUMENTO_VINCULO.DNI
+              : DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE,
+          };
+        }
+        return { ...b, [campo]: valor };
+      }),
     );
-    if (campo === "documento") {
+    if (
+      campo === "documento" ||
+      campo === "tipoDocumento" ||
+      campo === "tipoVinculoPersona" ||
+      campo === "nacionalidad"
+    ) {
       setBeneficiariosValidados((prev) => {
         const siguiente = { ...prev };
         delete siguiente[id];
@@ -336,8 +393,23 @@ export function DdWizard({
 
   const consultarDocumento = async (
     documento: string,
+    tipoDocumento: DdTipoDocumentoVinculo,
   ): Promise<{ tipo: "DNI" | "RUC"; nombre: string }> => {
-    if (REGEX_DNI.test(documento)) {
+    if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC) {
+      if (!REGEX_RUC.test(documento)) {
+        throw new Error("Ingrese un RUC de 11 dígitos para buscar.");
+      }
+      const resultado = await sunatService.consultarRuc(documento);
+      if (resultado.error || !resultado.razonSocial) {
+        throw new Error(resultado.error ?? "No se encontró el RUC.");
+      }
+      return { tipo: "RUC", nombre: resultado.razonSocial };
+    }
+
+    if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI) {
+      if (!REGEX_DNI.test(documento)) {
+        throw new Error("Ingrese un DNI de 8 dígitos para buscar.");
+      }
       const resultado = await sunatService.consultarDni(documento);
       const nombre = (
         resultado.nombreCompleto ??
@@ -351,26 +423,50 @@ export function DdWizard({
       return { tipo: "DNI", nombre };
     }
 
-    if (REGEX_RUC.test(documento)) {
-      const resultado = await sunatService.consultarRuc(documento);
-      if (resultado.error || !resultado.razonSocial) {
-        throw new Error(resultado.error ?? "No se encontró el RUC.");
-      }
-      return { tipo: "RUC", nombre: resultado.razonSocial };
-    }
-
-    throw new Error("Ingrese un DNI de 8 dígitos o un RUC de 11 dígitos para buscar.");
+    throw new Error("La consulta RENIEC/SUNAT solo aplica a DNI o RUC.");
   };
 
-  const consultarBeneficiario = async (beneficiario: BeneficiarioForm, secuencia: number) => {
+  const consultarBeneficiario = async (
+    beneficiario: BeneficiarioForm,
+    secuencia: number,
+    buscarManual = false,
+  ) => {
     if (secuencia !== (lookupSeq.current[beneficiario.id] ?? 0)) return;
-    if (!esPaisPeru(beneficiario.nacionalidad)) return;
+    if (!esPaisPeru(beneficiario.nacionalidad)) {
+      if (buscarManual) {
+        toast.error("Solo se consulta RENIEC/SUNAT para vínculos con nacionalidad peruana.");
+      }
+      return;
+    }
+
+    const tipoConsulta = tipoDocumentoVinculoConConsulta(
+      beneficiario.tipoVinculoPersona,
+      beneficiario.tipoDocumento,
+    );
     const documento = beneficiario.documento.trim();
-    if (!REGEX_DNI.test(documento) && !REGEX_RUC.test(documento)) return;
+    if (!tipoConsulta) {
+      if (buscarManual) {
+        toast.error("Seleccione DNI o RUC para consultar.");
+      }
+      return;
+    }
+    if (
+      (tipoConsulta === "DNI" && !REGEX_DNI.test(documento)) ||
+      (tipoConsulta === "RUC" && !REGEX_RUC.test(documento))
+    ) {
+      if (buscarManual) {
+        toast.error(
+          tipoConsulta === "RUC"
+            ? "Ingrese un RUC de 11 dígitos para buscar."
+            : "Ingrese un DNI de 8 dígitos para buscar.",
+        );
+      }
+      return;
+    }
 
     setBuscandoBeneficiario(beneficiario.id);
     try {
-      const resultado = await consultarDocumento(documento);
+      const resultado = await consultarDocumento(documento, tipoConsulta);
       if (secuencia !== (lookupSeq.current[beneficiario.id] ?? 0)) return;
       setBeneficiarios((prev) =>
         prev.map((b) => (b.id === beneficiario.id ? { ...b, nombre: resultado.nombre } : b)),
@@ -393,9 +489,17 @@ export function DdWizard({
   };
 
   const actualizarDocumentoBeneficiario = (beneficiario: BeneficiarioForm, valor: string) => {
-    const esPeruano = esPaisPeru(beneficiario.nacionalidad);
-    const documento = esPeruano
-      ? valor.replace(/\D/g, "").slice(0, 11)
+    const tipoDocumento = normalizarTipoDocumentoVinculo(
+      beneficiario.tipoVinculoPersona,
+      beneficiario.tipoDocumento,
+      beneficiario.nacionalidad,
+    );
+    const documentoNumerico =
+      tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI ||
+      tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC;
+    const maximo = tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI ? 8 : 11;
+    const documento = documentoNumerico
+      ? valor.replace(/\D/g, "").slice(0, maximo)
       : valor.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 20);
     cambiarBeneficiario(beneficiario.id, "documento", documento);
     const temporizador = lookupTimers.current[beneficiario.id];
@@ -403,11 +507,27 @@ export function DdWizard({
     const secuencia = (lookupSeq.current[beneficiario.id] ?? 0) + 1;
     lookupSeq.current[beneficiario.id] = secuencia;
     setBuscandoBeneficiario(null);
-    if (esPeruano && (REGEX_DNI.test(documento) || REGEX_RUC.test(documento))) {
+    if (!esPaisPeru(beneficiario.nacionalidad)) return;
+    const tipoConsulta = tipoDocumentoVinculoConConsulta(
+      beneficiario.tipoVinculoPersona,
+      tipoDocumento,
+    );
+    if (
+      (tipoConsulta === "DNI" && REGEX_DNI.test(documento)) ||
+      (tipoConsulta === "RUC" && REGEX_RUC.test(documento))
+    ) {
       lookupTimers.current[beneficiario.id] = setTimeout(() => {
-        void consultarBeneficiario({ ...beneficiario, documento }, secuencia);
+        void consultarBeneficiario({ ...beneficiario, documento, tipoDocumento }, secuencia);
       }, 500);
     }
+  };
+
+  const buscarBeneficiario = (beneficiario: BeneficiarioForm) => {
+    const temporizador = lookupTimers.current[beneficiario.id];
+    if (temporizador) clearTimeout(temporizador);
+    const secuencia = (lookupSeq.current[beneficiario.id] ?? 0) + 1;
+    lookupSeq.current[beneficiario.id] = secuencia;
+    void consultarBeneficiario(beneficiario, secuencia, true);
   };
 
   const actualizarDocumentoRepresentante = (valor: string) => {
@@ -431,7 +551,10 @@ export function DdWizard({
         if (secuencia !== representanteLookupSeq.current) return;
         setBuscandoRepresentante(true);
         try {
-          const resultado = await consultarDocumento(documento);
+          const resultado = await consultarDocumento(
+            documento,
+            DD_TIPOS_DOCUMENTO_VINCULO.DNI,
+          );
           if (secuencia !== representanteLookupSeq.current) return;
           setCampo("representanteNombre", resultado.nombre);
           setRepresentanteValidado(resultado.tipo);
@@ -495,6 +618,11 @@ export function DdWizard({
     beneficiarios: beneficiarios.map((b) => ({
       nombre: b.nombre.trim(),
       documento: b.documento.trim(),
+      tipoDocumento: normalizarTipoDocumentoVinculo(
+        b.tipoVinculoPersona,
+        b.tipoDocumento,
+        b.nacionalidad,
+      ),
       nacionalidad: b.nacionalidad.trim(),
       porcentaje: Number(b.porcentaje || 0),
       tipoVinculoPersona: b.tipoVinculoPersona
@@ -695,7 +823,9 @@ export function DdWizard({
               <Info className="h-4 w-4 text-warning" />
               <AlertDescription>
                 <span className="mb-1 block text-xs font-semibold text-warning">
-                  El expediente tiene {observacionesAbiertas.length} observación(es) abierta(s)
+                  {observacionesAgrupadas.length === 1
+                    ? "El expediente tiene 1 observación abierta"
+                    : `El expediente tiene ${observacionesAgrupadas.length} observaciones abiertas`}
                 </span>
                 {tiposObservadosLabels.length > 0 ? (
                   <p className="text-xs text-foreground">
@@ -703,7 +833,7 @@ export function DdWizard({
                     {tiposObservadosLabels.join(", ")}.
                   </p>
                 ) : null}
-                {observacionesAbiertas.map((observacion) => (
+                {observacionesAgrupadas.map((observacion) => (
                   <p key={observacion.id} className="mt-1 text-xs text-foreground">
                     <span className="font-semibold">
                       {DD_OBSERVACION_AREA_LABELS[observacion.area] ?? observacion.area}:
@@ -832,6 +962,7 @@ export function DdWizard({
               cambiarNacionalidadRepresentante={cambiarNacionalidadRepresentante}
               cambiarTipoDocumentoRepresentante={cambiarTipoDocumentoRepresentante}
               actualizarDocumentoBeneficiario={actualizarDocumentoBeneficiario}
+              buscarBeneficiario={buscarBeneficiario}
               cambiarBeneficiario={cambiarBeneficiario}
               agregarBeneficiario={agregarBeneficiario}
               quitarBeneficiario={quitarBeneficiario}
@@ -840,12 +971,54 @@ export function DdWizard({
 
           {paso === 4 ? (
             <div className="space-y-5">
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">Documentos de sustento</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Los documentos obligatorios deben estar cargados para enviar.
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Documentos de sustento</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Los documentos marcados como <span className="font-semibold text-foreground">Obligatorio</span>{" "}
+                    deben estar cargados para enviar. Los marcados como{" "}
+                    <span className="font-semibold text-foreground">Opcional</span> no bloquean el envío.
+                  </p>
+                </div>
+                <Badge
+                  className={`pointer-events-none shrink-0 text-[10px] ${
+                    obligatoriosCargados === DD_DOCUMENTOS_REQUERIDOS.length
+                      ? BADGE_STYLES.SUCCESS
+                      : BADGE_STYLES.WARNING
+                  }`}
+                >
+                  <span>{obligatoriosCargados} de {DD_DOCUMENTOS_REQUERIDOS.length} obligatorios</span>
+                </Badge>
               </div>
+
+              {documentosObligatoriosPendientes.length > 0 ? (
+                <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-foreground">
+                  <p className="font-semibold text-warning">
+                    {documentosObligatoriosPendientes.length === 1
+                      ? enSubsanacion
+                        ? "Falta 1 documento obligatorio por subsanar:"
+                        : "Falta 1 documento obligatorio:"
+                      : enSubsanacion
+                        ? `Faltan ${documentosObligatoriosPendientes.length} documentos obligatorios por subsanar:`
+                        : `Faltan ${documentosObligatoriosPendientes.length} documentos obligatorios:`}
+                  </p>
+                  <ul className="mt-1 list-inside list-disc space-y-0.5">
+                    {documentosObligatoriosPendientes.map((requisito) => (
+                      <li key={requisito.tipo}>{requisito.titulo}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : enSubsanacion ? (
+                <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs font-medium text-warning">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>Documentos obligatorios completos. Envía la subsanación para que Logística los revise.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 p-3 text-xs font-medium text-success">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>Todos los documentos obligatorios están cargados.</span>
+                </div>
+              )}
 
               <div className="space-y-3">
                 {documentosVisibles.map((requisito) => {
@@ -863,7 +1036,7 @@ export function DdWizard({
                   )].map((ext) => ext.toUpperCase()).join(", ");
                   const observado =
                     documento?.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO ||
-                    tiposObservados.has(requisito.tipo);
+                    (!documento && tiposObservados.has(requisito.tipo));
                   const obligatorio =
                     DD_DOCUMENTOS_REQUERIDOS.some((item) => item.tipo === requisito.tipo) ||
                     (requisito.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA &&
@@ -887,15 +1060,13 @@ export function DdWizard({
                                   <span className="ml-1 text-destructive" aria-label="Obligatorio">*</span>
                                 ) : null}
                               </p>
-                              {requisito.tipo === DD_DOCUMENTOS.DECLARACION_VIGENCIA ? (
-                                <Badge
-                                  className={`pointer-events-none text-[9px] ${
-                                    obligatorio ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL
-                                  }`}
-                                >
-                                  <span>{obligatorio ? "Obligatorio" : "Opcional"}</span>
-                                </Badge>
-                              ) : null}
+                              <Badge
+                                className={`pointer-events-none text-[9px] ${
+                                  obligatorio ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL
+                                }`}
+                              >
+                                <span>{obligatorio ? "Obligatorio" : "Opcional"}</span>
+                              </Badge>
                             </div>
                             <p className="mt-0.5 text-[11px] text-muted-foreground">{requisito.ayuda}</p>
                             <p className="mt-0.5 text-[10px] text-muted-foreground">
@@ -1030,12 +1201,12 @@ export function DdWizard({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-foreground">Resumen de documentos</span>
                   <span className="text-xs text-muted-foreground">
-                    {DD_DOCUMENTOS_REQUERIDOS.filter((d) => documentoDe(d.tipo)).length} de {DD_DOCUMENTOS_REQUERIDOS.length} cargados
+                    {obligatoriosCargados} de {DD_DOCUMENTOS_REQUERIDOS.length} obligatorios listos
                   </span>
                 </div>
                 <Progress
                   className="mt-2 h-1.5"
-                  value={(DD_DOCUMENTOS_REQUERIDOS.filter((d) => documentoDe(d.tipo)).length / DD_DOCUMENTOS_REQUERIDOS.length) * 100}
+                  value={(obligatoriosCargados / DD_DOCUMENTOS_REQUERIDOS.length) * 100}
                 />
               </div>
 

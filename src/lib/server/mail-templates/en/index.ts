@@ -619,6 +619,25 @@ export const plantillasEn: PlantillasEmail = {
     ),
   }),
 
+  "dd-subsanada": ({ codigo, razonSocial, observacionesRespondidas }) => ({
+    subject: `Due diligence corrected (${codigo}) - IIMP`,
+    html: envoltura(
+      "Due diligence corrected",
+      `
+        <p><strong>${esc(razonSocial)}</strong> resubmitted the observed documentation and is ready for a new review.</p>
+        <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
+          ${fila("File", esc(codigo))}
+          ${fila("Findings answered", String(observacionesRespondidas))}
+        </table>
+        <p style="font-size:13px;color:#475569">Review the new versions and record the final conclusion in the evaluation matrix.</p>
+        <div style="text-align:center;margin:20px 0">
+          <a href="${getAppUrl()}${DD_RUTAS.MATRIZ}" style="display:inline-block;background:#1b365d;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">Review in the matrix</a>
+        </div>
+      `,
+      PIE_EN,
+    ),
+  }),
+
   "documentos-observados": ({ standCodes, documentos, justificacion, url }) => ({
     subject: `Documents observed - request ${standCodes} - IIMP`,
     html: envoltura(

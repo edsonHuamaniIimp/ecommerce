@@ -64,14 +64,21 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_EVENTO_TODOS,
   DD_MENSAJES,
+  DD_TIPOS_DOCUMENTO_VINCULO,
   DD_IMPORT_EVENTO_TIPOS,
   DD_PER_PAGE_MAX,
   DD_RUTAS,
   PERMISSIONS,
+  REGEX_DNI,
+  REGEX_RUC,
   ROLES,
   type DdDocumentoTipo,
 } from "@/lib/shared/constants";
 import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import {
+  esEmpresaVinculada,
+  normalizarTipoDocumentoVinculo,
+} from "@/lib/shared/utils/debida-diligencia-v2";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 
@@ -443,6 +450,39 @@ export class DebidaDiligenciaApplicationService {
       throw new DomainError(mensaje, API_ERROR_CODES.CONFLICT, 409);
     }
 
+    for (const beneficiario of dto.beneficiarios) {
+      const tipoDocumento = normalizarTipoDocumentoVinculo(
+        beneficiario.tipoVinculoPersona,
+        beneficiario.tipoDocumento,
+        beneficiario.nacionalidad,
+      );
+      const documento = beneficiario.documento.trim();
+      if (
+        tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC &&
+        !esEmpresaVinculada(beneficiario.tipoVinculoPersona)
+      ) {
+        throw new DomainError(
+          "El RUC solo aplica a una empresa vinculada",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC && !REGEX_RUC.test(documento)) {
+        throw new DomainError(
+          "El RUC de la empresa vinculada debe tener 11 dígitos",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI && !REGEX_DNI.test(documento)) {
+        throw new DomainError(
+          "El DNI del vínculo debe tener 8 dígitos",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+    }
+
     const data: DdGuardarData = {
       tipoRelacionComercial: dto.tipoRelacionComercial,
       tipoRelacionComercialOtro: dto.tipoRelacionComercialOtro ?? null,
@@ -462,6 +502,11 @@ export class DebidaDiligenciaApplicationService {
         orden: indice,
         nombre: b.nombre,
         documento: b.documento,
+        tipoDocumento: normalizarTipoDocumentoVinculo(
+          b.tipoVinculoPersona,
+          b.tipoDocumento,
+          b.nacionalidad,
+        ),
         nacionalidad: b.nacionalidad,
         porcentaje: b.porcentaje,
         tipoVinculoPersona: b.tipoVinculoPersona ?? null,
@@ -655,6 +700,12 @@ export class DebidaDiligenciaApplicationService {
         codigo: actualizado.codigo,
         razonSocial: actualizado.empresa.razonSocial,
         motivo: "El cliente subsanó la observación de Legal.",
+      });
+    } else if (esReenvio) {
+      await this.notificaciones.notificarReenvioLogistica({
+        codigo: actualizado.codigo,
+        razonSocial: actualizado.empresa.razonSocial,
+        observacionesRespondidas: observacionesAbiertas,
       });
     }
 
@@ -1336,6 +1387,11 @@ export class DebidaDiligenciaApplicationService {
         orden,
         nombre: beneficiario.nombre,
         documento: beneficiario.documento,
+        tipoDocumento: normalizarTipoDocumentoVinculo(
+          beneficiario.tipoVinculoPersona,
+          beneficiario.tipoDocumento,
+          beneficiario.nacionalidad,
+        ),
         nacionalidad: beneficiario.nacionalidad,
         porcentaje: beneficiario.porcentaje,
         tipoVinculoPersona: beneficiario.tipoVinculoPersona ?? null,

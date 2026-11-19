@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { DD_MATRIZ_RESULTADOS_FINALES, DD_TIPOS_VINCULO_PERSONA } from "@/lib/shared/constants";
+import {
+  DD_MATRIZ_RESULTADOS_FINALES,
+  DD_TIPOS_DOCUMENTO_VINCULO,
+  DD_TIPOS_VINCULO_PERSONA,
+} from "@/lib/shared/constants";
 import {
   calcularResultadoEmpresa,
   calcularVigenciaHasta,
   empresaBloqueadaPorRelaciones,
+  esEmpresaVinculada,
+  normalizarTipoDocumentoVinculo,
   porcentajeParticipacionValido,
   requierePorcentajeParticipacion,
+  tipoDocumentoPredeterminadoVinculo,
+  tipoDocumentoVinculoConConsulta,
 } from "@/lib/shared/utils/debida-diligencia-v2";
 
 describe("requierePorcentajeParticipacion", () => {
@@ -47,6 +55,76 @@ describe("porcentajeParticipacionValido", () => {
   it("rechaza porcentajes fuera de rango", () => {
     expect(porcentajeParticipacionValido(DD_TIPOS_VINCULO_PERSONA.GERENTE, 101)).toBe(false);
     expect(porcentajeParticipacionValido(DD_TIPOS_VINCULO_PERSONA.SOCIO_10, -1)).toBe(false);
+  });
+});
+
+describe("tipo de documento del vínculo", () => {
+  it("usa RUC fijo para empresa vinculada y DNI por defecto para personas", () => {
+    expect(esEmpresaVinculada(DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA)).toBe(true);
+    expect(esEmpresaVinculada(DD_TIPOS_VINCULO_PERSONA.GERENTE)).toBe(false);
+    expect(
+      tipoDocumentoPredeterminadoVinculo(DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA),
+    ).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUC);
+    expect(tipoDocumentoPredeterminadoVinculo(DD_TIPOS_VINCULO_PERSONA.GERENTE)).toBe(
+      DD_TIPOS_DOCUMENTO_VINCULO.DNI,
+    );
+  });
+
+  it("normaliza empresa a RUC y conserva el tipo declarado", () => {
+    expect(
+      normalizarTipoDocumentoVinculo(
+        DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA,
+        DD_TIPOS_DOCUMENTO_VINCULO.DNI,
+      ),
+    ).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUC);
+    expect(
+      normalizarTipoDocumentoVinculo(
+        DD_TIPOS_VINCULO_PERSONA.GERENTE,
+        DD_TIPOS_DOCUMENTO_VINCULO.RUC,
+      ),
+    ).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUC);
+    expect(
+      normalizarTipoDocumentoVinculo(
+        DD_TIPOS_VINCULO_PERSONA.DIRECTOR,
+        DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE,
+      ),
+    ).toBe(DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE);
+  });
+
+  it("infiere pasaporte para extranjeros sin tipo declarado", () => {
+    expect(
+      normalizarTipoDocumentoVinculo(DD_TIPOS_VINCULO_PERSONA.DIRECTOR, null, "Chile"),
+    ).toBe(DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE);
+    expect(
+      normalizarTipoDocumentoVinculo(DD_TIPOS_VINCULO_PERSONA.DIRECTOR, null, "Perú"),
+    ).toBe(DD_TIPOS_DOCUMENTO_VINCULO.DNI);
+  });
+
+  it("solo habilita consulta para DNI o RUC", () => {
+    expect(
+      tipoDocumentoVinculoConConsulta(
+        DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA,
+        DD_TIPOS_DOCUMENTO_VINCULO.RUC,
+      ),
+    ).toBe("RUC");
+    expect(
+      tipoDocumentoVinculoConConsulta(
+        DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL,
+        DD_TIPOS_DOCUMENTO_VINCULO.DNI,
+      ),
+    ).toBe("DNI");
+    expect(
+      tipoDocumentoVinculoConConsulta(
+        DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL,
+        DD_TIPOS_DOCUMENTO_VINCULO.CARNE_EXTRANJERIA,
+      ),
+    ).toBeNull();
+    expect(
+      tipoDocumentoVinculoConConsulta(
+        DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL,
+        DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE,
+      ),
+    ).toBeNull();
   });
 });
 

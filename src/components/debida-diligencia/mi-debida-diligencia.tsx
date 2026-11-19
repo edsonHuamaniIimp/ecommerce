@@ -33,7 +33,7 @@ import {
   Clock,
   FileText,
   History,
-  Map,
+  Map as MapIcon,
   Mail,
   RefreshCw,
   ShieldCheck,
@@ -103,6 +103,19 @@ export function MiDebidaDiligencia() {
     const documento = expediente?.documentos.find((item) => item.tipo === observacion.documentoTipo);
     return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
   });
+  const observacionesAgrupadas = useMemo(
+    () => ddUtils.agruparObservacionesPorComentario(observacionesAbiertas).map((grupo) => ({
+      ...grupo,
+      documentos: grupo.documentos.map((tipo) => ({
+        tipo,
+        titulo: DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ?? tipo,
+      })),
+    })),
+    [observacionesAbiertas],
+  );
+  const documentosObservadosCount = new Set(
+    observacionesAbiertas.flatMap((observacion) => observacion.documentoTipo ? [observacion.documentoTipo] : []),
+  ).size;
   const vigencia = useMemo(() => {
     if (!expediente || expediente.estado !== DD_ESTADOS.APROBADA) return null;
     const transcurridos = Math.max(0, Math.min(DD_VIGENCIA_MESES, dateUtils.monthsBetween(expediente.fechaAprobacion, dateUtils.now()) ?? 0));
@@ -137,7 +150,9 @@ export function MiDebidaDiligencia() {
         fecha: observado ? expediente.fechaRevision : null,
         estado: observado ? "alerta" : revisado ? "completado" : "pendiente",
         detalle: observado
-          ? `${observacionesAbiertas.length} observación(es) por corregir.`
+          ? documentosObservadosCount > 0
+            ? `${documentosObservadosCount} documento(s) observado(s) por corregir.`
+            : `${observacionesAgrupadas.length} observación(es) por corregir.`
           : revisado
             ? "No se registraron observaciones."
             : "Se mostrarán aquí si las hubiera.",
@@ -157,7 +172,7 @@ export function MiDebidaDiligencia() {
             : "Pendiente de aprobación.",
       },
     ];
-  }, [expediente, observacionesAbiertas.length]);
+  }, [expediente, observacionesAbiertas.length, observacionesAgrupadas.length, documentosObservadosCount]);
 
   const cargandoVista = cargando || (Boolean(eventoId) && loading && data === null);
   const ddVencida =
@@ -426,14 +441,16 @@ export function MiDebidaDiligencia() {
               <Card>
                 <CardHeader className="border-b border-border pb-4">
                   <CardTitle>
-                    <span className="text-base font-bold text-primary">Observaciones ({observacionesAbiertas.length})</span>
+                    <span className="text-base font-bold text-primary">Observaciones ({observacionesAgrupadas.length})</span>
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Corrige los documentos observados y vuelve a enviar tu expediente.
+                    {documentosObservadosCount > 0
+                      ? `Corrige ${documentosObservadosCount} documento(s) observado(s) y vuelve a enviar tu expediente.`
+                      : "Revisa las observaciones y vuelve a enviar tu expediente."}
                   </p>
                 </CardHeader>
                 <CardContent className="space-y-3 pt-4">
-                  {observacionesAbiertas.map((observacion) => (
+                  {observacionesAgrupadas.map((observacion) => (
                     <div key={observacion.id} className="rounded-lg border border-warning/40 border-l-[3px] border-l-warning bg-warning/5 p-3">
                       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                         <span className="font-semibold text-warning">{DD_OBSERVACION_AREA_LABELS[observacion.area] ?? observacion.area}</span>
@@ -441,13 +458,18 @@ export function MiDebidaDiligencia() {
                         <span>{dateUtils.format(observacion.createdAt)}</span>
                       </div>
                       <p className="mt-1 text-xs text-foreground">{observacion.texto}</p>
-                      {observacion.documentoTipo ? (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          Documento: {DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === observacion.documentoTipo)?.titulo ?? observacion.documentoTipo}
-                        </p>
+                      {observacion.documentos.length > 0 ? (
+                        <div className="mt-1 text-[11px] text-muted-foreground">
+                          <span className="font-semibold text-foreground">
+                            Documento{observacion.documentos.length === 1 ? "" : "s"}:
+                          </span>{" "}
+                          {observacion.documentos.map((documento) => documento.titulo).join(", ")}
+                        </div>
                       ) : null}
                       <Button asChild variant="link" size="sm" className="mt-1 h-auto p-0 text-[11px] text-primary">
-                        <Link href={DD_RUTAS.FORMULARIO}>Corregir documento</Link>
+                        <Link href={DD_RUTAS.FORMULARIO}>
+                          {observacion.documentos.length === 1 ? "Corregir documento" : "Corregir documentos"}
+                        </Link>
                       </Button>
                     </div>
                   ))}
@@ -557,7 +579,7 @@ export function MiDebidaDiligencia() {
                 </p>
                 <Button asChild variant="outline" size="sm" className="w-full gap-1.5 text-xs">
                   <Link href="/mapa">
-                    <Map className="h-3.5 w-3.5" />
+                    <MapIcon className="h-3.5 w-3.5" />
                     <span>Ir al plano de stands</span>
                   </Link>
                 </Button>
@@ -589,40 +611,46 @@ export function MiDebidaDiligencia() {
       />
 
       <Dialog open={documentosOpen} onOpenChange={setDocumentosOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] w-[calc(100vw-2rem)] overflow-hidden sm:max-w-2xl">
           <DialogHeader className="text-left">
             <DialogTitle className="text-base font-semibold">Documentos enviados</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[60vh] overflow-y-auto">
-            <Table>
+          <div className="min-h-0 overflow-auto">
+            <Table className="w-full table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px] uppercase tracking-wide">Documento</TableHead>
-                  <TableHead className="text-[10px] uppercase tracking-wide">Estado</TableHead>
-                  <TableHead className="text-right text-[10px] uppercase tracking-wide">Archivo</TableHead>
+                  <TableHead className="w-[52%] text-[10px] uppercase tracking-wide">Documento</TableHead>
+                  <TableHead className="w-[16%] text-[10px] uppercase tracking-wide">Estado</TableHead>
+                  <TableHead className="w-[32%] text-right text-[10px] uppercase tracking-wide">Archivo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {expediente?.documentos.map((documento) => (
                   <TableRow key={documento.id}>
-                    <TableCell className="max-w-[220px] text-xs">
-                      <span className="block font-medium text-foreground">
+                    <TableCell className="min-w-0 whitespace-normal align-top text-xs">
+                      <span className="block break-words font-medium text-foreground">
                         {DD_DOCUMENTOS_REQUERIDOS.find((d) => d.tipo === documento.tipo)?.titulo ?? documento.tipo}
                       </span>
-                      <span className="truncate text-[11px] text-muted-foreground">{documento.nombre}</span>
+                      <span
+                        className="block max-w-full truncate text-[11px] text-muted-foreground"
+                        title={documento.nombre}
+                      >
+                        {documento.nombre}
+                      </span>
                       {documento.versiones.length > 1 ? (
-                        <details className="mt-1">
+                        <details className="mt-1 min-w-0">
                           <summary className="cursor-pointer text-[10px] font-semibold text-primary">
                             Versiones ({documento.versiones.length})
                           </summary>
                           <ul className="mt-1 space-y-0.5">
                             {documento.versiones.map((version) => (
-                              <li key={version.id}>
+                              <li key={version.id} className="min-w-0">
                                 <Button
                                   type="button"
                                   variant="link"
                                   size="sm"
-                                  className="h-auto max-w-[190px] justify-start truncate p-0 text-[10px]"
+                                  className="h-auto w-full max-w-full justify-start truncate p-0 text-left text-[10px]"
+                                  title={`v${version.version} · ${version.nombre}`}
                                   onClick={() =>
                                     setPreviewDocumento({
                                       url: version.url,
@@ -638,8 +666,10 @@ export function MiDebidaDiligencia() {
                         </details>
                       ) : null}
                     </TableCell>
-                    <TableCell><DdDocumentoBadge estado={documento.estado} /></TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="align-top">
+                      <DdDocumentoBadge estado={documento.estado} />
+                    </TableCell>
+                    <TableCell className="text-right align-top">
                       <Button
                         type="button"
                         variant="ghost"

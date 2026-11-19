@@ -11,14 +11,17 @@
   DD_ORIGENES,
   DD_RESULTADOS,
   DD_PORCENTAJE_MAX,
+  REGEX_DNI,
   REGEX_EMAIL,
   REGEX_NACIONALIDAD,
+  REGEX_RUC,
   DD_ESTADO_SIN_INICIAR_LABEL,
   DD_REPUTACION_ESTADO_LABELS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_TIPOS,
   DD_REPUTACION_RESULTADOS,
   DD_REPUTACION_RESULTADO_A_ESTADO,
+  DD_TIPOS_DOCUMENTO_VINCULO,
   DD_VIGENCIA_MESES,
   DD_VINCULO_LABELS,
   DD_VINCULOS,
@@ -30,6 +33,10 @@
   type DdReputacionTipo,
   type DdResultado,
 } from "@/lib/shared/constants";
+import {
+  esEmpresaVinculada,
+  normalizarTipoDocumentoVinculo,
+} from "./debida-diligencia-v2";
 import { dateUtils } from "./date";
 
 /** Resultado de vigencia calculado (no es un estado persistido). */
@@ -107,7 +114,14 @@ export const ddUtils = {
     representanteNombre: string;
     representanteDocumento: string;
     representanteNacionalidad: string;
-    beneficiarios: { nombre: string; documento: string; nacionalidad: string; porcentaje: string; tipoVinculoPersona?: string }[];
+    beneficiarios: {
+      nombre: string;
+      documento: string;
+      tipoDocumento?: string;
+      nacionalidad: string;
+      porcentaje: string;
+      tipoVinculoPersona?: string;
+    }[];
   }): string | null {
     if (!datos.representanteNombre.trim()) return "Ingrese el nombre del representante legal.";
     if (!datos.representanteDocumento.trim()) return "Ingrese el documento del representante legal.";
@@ -122,12 +136,33 @@ export const ddUtils = {
       if (
         !beneficiario.nombre.trim() ||
         !beneficiario.documento.trim() ||
+        !beneficiario.tipoDocumento?.trim() ||
         !beneficiario.nacionalidad.trim()
       ) {
         return `Complete los datos del beneficiario ${indice + 1}.`;
       }
       if (!REGEX_NACIONALIDAD.test(beneficiario.nacionalidad.trim())) {
         return `Ingrese una nacionalidad válida para el beneficiario ${indice + 1}.`;
+      }
+      const tipoDocumento =
+        beneficiario.tipoDocumento?.trim() ||
+        normalizarTipoDocumentoVinculo(
+          beneficiario.tipoVinculoPersona,
+          null,
+          beneficiario.nacionalidad,
+        );
+      const empresaVinculada = esEmpresaVinculada(beneficiario.tipoVinculoPersona);
+      if (empresaVinculada && tipoDocumento !== DD_TIPOS_DOCUMENTO_VINCULO.RUC) {
+        return `La empresa vinculada ${indice + 1} debe identificarse con RUC.`;
+      }
+      if (!empresaVinculada && tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC) {
+        return `El RUC solo aplica a una empresa vinculada (${indice + 1}).`;
+      }
+      if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI && !REGEX_DNI.test(beneficiario.documento.trim())) {
+        return `El DNI del beneficiario ${indice + 1} debe tener 8 dígitos.`;
+      }
+      if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC && !REGEX_RUC.test(beneficiario.documento.trim())) {
+        return `El RUC de la empresa vinculada ${indice + 1} debe tener 11 dígitos.`;
       }
       const porcentaje = beneficiario.porcentaje.trim() ? Number(beneficiario.porcentaje) : 0;
       if (Number.isNaN(porcentaje) || porcentaje < 0 || porcentaje > DD_PORCENTAJE_MAX) {
@@ -148,7 +183,10 @@ export const ddUtils = {
       return DD_MENSAJES.DECLARACION_JURADA_OBLIGATORIA;
     }
     if (faltantes.length > 0) {
-      return DD_MENSAJES.DOCUMENTOS_OBLIGATORIOS;
+      const titulos = faltantes
+        .map((tipo) => DD_DOCUMENTOS_REQUERIDOS.find((documento) => documento.tipo === tipo)?.titulo ?? tipo)
+        .join(", ");
+      return `Faltan documentos obligatorios: ${titulos}.`;
     }
     if (
       datos.requiereDeclaracionVigencia &&
@@ -354,6 +392,53 @@ export const ddUtils = {
   documentosFaltantes(documentos: { tipo: string }[]): DdDocumentoTipo[] {
     const cargados = new Set(documentos.map((d) => d.tipo));
     return DD_DOCUMENTOS_REQUERIDOS.map((d) => d.tipo).filter((tipo) => !cargados.has(tipo));
+  },
+
+  /**
+   * Agrupa observaciones que comparten área y comentario. La observación por
+   * documento se conserva para la subsanación; la UI muestra el comentario una vez.
+   */
+  agruparObservacionesPorComentario(
+    observaciones: readonly {
+      id: string;
+      area: string;
+      texto: string;
+      createdAt: Date | string;
+      documentoTipo?: string | null;
+    }[],
+  ): {
+    id: string;
+    area: string;
+    texto: string;
+    createdAt: Date | string;
+    documentos: string[];
+  }[] {
+    const grupos = new Map<string, {
+      id: string;
+      area: string;
+      texto: string;
+      createdAt: Date | string;
+      documentos: Set<string>;
+    }>();
+    for (const observacion of observaciones) {
+      const clave = `${observacion.area}::${observacion.texto.trim()}`;
+      const grupo = grupos.get(clave);
+      if (grupo) {
+        if (observacion.documentoTipo) grupo.documentos.add(observacion.documentoTipo);
+        continue;
+      }
+      grupos.set(clave, {
+        id: observacion.id,
+        area: observacion.area,
+        texto: observacion.texto,
+        createdAt: observacion.createdAt,
+        documentos: new Set(observacion.documentoTipo ? [observacion.documentoTipo] : []),
+      });
+    }
+    return [...grupos.values()].map((grupo) => ({
+      ...grupo,
+      documentos: [...grupo.documentos],
+    }));
   },
 
   /** Errores que impiden enviar el expediente a revision. */
