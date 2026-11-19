@@ -1,4 +1,4 @@
-import { ESTADOS_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_PAGO_SOLICITUD } from "@/lib/shared/constants";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 
 /**
@@ -14,7 +14,9 @@ export async function habilitarOrdenPagoAutomatica(
   try {
     const detalle = await solicitudes.detalle(solicitudId);
     if (!detalle) return;
-    if (detalle.estado === ESTADOS_SOLICITUD.PENDIENTE_PAGO || detalle.estado === ESTADOS_SOLICITUD.PAGADO) return;
+    /* Un pago ya cerrado no se reabre. Si esta pendiente, marcarOrdenPago
+     * completa/crea la Facturacion de forma idempotente. */
+    if (detalle.estadoPago === ESTADOS_PAGO_SOLICITUD.PAGADO) return;
     await solicitudes.marcarOrdenPago(solicitudId);
   } catch (err) {
     console.error(

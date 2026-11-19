@@ -687,6 +687,7 @@ export const solicitudesController = {
       permitirAnexosIniciales: raw.permitirAnexosIniciales === true,
       firmaDigital: raw.firmaDigital === true,
       subirFirmaAsociado: raw.subirFirmaAsociado === true,
+      subirContratoAsociado: raw.subirContratoAsociado === true,
       sgcObservationId: raw.sgcObservationId ?? null,
       sgcDocumentId: raw.sgcDocumentId ?? null,
       sgcTitle: raw.sgcTitle ?? null,

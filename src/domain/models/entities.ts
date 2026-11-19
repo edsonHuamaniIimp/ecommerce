@@ -283,6 +283,8 @@ export interface SolicitudRow {
   empresaMontajistaId?: string | null;
   empresaMontajistaNombre?: string | null;
   estado: string | null;
+  /** Estado de pago/facturacion, independiente del flujo/revision. */
+  estadoPago?: string | null;
   estadoSolicitud: string;
   flgActivo: boolean;
   /** El revisor habilito la firma del contrato para el cliente. */

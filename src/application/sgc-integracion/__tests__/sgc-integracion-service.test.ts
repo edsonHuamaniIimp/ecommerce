@@ -322,11 +322,11 @@ describe("SgcIntegracionApplicationService.aprobarBypass", () => {
     expect(ok).toBe(true);
     expect(vi.mocked(solicitudes.marcarOrdenPago)).toHaveBeenCalledWith("sol-1");
   });
-  it("deberia no regenerar la orden de pago si la solicitud ya esta pendiente de pago", async () => {
+  it("deberia completar la orden de pago si esta pendiente y aun no existe facturacion", async () => {
     const solicitudes = solicitudRepoMock(detalle({ estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO }));
     const svc = build(solicitudes);
     await svc.aprobarBypass("sol-1", "admin@iimp.org.pe");
-    expect(vi.mocked(solicitudes.marcarOrdenPago)).not.toHaveBeenCalled();
+    expect(vi.mocked(solicitudes.marcarOrdenPago)).toHaveBeenCalledWith("sol-1");
   });
   it("deberia no lanzar ni revertir el bypass si la orden de pago falla (best-effort)", async () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});

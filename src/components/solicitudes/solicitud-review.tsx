@@ -17,6 +17,7 @@ import {
   SGC_LIFECYCLE_STATUSES,
   SGC_SUBSANACION_MODOS,
   ESTADOS_SOLICITUD,
+  ESTADOS_PAGO_SOLICITUD,
   ESTADOS_DOCUMENTO_SOLICITUD,
   ESTADOS_DOCUMENTO_SOLICITUD_LABELS,
   ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID,
@@ -472,7 +473,7 @@ export function SolicitudReview({
     row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
   // Con el contrato ya enviado al SGC no se ofrece reemplazarlo hasta que lo devuelva/rechace.
   const puedeReemplazarContrato = !row.sgcDocumentosEnviados || sgcSubsanable;
-  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
+  const puedeOrdenPago = !ddAccionesBloqueadas && todasAprobadas && row.estadoPago !== ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO && puedeGenerarOrdenPago(requiereSgc, row.sgcLifecycleStatus);
 
   // Linear flow: can only go to step N if step N-1 is done
   const stepCanGo = (step: number): boolean => {

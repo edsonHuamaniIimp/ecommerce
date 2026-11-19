@@ -878,6 +878,22 @@ export const ESTADOS_SOLICITUD = {
   PAGADO: "pagado",
 } as const;
 
+/**
+ * Estado de pago/facturacion de la solicitud. Es independiente del estado de
+ * flujo/revision: una solicitud puede estar observada por SGC y seguir pagada.
+ */
+export const ESTADOS_PAGO_SOLICITUD = {
+  PENDIENTE_PAGO: "pendiente_pago",
+  PAGADO: "pagado",
+} as const;
+
+export type EstadoPagoSolicitud = (typeof ESTADOS_PAGO_SOLICITUD)[keyof typeof ESTADOS_PAGO_SOLICITUD];
+
+export const ESTADOS_PAGO_SOLICITUD_LABELS: Record<EstadoPagoSolicitud, string> = {
+  [ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO]: "Pendiente Pago",
+  [ESTADOS_PAGO_SOLICITUD.PAGADO]: "Pagado",
+};
+
 export type EstadoSolicitud = (typeof ESTADOS_SOLICITUD)[keyof typeof ESTADOS_SOLICITUD];
 
 /** Etiquetas por defecto de los estados de solicitud (la maestra puede sobreescribirlas). */

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { prisma } from "@/lib/server/db";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
-import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_SOLICITUD, REQUERIMIENTOS_FACTURACION } from "@/lib/shared/constants";
+import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_PAGO_SOLICITUD, REQUERIMIENTOS_FACTURACION } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type {
   IFacturacionRepository,
@@ -331,7 +331,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     await prisma.facturacion.update({ where: { id: facturacionId }, data: { estado: ESTADOS_FACTURACION.PAGADO } });
     const facturacion = await prisma.facturacion.findUnique({ where: { id: facturacionId }, select: { solicitudId: true } });
     if (facturacion) {
-      await prisma.solicitud.update({ where: { id: facturacion.solicitudId }, data: { estado: ESTADOS_SOLICITUD.PAGADO } });
+      await prisma.solicitud.update({ where: { id: facturacion.solicitudId }, data: { estadoPago: ESTADOS_PAGO_SOLICITUD.PAGADO } });
     }
     await prisma.facturacionHistorial.create({
       data: { facturacionId, accion: ACCIONES_FACTURACION.ACTUALIZAR, detalle: "Facturacion marcada como pagada (todas las cuotas pagadas)", createdBy },

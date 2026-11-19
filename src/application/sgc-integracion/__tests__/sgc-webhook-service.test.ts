@@ -16,6 +16,7 @@ import type {
   SgcWebhookPayload,
 } from "@/domain/models/sgc";
 import {
+  ESTADOS_PAGO_SOLICITUD,
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
   SGC_ESTADO_ENVIO,
@@ -268,11 +269,15 @@ describe("SgcWebhookApplicationService.procesar", () => {
 
     expect(vi.mocked(solicitudes.marcarOrdenPago)).toHaveBeenCalledWith("sol-1");
   });
-  it("deberia no regenerar la orden de pago si la solicitud ya esta pendiente de pago o pagada", async () => {
+  it("deberia no regenerar la orden de pago si la solicitud ya esta pagada", async () => {
     const repo = webhookRepoMock();
     const sgcRepo = sgcRepoMock();
     const solicitudes = {
-      detalle: vi.fn().mockResolvedValue({ id: "sol-1", estado: "pendiente_pago" }),
+      detalle: vi.fn().mockResolvedValue({
+        id: "sol-1",
+        estado: "aprobado",
+        estadoPago: ESTADOS_PAGO_SOLICITUD.PAGADO,
+      }),
       marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
     } as unknown as ISolicitudesRepository;
     const svc = build(repo, sgcRepo, CONFIG, solicitudes);

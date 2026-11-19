@@ -7,7 +7,7 @@ import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { IConfiguracionRepository } from "@/domain/ports/configuracion-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
-import { ADMIN_USER_ID, API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MAX_CUOTAS_PERSONALIZADAS, MAX_RESERVA_ADMIN_STANDS, MODOS_PAGO, MONEDAS, PERMISSIONS, ROLES_REVISION_ASOCIADO, TIPOS_COMPROBANTE, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA, TIPOS_SOLICITUD, type TipoDescuento, type TipoDescuentoGlobal } from "@/lib/shared/constants";
+import { ADMIN_USER_ID, API_ERROR_CODES, ESTADOS_EMPRESA, ESTADOS_PAGO_SOLICITUD, ESTADOS_SOLICITUD, ESTADOS_STAND, ESTADOS_STAND_LEGACY, IDIOMA_DEFAULT, MAX_CUOTAS_PERSONALIZADAS, MAX_RESERVA_ADMIN_STANDS, MODOS_PAGO, MONEDAS, PERMISSIONS, ROLES_REVISION_ASOCIADO, TIPOS_COMPROBANTE, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA, TIPOS_SOLICITUD, type TipoDescuento, type TipoDescuentoGlobal } from "@/lib/shared/constants";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
 import { isSgcEnabled } from "@/lib/server/sgc-config";
 import { esEmpresaDuenaPreReserva } from "@/lib/shared/utils/estado-stand";
@@ -156,7 +156,7 @@ export class ReservaApplicationService {
     descuentosPorStand?: Array<{ standId: string; tipo: TipoDescuentoGlobal; valor: number }>;
     cuotas: Array<{ porcentaje: number; fechaVencimiento: string }>;
     actorEmail: string;
-  }): Promise<{ ok: boolean; message: string; solicitudId?: string; estado?: string }> {
+  }): Promise<{ ok: boolean; message: string; solicitudId?: string; estado?: string; estadoPago?: string }> {
     if (!this.empresaRepo) {
       throw new DomainError("No esta configurado el repositorio de empresas", API_ERROR_CODES.INTERNAL, 500);
     }
@@ -291,6 +291,13 @@ export class ReservaApplicationService {
     });
     await this.solicitudesRepo.habilitarContrato(result.solicitudId);
 
+    /*
+     * La reserva administrativa nace con el pago pendiente y su Facturacion
+     * creada para que sea visible en /dashboard/facturacion. El flujo de
+     * revision/SGC queda separado en `estado`.
+     */
+    await this.solicitudesRepo.marcarOrdenPago(result.solicitudId);
+
     for (const standId of input.standIds) {
       await this.gessRepo.update(standId, { estado: ESTADOS_STAND.RESERVADO } as never);
     }
@@ -298,6 +305,7 @@ export class ReservaApplicationService {
     return {
       ...result,
       estado: ESTADOS_SOLICITUD.PENDIENTE,
+      estadoPago: ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO,
     };
   }
 

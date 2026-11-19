@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, PaisConteo, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_TIPO, normalizarCategorias } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_PAGO_SOLICITUD, ESTADOS_FACTURACION, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_TIPO, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { observadaPorArea } from "@/lib/shared/utils/revision-areas";
@@ -369,6 +369,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     empresaMontajistaId,
     empresaMontajistaNombre,
     estado,
+    estadoPago: row.estadoPago ?? null,
     recortePlanoUrl: row.recortePlanoUrl ?? null,
     planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
     iimpContrato: row.iimpContrato ?? null,
@@ -944,9 +945,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     await prisma.$transaction(async (tx) => {
       const sol = await tx.solicitud.findUnique({
         where: { id: solicitudId },
-        select: { gessStandId: true, planCuotas: true, moneda: true, tipoCambio: true },
+        select: { gessStandId: true, planCuotas: true, moneda: true, tipoCambio: true, estadoPago: true },
       });
       if (!sol) throw new Error("Solicitud no encontrada");
+      /* Un pago confirmado es terminal para el estado de pago. */
+      if (sol.estadoPago === ESTADOS_PAGO_SOLICITUD.PAGADO) return;
 
       const stands = sol.gessStandId
         ? await tx.gessStand.findMany({ where: { id: sol.gessStandId } })
@@ -969,9 +972,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         : convertirNeto(montoBaseUsd, moneda, tipoCambio);
 
       const monedaFacturacion = simboloMoneda(moneda);
-      await tx.solicitud.update({ where: { id: solicitudId }, data: { estado: ESTADOS_SOLICITUD.PENDIENTE_PAGO } });
-
       const existing = await tx.facturacion.findFirst({ where: { solicitudId, flgActivo: true } });
+      if (existing?.estado === ESTADOS_FACTURACION.PAGADO) return;
+      await tx.solicitud.update({ where: { id: solicitudId }, data: { estadoPago: ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO } });
       const facturacion = existing
         ? await tx.facturacion.update({ where: { id: existing.id }, data: { montoTotal, moneda: monedaFacturacion } })
         : await tx.facturacion.create({

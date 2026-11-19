@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
@@ -16,7 +16,7 @@ import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
-import { TIPOS_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_PAGO_SOLICITUD, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 
 /** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
 function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null; configCuotas?: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null } | null = null): IAuthRepository {
@@ -552,8 +552,9 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
       }),
     }));
     expect(solicitudesRepo.habilitarContrato).toHaveBeenCalledWith("sol-1");
-    expect(solicitudesRepo.marcarOrdenPago).not.toHaveBeenCalled();
+    expect(solicitudesRepo.marcarOrdenPago).toHaveBeenCalledWith("sol-1");
     expect(res.estado).toBe("pendiente");
+    expect(res.estadoPago).toBe(ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO);
   });
 
   it("aplica descuento fijo exacto y lo guarda en el snapshot", async () => {

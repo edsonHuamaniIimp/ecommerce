@@ -557,6 +557,8 @@ model Solicitud {
   iimpReservaAt       DateTime? @map("iimp_reserva_at")
   flgActivo           Boolean   @default(true) @map("flg_activo")
   estado              String?   @db.VarChar(20)
+  /// Estado de pago/facturacion independiente del flujo: `pendiente_pago` | `pagado`.
+  estadoPago          String?   @map("estado_pago") @db.VarChar(20)
   /// Habilitador del revisor: muestra al cliente la firma del contrato posterior.
   contratoHabilitado  Boolean   @default(false) @map("contrato_habilitado")
   /// Auditoria de la ultima creacion/actualizacion de la solicitud.
@@ -577,6 +579,7 @@ model Solicitud {
 
   @@index([gessStandId])
   @@index([initialUserId])
+  @@index([estadoPago])
   @@map("solicitud")
 }
 

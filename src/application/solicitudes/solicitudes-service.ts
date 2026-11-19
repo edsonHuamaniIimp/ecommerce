@@ -393,8 +393,13 @@ export class SolicitudesApplicationService {
      * firmado en nombre del cliente, se sigue el flujo regular por SGC antes de
      * generar la orden de pago.
      */
-    if (aprobacionAsociadoReservaEmpresa && !flujoSgcIniciado) {
-      if (detalleActual?.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO) {
+    /*
+     * Toda reserva administrativa requiere la aprobacion del Asociado y luego
+     * pasa por SGC, incluso si el cliente firmo digitalmente. Solo el modo sin
+     * SGC conserva el paso directo a facturacion.
+     */
+    if (aprobacionAsociadoReservaEmpresa && !isSgcEnabled()) {
+      if (!detalleActual?.tieneFacturacion) {
         await this.repo.marcarOrdenPago(data.solicitudId);
       }
       return revision;
@@ -406,7 +411,7 @@ export class SolicitudesApplicationService {
       data.estado === RESULTADOS_APROBACION.APROBADO &&
       revision.estadoAnterior !== RESULTADOS_APROBACION.APROBADO;
     const requiereSgcPorFirmaAsociado =
-      aprobacionAsociadoReservaEmpresa && flujoSgcIniciado && aprobacionNueva;
+      aprobacionAsociadoReservaEmpresa && aprobacionNueva;
     if ((sgcHabilitado && aprobacionNueva) || requiereSgcPorFirmaAsociado) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
       /* Envio automatico al SGC (contrato + anexos + revision): el admin ya no necesita pulsar
@@ -722,6 +727,8 @@ export class SolicitudesApplicationService {
     firmaDigital?: boolean;
     /** El Asociado carga el contrato firmado en nombre del cliente (flujo alterno). */
     subirFirmaAsociado?: boolean;
+    /** El Asociado carga la version corregida del contrato tras una observacion SGC. */
+    subirContratoAsociado?: boolean;
     /** Observacion exacta del SGC que corrige este archivo. */
     sgcObservationId?: string | null;
     /** Documento del SGC a versionar; null = documento nuevo requerido. */
@@ -734,7 +741,8 @@ export class SolicitudesApplicationService {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
     const isAsociado = params.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
     const esCargaFirmaAsociado = params.subirFirmaAsociado === true;
-    const detalle = !isAdmin || esCargaFirmaAsociado
+    const esCargaContratoAsociado = params.subirContratoAsociado === true;
+    const detalle = !isAdmin || esCargaFirmaAsociado || esCargaContratoAsociado
       ? await this.repo.detalle(params.solicitudId)
       : null;
 
@@ -743,7 +751,7 @@ export class SolicitudesApplicationService {
      * paso Legal (SGC) y aun no se hayan enviado documentos al SGC. El admin no
      * tiene esta restriccion (adjunta el contrato v1 / anexos en el paso Legal).
      */
-    if (!isAdmin && !esCargaFirmaAsociado) {
+    if (!isAdmin && !esCargaFirmaAsociado && !esCargaContratoAsociado) {
       if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
       if (detalle.userId !== params.userSub) {
         throw new DomainError("No puedes adjuntar documentos a esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
@@ -839,6 +847,48 @@ export class SolicitudesApplicationService {
           API_ERROR_CODES.VALIDATION,
           400,
         );
+      }
+    }
+
+    if (esCargaContratoAsociado) {
+      if (!isAsociado && !isAdmin) {
+        throw new DomainError(
+          "Solo el Asociado puede subir el contrato corregido en nombre del administrador",
+          API_ERROR_CODES.FORBIDDEN,
+          403,
+        );
+      }
+      if (tipoValido !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
+        throw new DomainError("La correccion del Asociado solo admite el contrato", API_ERROR_CODES.VALIDATION, 400);
+      }
+      if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+      if (detalle.tipo !== TIPOS_SOLICITUD.RESERVA_EMPRESA) {
+        throw new DomainError(
+          "La correccion del Asociado solo aplica a reservas administrativas",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      const sgcDevuelto =
+        detalle.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+        detalle.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+      if (!sgcDevuelto) {
+        throw new DomainError(
+          "El contrato corregido solo se carga cuando el SGC devolvio el tramite",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+      const contratosActivos = detalle.docsAdjuntos
+        .filter(
+          (doc) =>
+            doc.userId === null &&
+            doc.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO &&
+            (!doc.estado || doc.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO),
+        )
+        .map((doc) => doc.id);
+      if (contratosActivos.length > 0) {
+        await this.repo.marcarDocumentosReemplazadosPorIds(params.solicitudId, contratosActivos);
       }
     }
 
@@ -1002,7 +1052,8 @@ export class SolicitudesApplicationService {
       const detalle = await this.repo.detalle(params.solicitudId);
       if (
         detalle?.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA &&
-        detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE
+        (detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE ||
+          detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO)
       ) {
         await this.encolarRevisionReservaEmpresa(detalle);
       }

@@ -4,13 +4,13 @@ import Image from "next/image";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, Badge, Button, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@nrivera-iimp/ui-kit-iimp";
-import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet, Pencil } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Clock, XCircle, RefreshCw, Send, AlertTriangle, AlertCircle, History, Trash2, ChevronDown, ClipboardCheck, CreditCard, Download, SlidersHorizontal, X, FileSpreadsheet, Pencil, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { maestraService } from "@/lib/client/api/services/maestra-service";
-import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_CONTRATO_LABELS, SOLICITUDES_FILTRO_TIPO, SOLICITUDES_FILTRO_TIPO_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD } from "@/lib/shared/constants";
+import { MAESTRA_TABLAS, ESTADOS_SOLICITUD, ESTADOS_PAGO_SOLICITUD, ESTADOS_PAGO_SOLICITUD_LABELS, RESULTADOS_APROBACION, REVISION_AREAS, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD_MAESTRA_ID, ESTADOS_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, RESULTADOS_APROBACION_LABELS, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_SGC_LABELS, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_CONTRATO_LABELS, SOLICITUDES_FILTRO_TIPO, SOLICITUDES_FILTRO_TIPO_LABELS, SOLICITUDES_ORDEN, SOLICITUDES_ORDEN_LABELS, SOLICITUDES_EXPORT_MAX_FILAS, SOLICITUDES_FILTRO_DD, BADGE_STYLES, PERMISSIONS, SGC_LIFECYCLE_STATUSES, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc, origenesObservacion } from "@/lib/shared/utils/revision-areas";
 import { anexosBloqueantesFaltantes } from "@/lib/shared/utils/solicitud-documentos";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
@@ -37,10 +37,17 @@ import { useMaestraLabels } from "@/hooks/use-maestra-labels";
 
 type SolicitudRow = SolicitudDTO;
 
-function estaPendientePago(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO; }
+function estaPendientePago(row: SolicitudRow) {
+  return row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO ||
+    (!row.estadoPago && row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO);
+}
 function estaRechazada(row: SolicitudRow) { return row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO; }
 /** Flujo homologado: individual y multiple usan la misma accion de revision. */
-function puedeRevisar(row: SolicitudRow) { return !estaPendientePago(row); }
+function puedeRevisar(row: SolicitudRow) {
+  /* La reserva administrativa conserva el acceso a revisión/subsanación aunque
+   * su estado de pago sea pendiente_pago. */
+  return row.estadoSolicitud !== ESTADOS_SOLICITUD.PENDIENTE_PAGO || row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+}
 /** Edicion del plan: solo reservas administrativas, sin cobranza y sin contrato firmado. */
 function puedeEditarPlan(row: SolicitudRow) {
   return row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA &&
@@ -908,6 +915,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                           </TableCell>
                           <TableCell className="hidden w-[110px] max-w-[110px] px-3 align-top text-xs text-muted-foreground lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
                           <TableCell className="hidden w-[136px] max-w-[136px] px-3 align-top whitespace-nowrap md:table-cell">
+                            <div className="space-y-1">
                              {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
@@ -942,11 +950,26 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
                                </Badge>
                              ) : (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
-                                 <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
-                               </Badge>
-                             )}
+                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
+                                </Badge>
+                              )}
+                              {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO && (
+                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
+                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                  {row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA
+                                    ? "Pendiente Pago · Pabellón Internacional"
+                                    : ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO]}
+                                </Badge>
+                              )}
+                              {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PAGADO && (
+                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                  {ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PAGADO]}
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="hidden w-[90px] min-w-[90px] bg-card px-3 align-top text-xs sm:table-cell lg:sticky lg:right-[160px] lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary">
                             {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
@@ -999,6 +1022,20 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent side="top"><span>Revisar</span></TooltipContent>
+                                </Tooltip>
+                              )}
+                              {row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA &&
+                                (row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+                                  row.sgcLifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED) && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button asChild variant="outline" size="sm" className="h-7 w-7 p-0 border-warning/50 text-warning">
+                                      <a href={`/dashboard/solicitudes/${encodeURIComponent(row.id)}/subsanar-sgc`} aria-label="Subsanar SGC">
+                                        <ShieldAlert className="h-3.5 w-3.5" />
+                                      </a>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top"><span>Subsanar SGC</span></TooltipContent>
                                 </Tooltip>
                               )}
                               {estaRechazada(row) && (
@@ -1299,7 +1336,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           {/* Footer */}
           {hasViewPerm &&
             detailRow &&
-            !estaPendientePago(detailRow) &&
+            (!estaPendientePago(detailRow) || detailRow.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA) &&
             (!detailRow.ddEstado?.requiereDeclaracionVigencia ||
               userPermissions.includes(PERMISSIONS.ADMIN_FULL)) && (
             <div className="shrink-0 border-t border-border px-5 py-3 flex justify-end">

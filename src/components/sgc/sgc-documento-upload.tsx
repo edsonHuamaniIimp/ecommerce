@@ -26,6 +26,7 @@ export function SgcDocumentoUpload({
   onAttached,
   confirmarSubida,
   subirFirmaAsociado = false,
+  subirContratoAsociado = false,
 }: {
   solicitudId: string;
   tipo: TipoDocumentoSolicitud;
@@ -41,6 +42,8 @@ export function SgcDocumentoUpload({
   confirmarSubida?: (archivos: File[]) => Promise<boolean>;
   /** Marca la carga como contrato firmado subido por el Asociado. */
   subirFirmaAsociado?: boolean;
+  /** Marca la carga como contrato corregido subido por el Asociado. */
+  subirContratoAsociado?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -65,7 +68,14 @@ export function SgcDocumentoUpload({
           continue;
         }
         const url = await solicitudesService.subirArchivo(file);
-        await solicitudesService.uploadDocumento({ solicitudId, url, nombre: file.name, tipo, subirFirmaAsociado });
+        await solicitudesService.uploadDocumento({
+          solicitudId,
+          url,
+          nombre: file.name,
+          tipo,
+          subirFirmaAsociado,
+          subirContratoAsociado,
+        });
       }
       toast.success("Documento(s) adjuntado(s) a la solicitud");
       onAttached();

@@ -78,6 +78,8 @@ export const uploadDocumentoSchema = z.object({
   firmaDigital: z.boolean().optional(),
   /** El Asociado sube un contrato firmado en nombre del cliente (flujo alterno). */
   subirFirmaAsociado: z.boolean().optional(),
+  /** El Asociado sube la version corregida del contrato para una observacion SGC. */
+  subirContratoAsociado: z.boolean().optional(),
   /** Observacion exacta del SGC que corrige este archivo. */
   sgcObservationId: z.string().max(64).optional().nullable(),
   /** Documento del SGC a versionar; null = documento nuevo requerido. */

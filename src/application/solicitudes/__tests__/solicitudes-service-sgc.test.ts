@@ -751,7 +751,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
     expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
   });
 
-  it("mantiene el pase directo a pago cuando la firma fue digital del cliente", async () => {
+  it("también envía a SGC cuando la firma fue digital del cliente", async () => {
     const sgc = sgcMock();
     const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
     repo.detalle = vi.fn().mockResolvedValue(detalleConFirma(ORIGENES_DOCUMENTO.PERSONALIZADO));
@@ -764,7 +764,8 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
       reviewerEmail: "asociado@iimp.org.pe",
     });
 
-    expect(repo.marcarOrdenPago).toHaveBeenCalledWith("sol-1");
-    expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
+    expect(sgc.crearExpedienteDesdeSolicitud).toHaveBeenCalledWith("sol-1");
+    expect(sgc.enviarExpedienteAlSgc).toHaveBeenCalledWith("sol-1", "asociado@iimp.org.pe");
+    expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
   });
 });
