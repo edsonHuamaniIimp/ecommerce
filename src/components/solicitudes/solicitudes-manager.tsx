@@ -931,12 +931,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.EN_PROCESO] ?? "En proceso"}
                                </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
-                                 <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
-                               </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO || tieneObservacion(row) ? (
+                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO && !row.estadoPago ? (
+                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
+                                </Badge>
+                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO || tieneObservacion(row) ? (
                                <Badge className={`max-w-full whitespace-normal text-left text-[10px] leading-tight pointer-events-none ${BADGE_STYLES.WARNING}`}>
                                  <AlertCircle className="mr-0.5 h-2.5 w-2.5 shrink-0" />
                                  <span>
@@ -944,17 +944,17 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                    {areasObservadas(row).join(" · ") || "area no identificada"}
                                  </span>
                                </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
-                                 <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
-                               </Badge>
-                             ) : (
+                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO && !row.estadoPago ? (
+                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
+                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
+                                </Badge>
+                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && !row.estadoPago ? (
                                 <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
                                   <Clock className="mr-0.5 h-2.5 w-2.5" />
                                   {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
                                 </Badge>
-                              )}
+                              ) : null}
                               {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO && (
                                 <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
                                   <Clock className="mr-0.5 h-2.5 w-2.5" />
