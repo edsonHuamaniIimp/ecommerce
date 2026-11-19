@@ -99,5 +99,12 @@ export type {
   DdClasificarArchivosResponseDTO,
   DdClasificarArchivosSugerenciaDTO,
 } from "./dd-clasificar-archivos-response.dto";
+export type {
+  DdIntegracionDocumentoDTO,
+  DdIntegracionDocumentoVersionDTO,
+  DdIntegracionDocumentosResponseDTO,
+  DdIntegracionEmpresaDTO,
+  DdIntegracionExpedienteDTO,
+} from "./dd-integracion-documentos-response.dto";
 
 

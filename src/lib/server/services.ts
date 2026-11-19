@@ -59,6 +59,8 @@ import { DdConfiguracionApplicationService } from "@/application/debida-diligenc
 import { DdMatrizEvaluacionPrismaRepository } from "@/infrastructure/persistence/dd-matriz-evaluacion-repository";
 import { DdMatrizEvaluacionApplicationService } from "@/application/debida-diligencia/dd-matriz-evaluacion-service";
 import { DdClasificarArchivosApplicationService } from "@/application/debida-diligencia/dd-clasificar-archivos-service";
+import { DdIntegracionApplicationService } from "@/application/debida-diligencia/dd-integracion-service";
+import { DdIntegracionPrismaRepository } from "@/infrastructure/persistence/dd-integracion-repository";
 import { OpenAiClasificadorArchivosClient } from "@/infrastructure/external/openai-clasificador-archivos-client";
 import { GeminiClasificadorArchivosClient } from "@/infrastructure/external/gemini-clasificador-archivos-client";
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
@@ -151,6 +153,7 @@ export const services = {
       : new OpenAiClasificadorArchivosClient(),
   ),
   debidaDiligencia: debidaDiligenciaApp,
+  ddIntegracion: new DdIntegracionApplicationService(new DdIntegracionPrismaRepository()),
   ddConfiguracion: new DdConfiguracionApplicationService(ddConfiguracionRepo),
   gessRepo,
   roleRepo,
