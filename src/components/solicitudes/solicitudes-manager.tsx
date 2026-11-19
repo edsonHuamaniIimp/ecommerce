@@ -956,11 +956,12 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                                 </Badge>
                               ) : null}
                               {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO && (
-                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
+                                <Badge
+                                  className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}
+                                  title={row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA ? "Pabellón Internacional" : undefined}
+                                >
                                   <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                  {row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA
-                                    ? "Pendiente Pago · Pabellón Internacional"
-                                    : ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO]}
+                                  {ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO]}
                                 </Badge>
                               )}
                               {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PAGADO && (
