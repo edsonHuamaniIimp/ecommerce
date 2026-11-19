@@ -113,6 +113,23 @@ export function resultadoFinalEfectivo(
   return null;
 }
 
+/**
+ * Solo se puede registrar o corregir la conclusion final mientras el proceso siga
+ * abierto. APTO, APTO CON OBSERVACIONES, NO APTO y SIN RESPUESTA son resultados
+ * cerrados; DOCUMENTACION OBSERVADA y EN REVISION permiten continuar el flujo.
+ */
+export function resultadoFinalEditable(
+  resultadoFinal: string | null | undefined,
+  estadoExpediente: string | null | undefined,
+): boolean {
+  const efectivo = resultadoFinalEfectivo(resultadoFinal, estadoExpediente);
+  return (
+    efectivo === null ||
+    efectivo === DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION ||
+    efectivo === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA
+  );
+}
+
 /** Estados legacy que representan un resultado final cuando la matriz no lo tiene. */
 export function estadoExpedienteDeResultadoFinal(
   resultadoFinal: string | null | undefined,

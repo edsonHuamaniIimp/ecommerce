@@ -61,7 +61,10 @@ import {
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import {
+  resultadoFinalEditable,
+  resultadoFinalEfectivo,
+} from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { paisDeTexto } from "@/lib/shared/utils/pais";
 import type {
   DdBandejaRowDTO,
@@ -138,6 +141,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const [resultadoFinalSeleccionado, setResultadoFinalSeleccionado] =
     useState<DdMatrizResultadoFinal | null>(null);
   const [finalLegacy, setFinalLegacy] = useState(false);
+  const [finalBloqueado, setFinalBloqueado] = useState(false);
   const [comentarioFinal, setComentarioFinal] = useState("");
   const [comentarioClienteFinal, setComentarioClienteFinal] = useState("");
   const [documentosObservadosFinal, setDocumentosObservadosFinal] = useState<DdDocumentoTipo[]>([]);
@@ -206,11 +210,11 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
           finalEfectivo !== DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION;
         setMatriz(respuesta);
         setFinalLegacy(legacy);
-        setResultadoFinalSeleccionado(finalEfectivo);
-        setComentarioFinal(
-          respuesta.finalComentario ??
-            (legacy ? "Resultado heredado del expediente legacy." : ""),
+        setFinalBloqueado(
+          !resultadoFinalEditable(respuesta.resultadoFinal, respuesta.expediente.estado),
         );
+        setResultadoFinalSeleccionado(finalEfectivo);
+        setComentarioFinal(respuesta.finalComentario ?? "");
         return ddMatrizEvaluacionService.listar({
           expedienteId: fila.id,
           eventoId: respuesta.expediente.eventoId,
@@ -1156,6 +1160,12 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                         necesario volver a registrarlo.
                       </p>
                     ) : null}
+                    {finalBloqueado && !finalLegacy ? (
+                      <p className="rounded-md border border-border bg-secondary/40 p-2 text-[10px] leading-snug text-foreground">
+                        El resultado final ya está cerrado. Solo se puede modificar cuando el
+                        expediente está en revisión o con documentación observada.
+                      </p>
+                    ) : null}
                     <div className="grid gap-1.5">
                       {FINALES.map((opcion) => (
                         <button
@@ -1163,10 +1173,12 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                           type="button"
                           className={`w-full rounded-lg border p-3 text-left transition hover:bg-secondary/50 disabled:cursor-not-allowed disabled:opacity-50 ${
                             resultadoFinalSeleccionado === opcion.value
-                              ? "border-primary bg-primary/10"
+                              ? opcion.value === DD_MATRIZ_RESULTADOS_FINALES.APTO
+                                ? "border-emerald-500 bg-emerald-50"
+                                : "border-primary bg-primary/10"
                               : "border-border bg-card"
                           }`}
-                          disabled={guardandoFinal !== null}
+                          disabled={guardandoFinal !== null || finalBloqueado}
                           onClick={() => {
                             setResultadoFinalSeleccionado(opcion.value);
                             setFinalLegacy(false);
@@ -1189,7 +1201,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                         id="final-comentario"
                         className="min-h-20 text-xs"
                         maxLength={DD_MATRIZ_FINAL_COMENTARIO_MAX}
-                        disabled={!resultadoFinalSeleccionado}
+                        disabled={!resultadoFinalSeleccionado || finalBloqueado}
                         value={comentarioFinal}
                         onChange={(event) => { setComentarioFinal(event.target.value); setError(null); }}
                         placeholder={
@@ -1265,6 +1277,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                       size="sm"
                       className="w-full gap-1.5 text-xs"
                       disabled={
+                        finalBloqueado ||
                         !resultadoFinalSeleccionado ||
                         !comentarioFinal.trim() ||
                         (resultadoFinalSeleccionado ===

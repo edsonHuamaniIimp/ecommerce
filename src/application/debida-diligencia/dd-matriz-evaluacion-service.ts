@@ -47,6 +47,7 @@ import {
   normalizarResultadoFinal,
   normalizarTextoMatriz,
   resolverPais,
+  resultadoFinalEditable,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { paisDeTexto } from "@/lib/shared/utils/pais";
 
@@ -399,6 +400,13 @@ export class DdMatrizEvaluacionApplicationService {
       dto.finalComentario !== undefined
     ) {
       if (!permisos.editarFinal) this.prohibido("El resultado final lo registra SIG o Compliance");
+      if (!resultadoFinalEditable(vinculo.resultadoFinal, vinculo.expediente.estado)) {
+        throw new DomainError(
+          "El resultado final ya está cerrado; solo se puede modificar cuando el expediente está en revisión o con documentación observada.",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
       if (dto.resultadoFinal !== undefined) {
         if (normalizarTextoMatriz(dto.resultadoFinal) === "") {
           cambios.resultadoFinal = null;

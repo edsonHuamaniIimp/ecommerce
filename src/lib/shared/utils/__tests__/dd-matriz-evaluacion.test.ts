@@ -11,6 +11,7 @@ import {
   normalizarSiNoNa,
   normalizarTextoMatriz,
   resolverPais,
+  resultadoFinalEditable,
   resultadoFinalEfectivo,
   estadoExpedienteDeResultadoFinal,
   urlFuenteLista,
@@ -111,6 +112,27 @@ describe("resultado final efectivo legacy", () => {
       DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION,
     );
     expect(resultadoFinalEfectivo(null, DD_ESTADOS.BORRADOR)).toBeNull();
+  });
+
+  it("bloquea la edicion de resultados finales cerrados", () => {
+    for (const final of [
+      DD_MATRIZ_RESULTADOS_FINALES.APTO,
+      DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES,
+      DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+      DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA,
+    ]) {
+      expect(resultadoFinalEditable(final, DD_ESTADOS.EN_REVISION)).toBe(false);
+    }
+    expect(
+      resultadoFinalEditable(DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION, DD_ESTADOS.EN_REVISION),
+    ).toBe(true);
+    expect(
+      resultadoFinalEditable(
+        DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+        DD_ESTADOS.OBSERVADA,
+      ),
+    ).toBe(true);
+    expect(resultadoFinalEditable(null, DD_ESTADOS.APROBADA)).toBe(false);
   });
 
   it("invierte el mapeo para filtros legacy", () => {
