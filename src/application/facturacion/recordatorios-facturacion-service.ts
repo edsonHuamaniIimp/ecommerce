@@ -14,6 +14,7 @@ import type { RecordatoriosResponseDTO } from "@/types/dto/facturacion/recordato
 
 /** Consultas simultaneas al IIMP al verificar documentos de una lista de empresas. */
 const CONCURRENCIA_VERIFICACION_IIMP = 5;
+const ESPERA_ENTRE_CORREOS_MS = 150;
 
 /** La reserva esta declarada en el IIMP cuando tiene contrato y cuenta corriente. */
 function cuentaDeclarada(row: RecordatorioCandidatoRow): boolean {
@@ -113,7 +114,8 @@ export class RecordatoriosFacturacionApplicationService {
     let enviados = 0;
     let fallidos = 0;
 
-    for (const facturacionId of ids) {
+    for (const [indice, facturacionId] of ids.entries()) {
+      if (indice > 0) await new Promise<void>((resolve) => setTimeout(resolve, ESPERA_ENTRE_CORREOS_MS));
       const candidato = porId.get(facturacionId);
       if (!candidato) {
         fallidos += 1;
