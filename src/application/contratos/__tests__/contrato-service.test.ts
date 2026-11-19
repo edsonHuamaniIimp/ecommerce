@@ -369,6 +369,48 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).not.toContain("XXXXXXXXX");
   });
 
+  it("genera el contrato P38 en soles con simbolo y cuentas PEN", async () => {
+    const { svc, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        pais: "CH",
+        moneda: "PEN",
+        tipoCambio: 3.75,
+        tipoStand: "Preferencial",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "user-1",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("S/ 8,850.00");
+    expect(texto).toContain("S/ 7,500.00");
+    expect(texto).not.toContain("Neto): US$");
+    expect(texto).not.toContain("IGV (18%): US$");
+    expect(texto).not.toContain("Total a Pagar): US$");
+    expect(texto).toContain("Cuenta Corriente -S/");
+    expect(texto).toContain("191-2654259-0-95");
+    expect(texto).toContain("002-191-002654259095-50");
+    expect(texto).toContain("Cuenta: Cuenta Corriente soles");
+    expect(texto).toContain("000-00372668");
+    expect(texto).not.toContain("191-2654294-1-59");
+  });
+
   it("genera el cronograma P38 con cuotas configurables, no solo tres", async () => {
     const { svc, storage } = build({
       detalle: {
