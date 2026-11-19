@@ -476,7 +476,7 @@ model GessStand {
   preReservaRazonSocial String?   @map("pre_reserva_razon_social") @db.VarChar(200)
   /// Pre-reserva por titulo (texto libre) cuando no hay empresa.
   preReservaTitulo      String?   @map("pre_reserva_titulo") @db.VarChar(200)
-  preReservaRuc         String?   @map("pre_reserva_ruc") @db.VarChar(11)
+  preReservaRuc         String?   @map("pre_reserva_ruc") @db.VarChar(20)
   preReservaSie         String?   @map("pre_reserva_sie") @db.VarChar(20)
   preReservaLogoUrl     String?   @map("pre_reserva_logo_url") @db.VarChar(500)
   preReservaNota        String?   @map("pre_reserva_nota") @db.VarChar(300)
