@@ -563,6 +563,37 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
     );
   });
 
+  it("permite al Asociado adjuntar un anexo con auditoria y userId del cliente", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await svc.uploadDocumento({
+      solicitudId: "sol-1",
+      url: "/uploads/ficha-ruc.pdf",
+      nombre: "ficha-ruc.pdf",
+      userSub: "asociado-1",
+      userEmail: "asociado@iimp.org.pe",
+      userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      subirAnexoAsociado: true,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
+      "sol-1",
+      "/uploads/ficha-ruc.pdf",
+      "ficha-ruc.pdf",
+      "user-1",
+      "asociado@iimp.org.pe",
+      TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      null,
+      null,
+      undefined,
+      ORIGENES_DOCUMENTO.SUBIDO_ASOCIADO,
+    );
+    expect(repo.marcarDocumentosReemplazados).not.toHaveBeenCalled();
+  });
+
   it("rechaza la carga en nombre del cliente si no es Asociado", async () => {
     const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
     repo.detalle = vi.fn().mockResolvedValue(baseDetalle());

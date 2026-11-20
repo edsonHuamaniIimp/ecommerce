@@ -130,6 +130,7 @@ export const solicitudesController = {
       areaPendiente: url.searchParams.get("areaPendiente") ?? undefined,
       sgc: url.searchParams.get("sgc") ?? undefined,
       contrato: url.searchParams.get("contrato") ?? undefined,
+      tipo: url.searchParams.get("tipo") ?? undefined,
       docsObservados: url.searchParams.get("docsObservados") ?? undefined,
       observadoPor: url.searchParams.get("observadoPor") ?? undefined,
       desde: url.searchParams.get("desde") ?? undefined,
@@ -688,12 +689,13 @@ export const solicitudesController = {
       firmaDigital: raw.firmaDigital === true,
       subirFirmaAsociado: raw.subirFirmaAsociado === true,
       subirContratoAsociado: raw.subirContratoAsociado === true,
+      subirAnexoAsociado: raw.subirAnexoAsociado === true,
       sgcObservationId: raw.sgcObservationId ?? null,
       sgcDocumentId: raw.sgcDocumentId ?? null,
       sgcTitle: raw.sgcTitle ?? null,
       sgcPieceId: raw.sgcPieceId ?? null,
     });
-    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null, subirFirmaAsociado: raw.subirFirmaAsociado === true });
+    await auditarOperacion(request, session, "upload-documento", raw.solicitudId, "Se adjuntó un documento", { tipo: raw.tipo ?? null, nombre: raw.nombre ?? null, subirFirmaAsociado: raw.subirFirmaAsociado === true, subirAnexoAsociado: raw.subirAnexoAsociado === true });
     return success(doc);
   },
 

@@ -845,7 +845,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
         <CardContent className="space-y-3 pt-4">
 
           {loading ? (
-            <TableSkeleton rows={perPage} columns={10} />
+            <TableSkeleton rows={perPage} columns={9} />
           ) : rows.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-sm font-medium text-muted-foreground">
@@ -867,15 +867,17 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                       <TableHead className="hidden w-[126px] min-w-[126px] md:table-cell"><span className="text-[10px] uppercase">Debida diligencia</span></TableHead>
                       <TableHead className="hidden w-[126px] min-w-[126px] xl:table-cell"><span className="text-[10px] uppercase">Usuario</span></TableHead>
                       <TableHead className="hidden w-[166px] min-w-[166px] xl:table-cell"><span className="text-[10px] uppercase">Correo</span></TableHead>
-                      <TableHead className="hidden w-[110px] min-w-[110px] px-3 lg:table-cell"><span className="text-[10px] uppercase">Tipo</span></TableHead>
                       <TableHead className="hidden w-[136px] min-w-[136px] px-3 md:table-cell"><span className="text-[10px] uppercase">Revision</span></TableHead>
-                      <TableHead className="hidden w-[90px] min-w-[90px] bg-secondary px-3 sm:table-cell lg:sticky lg:right-[160px] lg:z-20 lg:border-l lg:border-border"><span className="text-[10px] uppercase">Docs</span></TableHead>
                       <TableHead className="hidden w-[110px] min-w-[110px] xl:table-cell"><span className="text-[10px] uppercase">Fecha</span></TableHead>
                       <TableHead className="w-[144px] min-w-[144px] bg-secondary px-1 text-right sm:w-[160px] sm:min-w-[160px] lg:sticky lg:right-0 lg:z-20 lg:border-l lg:border-border"><span className="text-[10px] uppercase">Accion</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.map((row) => {
+                      const esPabellonInternacional = row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+                      const estatusPendientePagoDuplicado =
+                        row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO &&
+                        row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO;
                       return (
                         <TableRow key={row.id} className="group transition-colors hover:bg-secondary/60">
                           <TableCell className="w-[70px] min-w-[70px] align-top bg-card font-medium sm:w-[92px] sm:min-w-[92px] lg:sticky lg:left-0 lg:z-10 lg:border-r lg:border-border lg:group-hover:bg-secondary">
@@ -913,67 +915,79 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
                           <TableCell className="hidden w-[166px] max-w-[166px] truncate align-top text-xs text-muted-foreground xl:table-cell" title={row.email ?? ""}>
                             {row.email ?? "—"}
                           </TableCell>
-                          <TableCell className="hidden w-[110px] max-w-[110px] px-3 align-top text-xs text-muted-foreground lg:table-cell">{row.tipoStand ?? "—"}</TableCell>
                           <TableCell className="hidden w-[136px] max-w-[136px] px-3 align-top whitespace-nowrap md:table-cell">
-                            <div className="space-y-1">
-                             {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
-                                 <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.APROBADO] ?? "Aprobado"}
-                               </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>
-                                 <XCircle className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.RECHAZADO] ?? "Rechazado"}
-                               </Badge>
-                             ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
-                               <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
-                                 <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                 {solicitudEstadoLabels[ESTADOS_SOLICITUD.EN_PROCESO] ?? "En proceso"}
-                               </Badge>
-                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO && !row.estadoPago ? (
-                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
-                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
-                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
-                                </Badge>
-                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO || tieneObservacion(row) ? (
-                               <Badge className={`max-w-full whitespace-normal text-left text-[10px] leading-tight pointer-events-none ${BADGE_STYLES.WARNING}`}>
-                                 <AlertCircle className="mr-0.5 h-2.5 w-2.5 shrink-0" />
-                                 <span>
-                                   {solicitudEstadoLabels[ESTADOS_SOLICITUD.OBSERVADO] ?? "Observado"} por{" "}
-                                   {areasObservadas(row).join(" · ") || "area no identificada"}
-                                 </span>
-                               </Badge>
-                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO && !row.estadoPago ? (
-                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
-                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
-                                </Badge>
-                              ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE && !row.estadoPago ? (
-                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
-                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                  {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
-                                </Badge>
-                              ) : null}
-                              {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO && (
-                                <Badge
-                                  className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}
-                                  title={row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA ? "Pabellón Internacional" : undefined}
-                                >
-                                  <Clock className="mr-0.5 h-2.5 w-2.5" />
-                                  {ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO]}
-                                </Badge>
+                            <div className="space-y-1.5">
+                              {(!esPabellonInternacional || !estatusPendientePagoDuplicado) && (
+                              <div className="space-y-0.5">
+                                {esPabellonInternacional && (
+                                  <span className="block text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Revisión
+                                  </span>
+                                )}
+                                {row.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? (
+                                  <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                    <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                    {solicitudEstadoLabels[ESTADOS_SOLICITUD.APROBADO] ?? "Aprobado"}
+                                  </Badge>
+                                ) : row.estadoSolicitud === ESTADOS_SOLICITUD.RECHAZADO ? (
+                                  <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.DESTRUCTIVE}`}>
+                                    <XCircle className="mr-0.5 h-2.5 w-2.5" />
+                                    {solicitudEstadoLabels[ESTADOS_SOLICITUD.RECHAZADO] ?? "Rechazado"}
+                                  </Badge>
+                                ) : row.estadoSolicitud === ESTADOS_SOLICITUD.EN_PROCESO ? (
+                                  <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INFO}`}>
+                                    <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                    {solicitudEstadoLabels[ESTADOS_SOLICITUD.EN_PROCESO] ?? "En proceso"}
+                                  </Badge>
+                                ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PAGADO ? (
+                                  <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                    <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                    {solicitudEstadoLabels[ESTADOS_SOLICITUD.PAGADO] ?? "Pagado"}
+                                  </Badge>
+                                ) : row.estadoSolicitud === ESTADOS_SOLICITUD.OBSERVADO || tieneObservacion(row) ? (
+                                  <Badge className={`max-w-full whitespace-normal text-left text-[10px] leading-tight pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                    <AlertCircle className="mr-0.5 h-2.5 w-2.5 shrink-0" />
+                                    <span>
+                                      {solicitudEstadoLabels[ESTADOS_SOLICITUD.OBSERVADO] ?? "Observado"} por{" "}
+                                      {areasObservadas(row).join(" · ") || "area no identificada"}
+                                    </span>
+                                  </Badge>
+                                ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO ? (
+                                  <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}>
+                                    <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                    {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE_PAGO] ?? "Pendiente Pago"}
+                                  </Badge>
+                                ) : row.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE ? (
+                                  <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.WARNING}`}>
+                                    <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                    {solicitudEstadoLabels[ESTADOS_SOLICITUD.PENDIENTE] ?? "Pendiente"}
+                                  </Badge>
+                                ) : null}
+                              </div>
                               )}
-                              {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PAGADO && (
-                                <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
-                                  <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
-                                  {ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PAGADO]}
-                                </Badge>
+                              {esPabellonInternacional && row.estadoPago && (
+                                <div className="space-y-0.5">
+                                  <span className="block text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                    Facturación
+                                  </span>
+                                  {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO && (
+                                    <Badge
+                                      className={`text-[10px] pointer-events-none ${BADGE_STYLES.INDIGO}`}
+                                      title={row.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA ? "Pabellón Internacional" : undefined}
+                                    >
+                                      <Clock className="mr-0.5 h-2.5 w-2.5" />
+                                      {ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO]}
+                                    </Badge>
+                                  )}
+                                  {row.estadoPago === ESTADOS_PAGO_SOLICITUD.PAGADO && (
+                                    <Badge className={`text-[10px] pointer-events-none ${BADGE_STYLES.SUCCESS}`}>
+                                      <CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />
+                                      {ESTADOS_PAGO_SOLICITUD_LABELS[ESTADOS_PAGO_SOLICITUD.PAGADO]}
+                                    </Badge>
+                                  )}
+                                </div>
                               )}
                             </div>
-                          </TableCell>
-                          <TableCell className="hidden w-[90px] min-w-[90px] bg-card px-3 align-top text-xs sm:table-cell lg:sticky lg:right-[160px] lg:z-10 lg:border-l lg:border-border lg:group-hover:bg-secondary">
-                            {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                           </TableCell>
                           <TableCell className="hidden w-[110px] min-w-[110px] whitespace-nowrap align-top text-xs text-muted-foreground xl:table-cell">
                             {dateUtils.formatDateTime(row.createdAt)}

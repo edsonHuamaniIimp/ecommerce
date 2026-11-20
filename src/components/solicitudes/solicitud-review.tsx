@@ -119,6 +119,8 @@ export function SolicitudReview({
   const [aprobandoBypass, setAprobandoBypass] = useState(false);
   /** Documento en vista previa (modal en la misma vista). */
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
+  /** Copia local para reflejar de inmediato los documentos recien subidos. */
+  const [docsAdjuntosLocales, setDocsAdjuntosLocales] = useState(row.docsAdjuntos ?? []);
   const { confirm, confirmDialog } = useConfirm();
   const { session } = useSesion();
   const [ddEstado, setDdEstado] = useState<SolicitudDdEstadoDTO | null>(null);
@@ -229,6 +231,17 @@ export function SolicitudReview({
     });
   };
 
+  /** Refresca el detalle para que los documentos subidos aparezcan sin cerrar el modal. */
+  const refrescarDocumentos = async () => {
+    try {
+      const fresh = await solicitudesService.detalle(row.id);
+      setDocsAdjuntosLocales(fresh.docsAdjuntos ?? []);
+      onSaved(fresh);
+    } catch {
+      onSaved(row);
+    }
+  };
+
   const aprobarLegalBypass = async () => {
     if (ddAccionesBloqueadas) return;
     const ok = await confirm({
@@ -331,10 +344,20 @@ export function SolicitudReview({
 
   /* Anexos: documentos del cliente (tabla, sin el contrato firmado) + legacy, deduplicados,
      excluyendo el que ya se usa como contrato. */
-  const anexosMap = new Map<string, { nombre: string; url: string }>();
+  const anexosMap = new Map<string, {
+    nombre: string;
+    url: string;
+    uploadedBy?: string | null;
+    createdAt?: string | null;
+  }>();
   for (const d of documentosLegacy) anexosMap.set(d.url, d);
-  for (const d of row.docsAdjuntos.filter((x) => x.userId !== null && x.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)) {
-    anexosMap.set(d.url, { nombre: d.nombre, url: d.url });
+  for (const d of docsAdjuntosLocales.filter((x) => x.userId !== null && x.categoria !== TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO)) {
+    anexosMap.set(d.url, {
+      nombre: d.nombre,
+      url: d.url,
+      uploadedBy: d.uploadedBy,
+      createdAt: d.createdAt,
+    });
   }
   if (contratoUrl) anexosMap.delete(contratoUrl);
   const anexosSolicitud = [...anexosMap.values()];
@@ -446,6 +469,11 @@ export function SolicitudReview({
     currentArea === REVISION_AREAS.ASOCIADO &&
     (isAdmin || canReview) &&
     (contratoPendienteFirma || contratoFirmadoObservadoPendiente);
+  const puedeSubirAnexoAsociado =
+    esReservaEmpresa &&
+    row.sgcEnabled &&
+    currentArea === REVISION_AREAS.ASOCIADO &&
+    (isAdmin || canReview);
   const todasAprobadas = areas.every((area) => {
     const rev = getRevision(row, area);
     return rev?.estado === RESULTADOS_APROBACION.APROBADO;
@@ -580,7 +608,7 @@ export function SolicitudReview({
           }
 
           // Docs del flujo nuevo (cliente y administrador): todos son observables
-          const adjuntos = row.docsAdjuntos ?? [];
+          const adjuntos = docsAdjuntosLocales ?? [];
           for (const d of adjuntos) {
             docs.push({ id: d.id, url: d.url, nombre: d.nombre, fecha: d.createdAt, origen: "adjunto", origenDocumento: d.origen, uploadedBy: d.uploadedBy, categoria: d.categoria ?? undefined, requisito: d.requisito, estado: d.estado, motivoObservacion: d.motivoObservacion, userId: d.userId });
           }
@@ -1040,6 +1068,21 @@ export function SolicitudReview({
               onAttached={() => onSaved(row)}
             />
           </div>
+        )}
+
+        {puedeSubirAnexoAsociado && (
+          <SgcDocumentoUpload
+            solicitudId={row.id}
+            tipo={TIPOS_DOCUMENTO_SOLICITUD.ANEXO}
+            titulo="Documentos anexos"
+            hint={["Documentos del cliente que se enviarán al SGC junto con el contrato."]}
+            archivos={anexosSolicitud}
+            ctaVacio="Adjuntar documento anexo"
+            ctaConArchivos="Adjuntar más documentos"
+            vacioTexto="Aún no hay documentos anexos."
+            subirAnexoAsociado
+            onAttached={() => { void refrescarDocumentos(); }}
+          />
         )}
 
         {sgcEnLegal && (

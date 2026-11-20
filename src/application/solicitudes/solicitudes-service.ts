@@ -729,6 +729,8 @@ export class SolicitudesApplicationService {
     subirFirmaAsociado?: boolean;
     /** El Asociado carga la version corregida del contrato tras una observacion SGC. */
     subirContratoAsociado?: boolean;
+    /** El Asociado adjunta un documento anexo a la solicitud. */
+    subirAnexoAsociado?: boolean;
     /** Observacion exacta del SGC que corrige este archivo. */
     sgcObservationId?: string | null;
     /** Documento del SGC a versionar; null = documento nuevo requerido. */
@@ -742,7 +744,8 @@ export class SolicitudesApplicationService {
     const isAsociado = params.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
     const esCargaFirmaAsociado = params.subirFirmaAsociado === true;
     const esCargaContratoAsociado = params.subirContratoAsociado === true;
-    const detalle = !isAdmin || esCargaFirmaAsociado || esCargaContratoAsociado
+    const esCargaAnexoAsociado = params.subirAnexoAsociado === true;
+    const detalle = !isAdmin || esCargaFirmaAsociado || esCargaContratoAsociado || esCargaAnexoAsociado
       ? await this.repo.detalle(params.solicitudId)
       : null;
 
@@ -751,7 +754,7 @@ export class SolicitudesApplicationService {
      * paso Legal (SGC) y aun no se hayan enviado documentos al SGC. El admin no
      * tiene esta restriccion (adjunta el contrato v1 / anexos en el paso Legal).
      */
-    if (!isAdmin && !esCargaFirmaAsociado && !esCargaContratoAsociado) {
+    if (!isAdmin && !esCargaFirmaAsociado && !esCargaContratoAsociado && !esCargaAnexoAsociado) {
       if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
       if (detalle.userId !== params.userSub) {
         throw new DomainError("No puedes adjuntar documentos a esta solicitud", API_ERROR_CODES.FORBIDDEN, 403);
@@ -892,6 +895,31 @@ export class SolicitudesApplicationService {
       }
     }
 
+    if (esCargaAnexoAsociado) {
+      if (!isAsociado && !isAdmin) {
+        throw new DomainError(
+          "Solo el Asociado puede adjuntar documentos anexos en este flujo",
+          API_ERROR_CODES.FORBIDDEN,
+          403,
+        );
+      }
+      if (params.tipo !== TIPOS_DOCUMENTO_SOLICITUD.ANEXO) {
+        throw new DomainError(
+          "La carga de anexos del Asociado solo admite documentos anexos",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+      if (detalle.tipo !== TIPOS_SOLICITUD.RESERVA_EMPRESA) {
+        throw new DomainError(
+          "La carga de anexos del Asociado solo aplica a reservas administrativas",
+          API_ERROR_CODES.CONFLICT,
+          409,
+        );
+      }
+    }
+
     if (esCargaFirmaAsociado && detalle) {
       const firmadosActivos = detalle.docsAdjuntos
         .filter(
@@ -952,7 +980,7 @@ export class SolicitudesApplicationService {
     const sgcPieceId = permiteMetadatosSgc ? (params.sgcPieceId?.trim() || null) : null;
 
     let userId: string | null;
-    if (esCargaFirmaAsociado) {
+    if (esCargaFirmaAsociado || esCargaAnexoAsociado) {
       userId = detalle?.userId ?? null;
     } else if (tipoValido === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO) {
       userId = null;
@@ -989,7 +1017,7 @@ export class SolicitudesApplicationService {
      */
     /* Una correccion vinculada a una observacion SGC no debe reemplazar todos
      * los anexos del mismo tipo: la observacion identifica el archivo exacto. */
-    if (!isAdmin && !esCargaFirmaAsociado && categoria && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
+    if (!isAdmin && !esCargaFirmaAsociado && !esCargaAnexoAsociado && categoria && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 
@@ -1013,7 +1041,8 @@ export class SolicitudesApplicationService {
     const sgcMetadata = sgcObservationId || sgcDocumentId || sgcTitle || sgcPieceId
       ? { observationId: sgcObservationId, documentId: sgcDocumentId, title: sgcTitle, pieceId: sgcPieceId }
       : null;
-    const doc = esCargaFirmaAsociado
+    const esCargaDocumentoAsociado = esCargaFirmaAsociado || esCargaAnexoAsociado;
+    const doc = esCargaDocumentoAsociado
       ? await this.repo.crearDocumentoAdjunto(
           params.solicitudId, params.url, nombreDocumento,
           userId,

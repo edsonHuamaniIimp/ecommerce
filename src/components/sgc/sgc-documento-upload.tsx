@@ -6,6 +6,7 @@ import { FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { CONTRATO_FIRMADO_EXTENSIONES, SGC_UPLOAD_ALLOWED_EXTENSIONS, SGC_UPLOAD_MAX_BYTES } from "@/lib/shared/constants";
+import { dateUtils } from "@/lib/shared/utils/date";
 import type { TipoDocumentoSolicitud } from "@/lib/shared/constants";
 
 /**
@@ -27,12 +28,18 @@ export function SgcDocumentoUpload({
   confirmarSubida,
   subirFirmaAsociado = false,
   subirContratoAsociado = false,
+  subirAnexoAsociado = false,
 }: {
   solicitudId: string;
   tipo: TipoDocumentoSolicitud;
   titulo: string;
   hint?: string[];
-  archivos: { nombre: string; url: string }[];
+  archivos: {
+    nombre: string;
+    url: string;
+    uploadedBy?: string | null;
+    createdAt?: string | null;
+  }[];
   ctaVacio: string;
   ctaConArchivos: string;
   vacioTexto: string;
@@ -44,6 +51,8 @@ export function SgcDocumentoUpload({
   subirFirmaAsociado?: boolean;
   /** Marca la carga como contrato corregido subido por el Asociado. */
   subirContratoAsociado?: boolean;
+  /** Marca la carga como anexo subido por el Asociado. */
+  subirAnexoAsociado?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
@@ -75,6 +84,7 @@ export function SgcDocumentoUpload({
           tipo,
           subirFirmaAsociado,
           subirContratoAsociado,
+          subirAnexoAsociado,
         });
       }
       toast.success("Documento(s) adjuntado(s) a la solicitud");
@@ -103,17 +113,23 @@ export function SgcDocumentoUpload({
       {vacio ? (
         <p className="mt-2 text-[11px] font-medium text-amber-600">{vacioTexto}</p>
       ) : (
-        <div className="mt-2 space-y-0.5">
+        <div className="mt-2 space-y-1.5">
           {archivos.map((d, i) => (
             <a
               key={i}
               href={d.url}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-2 text-xs text-slate-700 hover:text-emerald-700"
+              className="flex items-start gap-2 text-xs text-slate-700 hover:text-emerald-700"
             >
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{d.nombre}</span>
+              <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0">
+                <span className="block truncate font-medium">{d.nombre}</span>
+                <span className="mt-0.5 block truncate text-[10px] font-normal text-slate-500">
+                  Subido por {d.uploadedBy || "No registrado"}
+                  {d.createdAt ? ` · ${dateUtils.formatDateTime(d.createdAt)}` : ""}
+                </span>
+              </span>
             </a>
           ))}
         </div>
