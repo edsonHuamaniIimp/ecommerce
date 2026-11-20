@@ -256,6 +256,41 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("Calle de la Embajada 123");
   });
 
+  it("prioriza al representante legal de la empresa sobre el contacto de facturacion", async () => {
+    const { svc, storage, solicitudes } = build({
+      empresa: {
+        representanteLegalNombre: "PABLO ANTONIO LIRA DE LAS CASAS",
+        representanteLegalDni: "09151975",
+        partidaElectronica: "00344710",
+      },
+    });
+    (solicitudes as unknown as { datosReservaIImp: ReturnType<typeof vi.fn> }).datosReservaIImp = vi.fn(async () => ({
+      datosFacturacion: {
+        razonSocial: "REPRESENTACIONES PERUVIAN TRADING S.A.",
+        tipoDocumento: "6",
+        numeroDocumento: "20107481436",
+        direccion: "CAL. LOS JILGUEROS NRO 108 URB. LIMATAMBO",
+        contacto: "BORIS SOTO REATEGUI",
+        email: "plira@rptsa.com.pe",
+        telefono: null,
+        tipoComprobante: "factura",
+      },
+    }));
+
+    await svc.generar({
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(1),
+      userSub: "admin",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    });
+
+    const buffer = vi.mocked(storage.upload).mock.calls[0]?.[0] as Buffer;
+    const texto = textoDocx(buffer);
+    expect(texto).toContain("PABLO ANTONIO LIRA DE LAS CASAS");
+    expect(texto).not.toContain("BORIS SOTO REATEGUI");
+    expect(texto).toContain("09151975");
+  });
+
   it("recupera la empresa por RUC cuando el correo de la reserva no está vinculado", async () => {
     const { svc, auth, solicitudes, storage, empresas } = build({
       detalle: {

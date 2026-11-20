@@ -287,12 +287,19 @@ export class ContratoApplicationService {
           razonSocial: snapshotFacturacion.razonSocial,
           ruc: snapshotFacturacion.numeroDocumento,
           direccion: snapshotFacturacion.direccion ?? undefined,
-          representante: snapshotFacturacion.contacto ?? undefined,
+          representante:
+            empresa?.representanteLegalNombre?.trim() ||
+            snapshotFacturacion.contacto?.trim() ||
+            undefined,
           tipoDocumentoRepresentante:
-            snapshotFacturacion.representanteTipoDocumento ?? empresa?.representanteLegalTipoDocumento ?? undefined,
-          representanteDni: snapshotFacturacion.tipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI
-            ? snapshotFacturacion.numeroDocumento
-            : undefined,
+            empresa?.representanteLegalTipoDocumento ??
+            snapshotFacturacion.representanteTipoDocumento ??
+            undefined,
+          representanteDni:
+            empresa?.representanteLegalDni?.trim() ||
+            (snapshotFacturacion.tipoDocumento === TIPOS_DOCUMENTO_PERSONA.DNI
+              ? snapshotFacturacion.numeroDocumento
+              : undefined),
           partidaElectronica: empresa?.partidaElectronica ?? undefined,
         }
       : null;
@@ -988,15 +995,15 @@ export class ContratoApplicationService {
     const razonSocial = c?.razonSocial?.trim() || empresa?.razonSocial || params.empresaFallback || "-";
     const ruc = c?.ruc?.trim() || empresa?.ruc || "-";
     const domicilioFiscal = c?.direccion?.trim() || empresa?.direccionFiscal || "-";
-    const representanteLegal = c?.representante?.trim() || empresa?.representanteLegalNombre || "-";
+    const representanteLegal = empresa?.representanteLegalNombre?.trim() || c?.representante?.trim() || "-";
     const tipoDocumentoRepresentanteCode =
-      c?.tipoDocumentoRepresentante?.trim() ||
       empresa?.representanteLegalTipoDocumento ||
+      c?.tipoDocumentoRepresentante?.trim() ||
       TIPOS_DOCUMENTO_PERSONA.DNI;
     const tipoDocumentoRepresentante =
       TIPOS_DOCUMENTO_PERSONA_LABELS[tipoDocumentoRepresentanteCode] ?? tipoDocumentoRepresentanteCode;
-    const dniRepresentante = c?.representanteDni?.trim() || empresa?.representanteLegalDni || "-";
-    const partidaElectronica = c?.partidaElectronica?.trim() || empresa?.partidaElectronica || "";
+    const dniRepresentante = empresa?.representanteLegalDni?.trim() || c?.representanteDni?.trim() || "-";
+    const partidaElectronica = empresa?.partidaElectronica?.trim() || c?.partidaElectronica?.trim() || "";
     const representantesAdicionales = (empresa?.representantesAdicionales ?? []).map((rep) => ({
       nombre: rep.nombre,
       tipoDocumento: TIPOS_DOCUMENTO_PERSONA_LABELS[rep.tipoDocumento] ?? rep.tipoDocumento,
