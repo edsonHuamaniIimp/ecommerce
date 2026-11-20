@@ -204,14 +204,17 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
     }
     const esperados = Math.max(1, Math.trunc(o.expectedDocuments ?? 1));
     const titulosEsperados = o.expectedDocumentTitles ?? [];
-    const identificado = (d: DocumentoLike) =>
-      Boolean(o.observationId && d.sgcObservationId === o.observationId) ||
-      Boolean(o.documentId && d.sgcDocumentId === o.documentId) ||
-      Boolean(o.documentoLocalId && d.id === o.documentoLocalId) ||
-      Boolean(o.requisito && d.requisito === o.requisito) ||
-      Boolean(o.nombre && d.nombre === o.nombre) ||
-      Boolean(o.title && (d.sgcTitle === o.title || d.nombre === o.title)) ||
-      Boolean(d.sgcTitle && titulosEsperados.includes(d.sgcTitle));
+    const identificado = (d: DocumentoLike) => {
+      const mismaObservacion =
+        !o.observationId || !d.sgcObservationId || d.sgcObservationId === o.observationId;
+      return Boolean(o.observationId && d.sgcObservationId === o.observationId) ||
+        Boolean(mismaObservacion && o.documentId && d.sgcDocumentId === o.documentId) ||
+        Boolean(o.documentoLocalId && d.id === o.documentoLocalId) ||
+        Boolean(o.requisito && d.requisito === o.requisito) ||
+        Boolean(o.nombre && d.nombre === o.nombre) ||
+        Boolean(o.title && (d.sgcTitle === o.title || d.nombre === o.title)) ||
+        Boolean(d.sgcTitle && titulosEsperados.includes(d.sgcTitle));
+    };
     const sinIdentificador =
       !o.observationId && !o.documentId && !o.documentoLocalId && !o.requisito && !o.nombre && !o.title;
 

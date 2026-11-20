@@ -503,6 +503,9 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
   const documentosObservacion = (o: SgcObservacionLike) =>
     anexos.filter((d) => {
       if (d.estado && d.estado !== ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO) return false;
+      /* Un documento de una observacion anterior no cubre la observacion actual
+       * aunque comparta el mismo documentId del SGC. */
+      if (o.observationId && d.sgcObservationId && d.sgcObservationId !== o.observationId) return false;
       if (o.observationId && d.sgcObservationId === o.observationId) return true;
       if (o.documentId && d.sgcDocumentId === o.documentId) return true;
       if (d.sgcPieceId && o.pieces?.some((piece) => piece.id === d.sgcPieceId)) return true;
