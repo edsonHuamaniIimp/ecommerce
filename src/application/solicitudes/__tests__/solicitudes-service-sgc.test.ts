@@ -471,6 +471,73 @@ describe("SolicitudesApplicationService + SGC", () => {
       null,
     );
   });
+
+  it("permite reenviar al SGC cuando el cliente ya firmo el contrato corregido", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.APROBADO);
+    const sgc = sgcMock();
+    vi.spyOn(sgc, "consultarExpediente").mockResolvedValue(null);
+    const reenviar = vi.spyOn(sgc, "reenviarCorreccionAlSgc").mockResolvedValue({ reenviado: true } as never);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand({
+      estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+      sgcEnabled: true,
+      sgcEstadoEnvio: "creado",
+      sgcDocumentosEnviados: true,
+      sgcLifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      sgcObservaciones: [{
+        observationId: "obs-contrato",
+        documentId: "doc-sgc-contrato",
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+        title: "Contrato de separacion de stand v1",
+        message: "Corrige el contrato y vuelve a enviarlo.",
+        status: "open",
+        requiresDocumentChange: true,
+        createdAt: "2026-11-20T22:00:00.000Z",
+      }],
+      docsAdjuntos: [
+        {
+          id: "firmado-original",
+          url: "/uploads/firmado-original.pdf",
+          nombre: "firmado-original.pdf",
+          userId: "user-1",
+          uploadedBy: "cliente@iimp.org.pe",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: new Date("2026-11-13T19:33:00.000Z"),
+        },
+        {
+          id: "contrato-corregido",
+          url: "/uploads/contrato-corregido.pdf",
+          nombre: "contrato-corregido.pdf",
+          userId: null,
+          uploadedBy: "sistema",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          createdAt: new Date("2026-11-20T22:29:00.000Z"),
+        },
+        {
+          id: "firmado-corregido",
+          url: "/uploads/firmado-corregido.pdf",
+          nombre: "firmado-corregido.pdf",
+          userId: "user-1",
+          uploadedBy: "cliente@iimp.org.pe",
+          categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+          requisito: null,
+          estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+          sgcObservationId: "obs-contrato",
+          sgcDocumentId: "doc-sgc-contrato",
+          createdAt: new Date("2026-11-20T22:33:00.000Z"),
+        },
+      ],
+    }));
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await expect(
+      svc.reenviarObservacion("sol-1", "user-1", "cliente@iimp.org.pe"),
+    ).resolves.toBeUndefined();
+    expect(reenviar).toHaveBeenCalledWith("sol-1", "cliente@iimp.org.pe");
+  });
 });
 
 describe("SolicitudesApplicationService.detalle con SGC", () => {

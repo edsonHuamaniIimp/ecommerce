@@ -585,14 +585,17 @@ export class SolicitudesApplicationService {
           (aprobacionLocal === null || (dateUtils.toMs(d.createdAt) ?? 0) > aprobacionLocal),
       );
       const contratoRegenerado = hayContratoAdminNuevoParaFirmar(detalle);
-      if (contratoRegenerado && !hayFirmadoPosteriorAlContratoCorregido(detalle)) {
+      /* Al firmar la version corregida, el contrato del admin deja de ser "nuevo";
+       * el firmado posterior si es una correccion valida y debe contar. */
+      const contratoCorregidoFirmado = hayFirmadoPosteriorAlContratoCorregido(detalle);
+      if (contratoRegenerado && !contratoCorregidoFirmado) {
         throw new DomainError(
           "Firma el contrato corregido por el area revisora antes de reenviar al SGC.",
           API_ERROR_CODES.CONFLICT,
           409,
         );
       }
-      if (docsCorregidos.length === 0 && !contratoRegenerado) {
+      if (docsCorregidos.length === 0 && !contratoRegenerado && !contratoCorregidoFirmado) {
         throw new DomainError(
           "Sube al menos un documento corregido antes de solicitar una nueva revision.",
           API_ERROR_CODES.CONFLICT,
