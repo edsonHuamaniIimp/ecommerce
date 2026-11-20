@@ -486,3 +486,65 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 6. **Historial:** cada cambio en Revision crea automáticamente `RevisionHistorial`.
 7. **Baja lógica:** `flgActivo = false` — preserva datos para auditoría.
 8. **Estados en maestra:** todos los estados (solicitud, revision, reevaluacion) tienen entradas en `maestra` con `itemId`.
+
+---
+
+## 17. Flujo de Pabellones Internacionales — actualización 2026-11-20
+
+La regla operativa completa quedó documentada en:
+
+[`.opencode/reglas/flujo-pabellones-internacionales/SKILL.md`](.opencode/reglas/flujo-pabellones-internacionales/SKILL.md)
+
+### Estado actual del flujo
+
+- Aplica a solicitudes con `tipo = reserva_empresa`.
+- La reserva se crea desde `/dashboard/reservar-empresa` por un administrador.
+- La solicitud nace con `estadoSolicitud = pendiente` y `estadoPago = pendiente_pago`.
+- Se crea la Facturación pendiente desde la creación.
+- El cliente firma digitalmente o el Asociado registra el PDF firmado del cliente.
+- La revisión local es únicamente del Asociado.
+- Con SGC habilitado, la aprobación del Asociado crea y envía el expediente al SGC.
+- Con SGC deshabilitado, la aprobación genera la Facturación y deja el pago pendiente.
+- Las observaciones del SGC no reinician `estadoPago`.
+- La subsanación SGC usa `/dashboard/solicitudes/[id]/subsanar-sgc`.
+
+### Estados y bandeja
+
+- `estadoSolicitud` controla el flujo.
+- `estadoPago` controla facturación/cobranza.
+- `pagado` es terminal para `estadoPago`.
+- En P38, la bandeja muestra bloques `Revisión` y `Facturación`.
+- Si ambos estados son `pendiente_pago`, se muestra un solo badge de Facturación.
+- Para solicitudes que no son P38, se muestra únicamente el badge normal, sin títulos.
+- Se retiraron las columnas `Tipo` y `Docs` de la bandeja.
+- El filtro `Tipo de solicitud` ya se propaga desde el controlador al repositorio.
+
+### Contrato P38
+
+- Plantilla: `plantillas/contrato-p38-operador-tags.docx`.
+- Anexo 1: detalle económico por stand.
+- Anexo 2: cuotas dinámicas, moneda y cuentas bancarias por USD/PEN.
+- Anexo 3: declaración de cumplimiento del Operador.
+- **Anexo 3-A eliminado** junto con sus variables `anexo3a_*`.
+- Anexo 4: reglamento y anexos PDF fijos.
+- El contrato firmado se valida por SHA-256 para impedir reutilizarlo en otra solicitud.
+- La plantilla conserva UTF-8 sin BOM y sus imágenes/entradas.
+
+### Documentos anexos del Asociado
+
+- El Asociado puede adjuntar anexos desde Revisar solicitud.
+- Flag de API: `subirAnexoAsociado`.
+- Solo aplica a reservas administrativas.
+- El documento queda ligado al cliente, con auditoría del Asociado y origen `subido_asociado`.
+- La lista se refresca sin cerrar el modal.
+- Se muestra nombre, usuario, fecha y hora de carga.
+
+### Commits de referencia
+
+- `25bf712` — anexos del Asociado y ajustes de bandeja P38.
+- `682f781` — eliminación del Anexo 3-A de la plantilla P38.
+- `f6853de` — ajuste de facturación de la otra sesión, integrado en `qa` y `main`.
+
+### Nota documental
+
+Los documentos `docs/01-funcional/18-reserva-administrativa-empresas-extranjeras.md` y `19-diferencias-contrato-estandar-vs-pabellones-internacionales.md` son históricos y contienen afirmaciones anteriores al flujo actual, como “sin SGC”, cuotas fijas 33/33/34 y la existencia del Anexo 3-A. Para implementar o revisar el flujo vigente, usar la regla nueva de `.opencode/reglas/flujo-pabellones-internacionales/`.
