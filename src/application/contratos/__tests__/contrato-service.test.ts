@@ -367,6 +367,8 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).toContain("MINERA CORDILLERA S.A.C.");
     expect(texto).not.toContain("XX m²");
     expect(texto).not.toContain("XXXXXXXXX");
+    expect(texto).not.toContain("ANEXO 3-A");
+    expect(texto).not.toContain("DECLARACIÓN DE CUMPLIMIENTO DEL EXHIBIDOR");
   });
 
   it("genera el contrato P38 en soles con simbolo y cuentas PEN", async () => {

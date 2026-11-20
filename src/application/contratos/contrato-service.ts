@@ -875,7 +875,7 @@ export class ContratoApplicationService {
     moneda: MonedaContrato;
     /** `reserva_empresa` usa la plantilla oficial del Operador Internacional. */
     tipoSolicitud?: string | null;
-    /** Pais ISO alpha-2 del operador (clausulas y Anexo 3-A). */
+    /** Pais ISO alpha-2 del operador (clausulas). */
     pais?: string | null;
     /** Detalle economico por stand (Anexo 1 de Pabellones Internacionales). */
     tablaEconomica?: TablaEconomicaData;
@@ -1158,13 +1158,6 @@ export class ContratoApplicationService {
       ].filter(Boolean).join("; "),
       /** Codigos comerciales de los stands (Anexo 4: asunto de zona maquinaria). */
       codigos_stands: modulos.map((m) => m.modulo).join(", "),
-      /* Anexo 3-A: se completa desde la generacion para que el firmante revise los datos antes de firmar. */
-      anexo3a_pais: paisOperador,
-      anexo3a_modulos: modulos.map((m) => m.modulo).join(", "),
-      anexo3a_empresa: razonSocial,
-      anexo3a_empresa_firma: razonSocial,
-      anexo3a_representante: representanteLegal,
-      anexo3a_fecha: fechaFirmaTexto,
       es_firma: params.esFirma === true,
       firmante_empresa: razonSocial !== "-" ? razonSocial : "",
       firma_exhibidor: firmaExhibidorBase64 ?? PNG_1PX_BASE64,
