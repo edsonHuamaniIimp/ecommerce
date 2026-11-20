@@ -12,6 +12,8 @@ export interface ReservaIimpContacto {
 export interface ReservaIimpCuotaInput {
   porcentaje: number;
   fecha: string;
+  /** Texto libre de la cuota (max. 100): se migra a SAP como FreeTxt de la orden de venta. */
+  textoLibre?: string | null;
 }
 
 /** Archivo (link) de la cuenta corriente del IIMP: OC, HES, detraccion o diferencia. */

@@ -76,8 +76,10 @@ export interface RequisitosFacturacionDTO {
   valorizacion?: boolean;
   otros?: string | null;
   ninguna?: boolean;
-  /** Cuota en la que el cliente declaro los requisitos. */
+  /** Cuota de origen de la declaracion (la asigna el backend). */
   cuota?: number;
+  /** Texto libre para la factura de la cuota (SIE TextoLibre, max. 100). */
+  descripcionFactura?: string | null;
 }
 
 /** Resultado de "Solicitar factura": reserva registrada en el IIMP (cuenta corriente creada). */

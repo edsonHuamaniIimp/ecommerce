@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from "@nrivera-iimp/ui-kit-iimp";
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
 import { AlertTriangle, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type ArchivoIImpInputDTO, type RequisitosFacturacionDTO } from "@/lib/client/api/services/pagos-service";
+import { facturacionService } from "@/lib/client/api/services/facturacion-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { useConfirm } from "@/hooks/use-confirm";
-import { TIPOS_ARCHIVO_IIMP, type TipoArchivoIImp } from "@/lib/shared/constants";
+import { MAX_DESCRIPCION_FACTURA, TIPOS_ARCHIVO_IIMP, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
 
 interface Props {
@@ -20,6 +21,10 @@ interface Props {
   standCode?: string;
   /** "solicitud" registra la reserva; "completar" solo guarda requisitos de una solicitud ya enviada. */
   modo?: "solicitud" | "completar";
+  /** true = lo usa Facturacion en nombre del cliente (endpoint interno). */
+  admin?: boolean;
+  /** Cuotas del registro (solo admin al solicitar): permite elegir la cuota de origen. */
+  cuotas?: Array<{ id: string; numero: number }>;
   /** Se ejecuta tras registrar la solicitud (recarga del listado). */
   onEnviado: () => void;
 }
@@ -33,6 +38,7 @@ const REQUISITOS_INICIALES: RequisitosFacturacionDTO = {
   valorizacion: false,
   otros: "",
   ninguna: false,
+  descripcionFactura: "",
 };
 
 /** Al completar una solicitud ya enviada no se preselecciona nada: el cliente declara. */
@@ -45,6 +51,7 @@ const REQUISITOS_COMPLETAR: RequisitosFacturacionDTO = {
   valorizacion: false,
   otros: "",
   ninguna: false,
+  descripcionFactura: "",
 };
 
 /** Carga de los documentos de un requisito declarado; la cuota ya viene de la bandeja. */
@@ -155,8 +162,12 @@ function AdjuntoRequisito({
  * los documentos en el mismo modal. La cuota (la de la bandeja) ya viene fijada.
  * Los requisitos son referenciales; las constancias de pago se adjuntan al pagar.
  */
-export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, modo = "solicitud", onEnviado }: Props) {
+export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, modo = "solicitud", admin = false, cuotas = [], onEnviado }: Props) {
   const esCompletar = modo === "completar";
+  const esAdminSolicitud = admin && modo === "solicitud";
+  const [cuotaOrigen, setCuotaOrigen] = useState({ id: cuotaId, numero: cuotaNumero ?? 1 });
+  const cuotaEfectivaId = esAdminSolicitud ? cuotaOrigen.id : cuotaId;
+  const cuotaEfectivaNumero = esAdminSolicitud ? cuotaOrigen.numero : cuotaNumero;
   const [archivos, setArchivos] = useState<ArchivoIImpInputDTO[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [requisitos, setRequisitos] = useState<RequisitosFacturacionDTO>(esCompletar ? REQUISITOS_COMPLETAR : REQUISITOS_INICIALES);
@@ -178,6 +189,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
           valorizacion: false,
           otros: "",
           ninguna: true,
+          descripcionFactura: prev.descripcionFactura ?? "",
         };
       }
       return { ...prev, [campo]: valor, ...(campo !== "ninguna" && valor ? { ninguna: false } : {}) };
@@ -189,6 +201,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
       setArchivos([]);
       setRequisitos(esCompletar ? REQUISITOS_COMPLETAR : REQUISITOS_INICIALES);
       setError(null);
+      setCuotaOrigen({ id: cuotaId, numero: cuotaNumero ?? 1 });
     }
     onOpenChange(v);
   };
@@ -200,7 +213,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
     ...(requisitos.valorizacion ? [TIPOS_ARCHIVO_IIMP.VALORIZACION_COTIZACION] : []),
     ...(requisitos.otros ? [TIPOS_ARCHIVO_IIMP.OTROS_REQUISITOS] : []),
   ];
-  const cuotaDocumentos = cuotaNumero && cuotaNumero > 0 ? cuotaNumero : null;
+  const cuotaDocumentos = cuotaEfectivaNumero && cuotaEfectivaNumero > 0 ? cuotaEfectivaNumero : null;
   const faltantes = tiposDeclarados.filter((tipo) => !archivos.some((a) => a.tipo === tipo));
   /** Debe declarar al menos un requisito o marcar explicitamente "Ninguna de las anteriores". */
   const sinRequisitoDeclarado =
@@ -213,7 +226,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
 
   /** Valida requisitos y documentos; luego envia la solicitud de factura. */
   const enviar = async () => {
-    if (!cuotaId) return;
+    if (!cuotaEfectivaId) return;
     if (sinRequisitoDeclarado) {
       setError("Selecciona al menos un requisito o marca \"Ninguna de las anteriores\".");
       return;
@@ -248,19 +261,31 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
         valorizacion: requisitos.valorizacion,
         otros: requisitos.otros || null,
         ninguna: requisitos.ninguna,
+        descripcionFactura: requisitos.descripcionFactura || null,
       };
       if (esCompletar) {
-        await pagosService.completarRequisitos(cuotaId, datosRequisitos, archivos);
+        if (admin) await facturacionService.completarRequisitos(cuotaEfectivaId, datosRequisitos, archivos);
+        else await pagosService.completarRequisitos(cuotaEfectivaId, datosRequisitos, archivos);
         toast.success("Requisitos de facturación actualizados.");
       } else {
-        const resultado = await pagosService.solicitarFactura(cuotaId, archivos, datosRequisitos);
+        const resultado = admin
+          ? await facturacionService.solicitarFactura(cuotaEfectivaId, datosRequisitos, archivos)
+          : await pagosService.solicitarFactura(cuotaEfectivaId, archivos, datosRequisitos);
         const doc = resultado.documento;
-        toast.success(
-          doc
-            ? `Solicitud de factura enviada. Comprobante ${doc.serie}-${doc.numero} emitido.`
-            : "Solicitud de factura enviada. La factura de cada cuota se emitirá en su fecha.",
-        );
-        toast.info("Facturación y Cobranzas te enviará un correo con las indicaciones de pago.");
+        if (admin) {
+          toast.success(
+            doc
+              ? `Solicitud registrada. Comprobante ${doc.serie}-${doc.numero} emitido.`
+              : "Solicitud de factura registrada. La factura de cada cuota se emitirá en su fecha.",
+          );
+        } else {
+          toast.success(
+            doc
+              ? `Solicitud de factura enviada. Comprobante ${doc.serie}-${doc.numero} emitido.`
+              : "Solicitud de factura enviada. La factura de cada cuota se emitirá en su fecha.",
+          );
+          toast.info("Facturación y Cobranzas te enviará un correo con las indicaciones de pago.");
+        }
       }
       cerrar(false);
       onEnviado();
@@ -276,7 +301,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border-border sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            <span>{esCompletar ? "Completar requisitos de facturación" : "Requisitos de facturación"}{standCode ? ` · ${standCode}` : ""}</span>
+            <span>{esCompletar ? "Completar requisitos de facturación" : esAdminSolicitud ? "Solicitar factura" : "Requisitos de facturación"}{standCode ? ` · ${standCode}` : ""}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -286,9 +311,37 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
               <span>
                 {esCompletar
                   ? "Tu solicitud de factura ya fue enviada, pero quedó sin requisitos declarados. Marca las opciones que correspondan y adjunta los documentos que apliquen."
-                  : "Antes de solicitar tu factura, verifica los requisitos de facturación de tu empresa. Selecciona todas las opciones que correspondan y adjunta los documentos que apliquen."}
+                  : esAdminSolicitud
+                    ? "Registra la solicitud de factura en nombre del cliente. Verifica los requisitos de facturación de la empresa, adjunta los documentos y elige la cuota de origen."
+                    : "Antes de solicitar tu factura, verifica los requisitos de facturación de tu empresa. Selecciona todas las opciones que correspondan y adjunta los documentos que apliquen."}
               </span>
             </p>
+
+            {esAdminSolicitud && cuotas.length > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-border p-3">
+                <p className="text-xs font-semibold text-foreground">Cuota de origen</p>
+                <Select
+                  value={String(cuotaOrigen.numero)}
+                  onValueChange={(valor) => {
+                    const numero = Number(valor);
+                    const cuota = cuotas.find((c) => c.numero === numero);
+                    if (cuota) setCuotaOrigen({ id: cuota.id, numero: cuota.numero });
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {cuotas.map((cuota) => (
+                      <SelectItem key={cuota.id} value={String(cuota.numero)}>
+                        <span>Cuota {cuota.numero}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  La solicitud se registra una sola vez para todas las cuotas; esta cuota identifica el origen de los requisitos y documentos.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2 rounded-lg border border-border p-3">
               <label className="flex items-start gap-2 text-xs">
@@ -368,6 +421,28 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
                 <input type="checkbox" checked={requisitos.ninguna === true} onChange={(e) => marcar("ninguna", e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
                 <span><strong>Ninguna de las anteriores</strong>: mi empresa no requiere estos documentos (por ejemplo, empresas extranjeras o sin orden de compra).</span>
               </label>
+
+              <div className="space-y-1.5 border-t border-border pt-2">
+                <label htmlFor="descripcion-factura" className="text-xs font-semibold text-foreground">
+                  Descripción de mi factura <span className="font-normal text-muted-foreground">(opcional)</span>
+                </label>
+                <Input
+                  id="descripcion-factura"
+                  className="h-9 text-xs"
+                  maxLength={MAX_DESCRIPCION_FACTURA}
+                  placeholder="Ej.: OC 4501 - 1ra cuota"
+                  value={requisitos.descripcionFactura ?? ""}
+                  onChange={(e) => {
+                    setError(null);
+                    setRequisitos((prev) => ({ ...prev, descripcionFactura: e.target.value }));
+                  }}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  {esCompletar
+                    ? "La reserva ya fue enviada al IIMP: este texto se guarda en el Portal para Facturación y no se envía al SIE."
+                    : `Máximo ${MAX_DESCRIPCION_FACTURA} caracteres. Se envía al sistema de facturación como texto libre de la cuota.`}
+                </p>
+              </div>
             </div>
 
             {/* Documentos de los requisitos declarados (cuota fija de la bandeja). */}
@@ -438,7 +513,7 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
         <DialogFooter>
           <Button className="w-full" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado} onClick={() => { void enviar(); }}>
             {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
-            <span>{enviando ? (esCompletar ? "Guardando..." : "Enviando solicitud...") : (esCompletar ? "Guardar requisitos" : "Enviar solicitud de factura")}</span>
+            <span>{enviando ? (esCompletar ? "Guardando..." : "Enviando solicitud...") : (esCompletar ? "Guardar requisitos" : esAdminSolicitud ? "Solicitar factura" : "Enviar solicitud de factura")}</span>
           </Button>
         </DialogFooter>
       </DialogContent>

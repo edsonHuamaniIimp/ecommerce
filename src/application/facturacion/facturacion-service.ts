@@ -30,6 +30,19 @@ export class FacturacionApplicationService {
     }
   }
 
+  /** Permiso especifico para registrar solicitudes de factura en nombre del cliente. */
+  autorizarSolicitudFactura(permissions: string[] = []): void {
+    const permitido =
+      permissions.includes(PERMISSIONS.FACTURACION_SOLICITAR) || permissions.includes(PERMISSIONS.ADMIN_FULL);
+    if (!permitido) {
+      throw new DomainError(
+        "Sin permiso para solicitar facturas en nombre del cliente",
+        API_ERROR_CODES.FORBIDDEN,
+        403,
+      );
+    }
+  }
+
   async listar(params: FacturacionListParams): Promise<FacturacionListResult> {
     return this.repo.listar(params);
   }

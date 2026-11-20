@@ -127,7 +127,11 @@ function cuerpo(input: ReservaIimpInput): Record<string, unknown> {
       ...(input.contactos.responsable ? { Responsable: contacto(input.contactos.responsable) } : {}),
       Pagos: contacto(input.contactos.pagos),
     },
-    Cuotas: input.cuotas.map((c) => ({ Porcentaje: c.porcentaje, Fecha: c.fecha })),
+    Cuotas: input.cuotas.map((c) => ({
+      Porcentaje: c.porcentaje,
+      Fecha: c.fecha,
+      ...(c.textoLibre ? { TextoLibre: c.textoLibre } : {}),
+    })),
     ...(input.archivos && input.archivos.length > 0 ? { Archivos: input.archivos.map(cuerpoArchivo) } : {}),
   };
 }

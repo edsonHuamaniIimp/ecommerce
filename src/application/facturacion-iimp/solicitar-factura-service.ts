@@ -5,6 +5,7 @@ import {
   IIMP_CARGO_REPRESENTANTE,
   MAX_ARCHIVOS_IIMP_POR_LLAMADA,
   MAX_CUOTAS_IIMP,
+  MAX_DESCRIPCION_FACTURA,
   MAX_STANDS_IIMP,
   REGEX_DNI,
   REGEX_FECHA_ISO,
@@ -21,10 +22,11 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { DatosFacturacionSolicitud } from "@/domain/models/entities";
-import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
+import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpCuotaInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
 import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
 import { numeroSolicitudIImp } from "./numero-solicitud";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
+import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
 
 export interface ResultadoSolicitudFactura {
   numeroSolicitud: string;
@@ -50,6 +52,8 @@ export interface RequisitosFacturacionInput {
   otros?: string | null;
   /** Mi empresa no requiere estos documentos (extranjeras o sin orden de compra). */
   ninguna?: boolean;
+  /** Texto libre para la factura de la cuota (SIE `TextoLibre`, max. 100). */
+  descripcionFactura?: string | null;
 }
 
 /** Solo digitos (RUC/DNI llegan con puntos o espacios). */
@@ -82,6 +86,18 @@ export class SolicitarFacturaApplicationService {
     if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
     if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+
+    /* La solicitud se habilita 30 dias antes de la fecha configurada de la cuota. */
+    const cuotaOrigen = fact.cuotas.find((c) => c.id === cuotaId);
+    if (!cuotaOrigen) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    if (!solicitudFacturaHabilitada(cuotaOrigen.fechaVencimiento)) {
+      const dias = diasParaHabilitarSolicitudFactura(cuotaOrigen.fechaVencimiento);
+      throw new DomainError(
+        `La solicitud de factura se habilita 30 dias antes de la fecha de la cuota${dias !== null ? ` (faltan ${dias} dias)` : ""}`,
+        API_ERROR_CODES.CONFLICT,
+        409,
+      );
+    }
 
     const datos = await this.solicitudes.datosReservaIImp(fact.solicitudId);
     if (!datos) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
@@ -123,7 +139,7 @@ export class SolicitarFacturaApplicationService {
       throw new DomainError("No se pudo ajustar el plan de cuotas a porcentajes enteros", API_ERROR_CODES.VALIDATION, 400);
     }
     porcentajes[ultimoIdx] = ultimoAjustado;
-    const cuotas = cuotasPlan.map((c, i) => {
+    const cuotas: ReservaIimpCuotaInput[] = cuotasPlan.map((c, i) => {
       const fecha = (c.fechaVencimiento ?? "").slice(0, 10);
       if (!REGEX_FECHA_ISO.test(fecha)) {
         throw new DomainError("El plan de cuotas no tiene fechas validas (AAAA-MM-DD)", API_ERROR_CODES.VALIDATION, 400);
@@ -143,6 +159,15 @@ export class SolicitarFacturaApplicationService {
     /* Requisitos de facturacion: la declaracion del cliente es referencial (no bloquea
        la solicitud); se guarda con la cuota de origen para Facturacion. */
     const requisitosDeclarados = requisitos ? this.normalizarRequisitos(requisitos) : null;
+    /* Texto libre de la factura (SIE `TextoLibre`): aplica a la cuota desde la que se
+       solicita y viaja en el payload de la reserva (una sola vez). */
+    if (requisitosDeclarados?.descripcionFactura) {
+      const cuotaOrigen = fact.cuotas.find((c) => c.id === cuotaId)?.numero ?? 1;
+      const indice = cuotaOrigen - 1;
+      if (cuotas[indice]) {
+        cuotas[indice] = { ...cuotas[indice], textoLibre: requisitosDeclarados.descripcionFactura };
+      }
+    }
 
     const numeroSolicitud = numeroSolicitudIImp(fact.solicitudId);
     const input = await this.armarPayload(snapshot, empresa, {
@@ -237,11 +262,55 @@ export class SolicitarFacturaApplicationService {
     });
   }
 
+  /**
+   * Version para Facturacion: registra la solicitud en nombre del cliente (resuelve
+   * su correo) cuando el cliente aun no la envio desde Mis documentos.
+   */
+  async solicitarComoStaff(
+    cuotaId: string,
+    archivos: ReservaIimpArchivoInput[] = [],
+    requisitos: RequisitosFacturacionInput | null = null,
+  ): Promise<ResultadoSolicitudFactura> {
+    const fact = await this.facturacion.facturacionDeCuota(cuotaId);
+    if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const datos = await this.solicitudes.datosReservaIImp(fact.solicitudId);
+    if (!datos?.email) {
+      throw new DomainError("La solicitud no tiene correo de cliente", API_ERROR_CODES.VALIDATION, 400);
+    }
+    return this.solicitar(cuotaId, { email: datos.email }, archivos, requisitos);
+  }
+
+  /**
+   * Version para Facturacion: resuelve el cliente de la solicitud y completa los
+   * requisitos en su nombre (misma logica que el flujo del cliente).
+   */
+  async completarRequisitosComoStaff(
+    cuotaId: string,
+    archivos: ReservaIimpArchivoInput[] = [],
+    requisitos: RequisitosFacturacionInput | null = null,
+  ): Promise<void> {
+    const fact = await this.facturacion.facturacionDeCuota(cuotaId);
+    if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const datos = await this.solicitudes.datosReservaIImp(fact.solicitudId);
+    if (!datos?.email) {
+      throw new DomainError("La solicitud no tiene correo de cliente", API_ERROR_CODES.VALIDATION, 400);
+    }
+    await this.completarRequisitos(cuotaId, { email: datos.email }, archivos, requisitos);
+  }
+
   /** Normaliza la declaracion de requisitos y valida el enlace de la plataforma. */
   private normalizarRequisitos(input: RequisitosFacturacionInput): RequisitosFacturacionInput {
     const enlace = (input.plataformaUrl ?? "").trim();
     if (enlace && !/^https?:\/\/\S+$/i.test(enlace)) {
       throw new DomainError("El enlace de la plataforma debe ser una URL http(s) valida", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const descripcion = (input.descripcionFactura ?? "").trim();
+    if (descripcion.length > MAX_DESCRIPCION_FACTURA) {
+      throw new DomainError(
+        `La descripcion de la factura no puede superar ${MAX_DESCRIPCION_FACTURA} caracteres`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
     }
     const normalizado: RequisitosFacturacionInput = {
       oc: input.oc === true,
@@ -252,6 +321,7 @@ export class SolicitarFacturaApplicationService {
       valorizacion: input.valorizacion === true,
       otros: (input.otros ?? "").trim() || null,
       ninguna: input.ninguna === true,
+      descripcionFactura: descripcion || null,
     };
     /* El cliente debe declarar al menos un requisito (o marcar "Ninguna"); el modal
        envia un objeto aun sin seleccion, por eso se valida aqui y no en el null. */
@@ -276,7 +346,7 @@ export class SolicitarFacturaApplicationService {
   private async armarPayload(
     snapshot: DatosFacturacionSolicitud | null,
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
-    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; moneda?: string | null; stands: string[]; cuotas: Array<{ porcentaje: number; fecha: string }>; archivos?: ReservaIimpArchivoInput[] },
+    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; moneda?: string | null; stands: string[]; cuotas: ReservaIimpCuotaInput[]; archivos?: ReservaIimpArchivoInput[] },
   ): Promise<ReservaIimpInput> {
     /* Tipo normalizado: define el payload del IIMP (01 factura / 03 boleta). No se asume
      * factura en silencio: si ninguna fuente trae un tipo valido, se rechaza. */

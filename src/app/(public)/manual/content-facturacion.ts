@@ -47,6 +47,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <h2 id="seccion-3">3. Declara tus requisitos de facturación</h2>
 <p>Antes de solicitar tu factura, el portal te muestra el formulario <strong>Requisitos de facturación</strong>. Ábrelo con el <strong>ícono de solicitud</strong> que está a la derecha de la cuota pendiente (marcado en rojo en la Figura 2). Si aún no enviaste tu solicitud, la cuota muestra la etiqueta "Solicitar factura aquí".</p>
 <p><img src="/manual/img/fact-02a-tarjeta-solicitar.png" alt="Icono de solicitud de factura"><br><em>Figura 2 — Ícono de solicitud de factura en la cuota.</em></p>
+<p>El ícono de solicitud se habilita <strong>30 días antes</strong> de la fecha configurada de la cuota; antes de esa fecha verás cuántos días faltan.</p>
 <p>Marca todos los requisitos que exige tu empresa:</p>
 <div class="manual-table-wrap"><table>
 <thead>
@@ -81,6 +82,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <blockquote>
 <p>Si marcas cualquier requisito se desmarca "Ninguna de las anteriores"; si marcas "Ninguna", se limpian los demás. El <strong>nombre y enlace de la plataforma</strong> y la <strong>especificación de "Otros"</strong> son obligatorios cuando los marcas.</p>
 </blockquote>
+<p><strong>Descripción de mi factura (opcional)</strong>: texto libre de hasta <strong>100 caracteres</strong> (por ejemplo, el número de OC). Se envía al sistema de facturación como texto libre de la cuota desde la que solicitas.</p>
 <hr>
 <h2 id="seccion-4">4. Envía tu solicitud de factura</h2>
 <p>Con los requisitos marcados, el mismo formulario habilita la sección <strong>Documentos a adjuntar</strong>, con una tarjeta por cada requisito declarado:</p>
@@ -170,6 +172,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <p><strong>¿Cuándo pasa mi solicitud a "Pagado"?</strong><br>Cuando todas las cuotas estén pagadas y confirmadas por Facturación.</p>
 <p><strong>¿Puedo agregar más documentos después?</strong><br>Sí, cuando la cuota ya tiene factura emitida puedes usar el ícono de documentos de esa cuota en <strong>Mis documentos</strong>.</p>
 <p><strong>Envié mi solicitud sin marcar requisitos, ¿qué hago?</strong><br>En Mis documentos verás el aviso <strong>"Tu solicitud se envió sin requisitos de facturación"</strong> con el botón <strong>Completar requisitos</strong>. Marca las opciones que correspondan y adjunta los documentos; se guardan sin reenviar la reserva al IIMP.</p>
+<p><strong>¿Qué es "Descripción de mi factura"?</strong><br>Un texto libre opcional (máximo 100 caracteres) que se envía al sistema de facturación para la cuota desde la que solicitas. Si tu solicitud ya fue enviada, el texto se guarda en el portal para Facturación y no se reenvía al IIMP.</p>
 <hr>
 <h2 id="seccion-11">11. Soporte</h2>
 <p>Para dudas sobre requisitos, documentos o facturas:</p>

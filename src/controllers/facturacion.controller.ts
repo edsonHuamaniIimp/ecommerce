@@ -4,6 +4,8 @@ import { API_ERROR_CODES } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { services } from "@/lib/server/services";
 import { adjuntarComprobanteFiscalSchema, enviarRecordatoriosSchema } from "@/validators/facturacion.validator";
+import type { RequisitosFacturacionInput } from "@/application/facturacion-iimp/solicitar-factura-service";
+import type { ReservaIimpArchivoInput } from "@/domain/ports/reserva-iimp-client";
 import type { AdjuntarComprobanteFiscalRequestDTO, EnviarRecordatoriosRequestDTO } from "@/types/dto/facturacion";
 
 const service = services.facturacion;
@@ -48,8 +50,38 @@ export const facturacionController = {
     return success({ ...expediente, contratoFirmadoSgc });
   },
 
-  /** Candidatos a recordatorio: sin solicitud de factura y con documentos declarados pendientes. */
-  async recordatorios(): Promise<NextResponse> {
+  /** Registra la solicitud de factura en nombre del cliente (Facturacion). */
+  async solicitarFactura(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarSolicitudFactura(session.permissions);
+    const { cuotaId, archivos, requisitos } = (await request.json()) as {
+      cuotaId: string;
+      archivos?: unknown;
+      requisitos?: RequisitosFacturacionInput | null;
+    };
+    if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
+    const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
+    return success(await services.solicitarFactura.solicitarComoStaff(cuotaId, lista, requisitos ?? null));
+  },
+
+  /** Completa los requisitos de una solicitud ya enviada (Facturacion actua en nombre del cliente). */
+  async completarRequisitos(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarGestion(session.permissions);
+    const { cuotaId, archivos, requisitos } = (await request.json()) as {
+      cuotaId: string;
+      archivos?: unknown;
+      requisitos?: RequisitosFacturacionInput | null;
+    };
+    if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
+    const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
+    await services.solicitarFactura.completarRequisitosComoStaff(cuotaId, lista, requisitos ?? null);
+    return success({ ok: true });
+  },
+
+  /** Candidatos a recordatorio: sin solicitud de factura y con documentos declarados pendientes. */  async recordatorios(): Promise<NextResponse> {
     const session = await getSession();
     if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
     service.autorizarGestion(session.permissions);

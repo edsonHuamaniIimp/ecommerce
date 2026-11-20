@@ -30,6 +30,8 @@ export interface FacturacionRow {
     otros?: string | null;
     ninguna?: boolean;
     cuota?: number;
+    /** Texto libre para la factura de la cuota (se envia al SIE como TextoLibre). */
+    descripcionFactura?: string | null;
   } | null;
   /** Contrato y cuenta corriente del IIMP cuando la reserva ya se registro alli. */
   iimpContrato: string | null;

@@ -82,6 +82,7 @@ vinculada es opcional y solo enriquece):
 | `Contactos.Contrato` | `datos_facturacion.contacto` (respaldo: representante legal); cargo `IIMP_CARGO_REPRESENTANTE` |
 | `Contactos.Pagos` | Mismo nombre + `datos_facturacion.email` (respaldo: `empresa.emailFacturacion`/`emailContacto`) |
 | `Cuotas` | Plan del contrato: `Porcentaje` entero (redondeo; la última absorbe hasta sumar 100) y `Fecha` `AAAA-MM-DD`. En reservas nuevas las fechas salen del cronograma estándar o del cronograma personalizado configurado por el administrador para la empresa; el servidor valida el plan y no acepta fechas libres. |
+| `Cuotas[].TextoLibre` (opcional) | Texto libre de la cuota (máx. **100** caracteres), capturado como "Descripción de mi factura". Se envía en la cuota de origen al crear la reserva y el IIMP lo migra a SAP como `FreeTxt` de la orden de venta. En el flujo posterior de completar requisitos ya no se puede actualizar en el SIE. |
 | `Archivos` (opcional) | Links absolutos http(s) (el backend convierte `/uploads/*` con `APP_URL`): OC, HES, detracción y diferencia; los elementos sin link se ignoran (v3). También se agregan después con `/api/pagos/archivos-agregar` |
 
 El snapshot se guarda al crear la solicitud (`solicitud.datos_facturacion`) con lo que el

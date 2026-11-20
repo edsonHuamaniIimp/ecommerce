@@ -184,6 +184,57 @@ describe("SolicitarFacturaApplicationService", () => {
     expect(m.reserva.reservar).not.toHaveBeenCalled();
   });
 
+  it("rechaza solicitar fuera de la ventana de 30 dias (409)", async () => {
+    const m = mocks();
+    vi.mocked(m.facturacion.facturacionDeCuota).mockResolvedValue({
+      ...factRow,
+      cuotas: [{ id: "c1", numero: 1, fechaVencimiento: "2099-01-01" }],
+    } as never);
+
+    await expect(servicio(m).solicitar("c1", ident, [], { ninguna: true })).rejects.toMatchObject({ status: 409 });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
+  it("envia la descripcion de la factura como TextoLibre de la cuota de origen", async () => {
+    const m = mocks();
+    await servicio(m).solicitar("c1", ident, [], { ninguna: true, descripcionFactura: "OC 4501 - 1ra cuota" });
+
+    const payload = vi.mocked(m.reserva.reservar).mock.calls[0]?.[0];
+    expect(payload?.cuotas[0]).toEqual(expect.objectContaining({ textoLibre: "OC 4501 - 1ra cuota" }));
+    expect(payload?.cuotas[1]?.textoLibre).toBeUndefined();
+  });
+
+  it("rechaza una descripcion de factura de mas de 100 caracteres (400)", async () => {
+    const m = mocks();
+    await expect(
+      servicio(m).solicitar("c1", ident, [], { ninguna: true, descripcionFactura: "x".repeat(101) }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
+  it("Facturacion registra la solicitud en nombre del cliente", async () => {
+    const m = mocks();
+    const r = await servicio(m).solicitarComoStaff("c1", [], { ninguna: true });
+
+    expect(m.reserva.reservar).toHaveBeenCalled();
+    expect(m.solicitudes.guardarReservaIImp).toHaveBeenCalled();
+    expect(r.numeroSolicitud).toBe("CTRS-s1");
+  });
+
+  it("Facturacion completa requisitos en nombre del cliente", async () => {
+    const m = mocks();
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      iimpContrato: "0000000008",
+      iimpCuentaCorriente: "8",
+      requisitosFacturacion: { oc: false, hes: false, plataforma: false, valorizacion: false, otros: null, ninguna: false, cuota: 1 },
+    } as never);
+
+    await servicio(m).completarRequisitosComoStaff("c1", [], { ninguna: true });
+
+    expect(m.solicitudes.actualizarRequisitosFacturacion).toHaveBeenCalledWith("s1", expect.objectContaining({ ninguna: true }));
+  });
+
   it("completa requisitos de una solicitud ya enviada y sube documentos a la cuenta", async () => {
     const m = mocks();
     vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
@@ -480,7 +531,7 @@ describe("SolicitarFacturaApplicationService.requisitos de facturacion", () => {
     expect(m.solicitudes.guardarReservaIImp).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
       requisitos: {
         oc: true, hes: true, plataforma: true, plataformaNombre: "SAP Ariba", plataformaUrl: "https://ariba.example.com",
-        valorizacion: true, otros: "Carta de conformidad", ninguna: false, cuota: 1,
+        valorizacion: true, otros: "Carta de conformidad", ninguna: false, descripcionFactura: null, cuota: 1,
       },
     }));
   });

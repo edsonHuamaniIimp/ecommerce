@@ -360,6 +360,19 @@ describe("FacturacionApplicationService — unit tests rigurosos", () => {
     });
   });
 
+  describe("autorizarSolicitudFactura", () => {
+    it("permite con facturacion:solicitar y con admin total", () => {
+      const svc = crearSvc(mockRepo());
+      expect(() => svc.autorizarSolicitudFactura([PERMISSIONS.FACTURACION_SOLICITAR])).not.toThrow();
+      expect(() => svc.autorizarSolicitudFactura([PERMISSIONS.ADMIN_FULL])).not.toThrow();
+    });
+
+    it("rechaza con solo facturacion:view", () => {
+      const svc = crearSvc(mockRepo());
+      expect(() => svc.autorizarSolicitudFactura([PERMISSIONS.FACTURACION_VIEW])).toThrow();
+    });
+  });
+
   // ==================== PLAN DEL CLIENTE (contrato) ====================
   describe("plan definido por el cliente (plan_cuotas) â€” no editable", () => {
     it("rechaza agregar cuota cuando el plan viene del contrato", async () => {

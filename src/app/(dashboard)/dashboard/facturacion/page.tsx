@@ -12,7 +12,10 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { DocumentoPreviewDialog } from "@/components/shared/documento-preview-dialog";
 import { NotificarRecordatoriosDialog } from "@/components/facturacion/notificar-recordatorios-dialog";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, REQUERIMIENTOS_FACTURACION, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
+import { requisitosVacios } from "@/lib/shared/utils/requisitos-facturacion";
+import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, PERMISSIONS, REQUERIMIENTOS_FACTURACION, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { numberUtils } from "@/lib/shared/utils/number";
 
@@ -95,6 +98,10 @@ interface FacturacionItem {
   correoSolicitante: string | null;
   /** Razon social de la empresa indicada en la facturacion de la reserva. */
   empresaFacturacion: string | null;
+  /** Requisitos declarados por el cliente (vacio si aun no los completo). */
+  requisitos: RequisitosExpediente | null;
+  /** Contrato del IIMP (null = la reserva aun no se registro). */
+  iimpContrato: string | null;
   solicitudEstado: string;
   createdAt: string;
   cuotas: CuotaItem[];
@@ -193,6 +200,8 @@ interface RequisitosExpediente {
   otros?: string | null;
   ninguna?: boolean;
   cuota?: number;
+  /** Texto libre para la factura de la cuota (SIE TextoLibre). */
+  descripcionFactura?: string | null;
 }
 
 /** Expediente que ve Facturacion: empresa, reserva y documentos + contrato firmado del SGC. */
@@ -262,6 +271,15 @@ export default function FacturacionPage() {
   const [detailRow, setDetailRow] = useState<FacturacionItem | null>(null);
   /** Modal de recordatorios por correo (sin solicitud / documentos pendientes). */
   const [notifyOpen, setNotifyOpen] = useState(false);
+  /** Facturacion completa en nombre del cliente una solicitud enviada sin requisitos. */
+  const [completar, setCompletar] = useState<{ cuotaId: string; numero: number; standCode: string } | null>(null);
+  /** Facturacion registra la solicitud en nombre del cliente (con cuota de origen). */
+  const [solicitarAdmin, setSolicitarAdmin] = useState<{
+    cuotaId: string;
+    numero: number;
+    standCode: string;
+    cuotas: Array<{ id: string; numero: number }>;
+  } | null>(null);
   /** Documento abierto en la vista previa (modal en la misma pagina). */
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
   const [payOpen, setPayOpen] = useState(false);
@@ -294,6 +312,8 @@ export default function FacturacionPage() {
   const [newCuotaVencimiento, setNewCuotaVencimiento] = useState("");
   const [addingCuota, setAddingCuota] = useState(false);
   const [eventoId, setEventoId] = useState<string | null>(null);
+  /** Permisos de la sesion: "Solicitar factura" depende de facturacion:solicitar. */
+  const [permissions, setPermissions] = useState<string[]>([]);
 
   // Filtros de la bandeja: busqueda, tipo de pago y requerimiento de facturacion.
   const [search, setSearch] = useState("");
@@ -348,7 +368,10 @@ export default function FacturacionPage() {
   }, []);
 
   useEffect(() => {
-    authService.getSession().then((s) => setEventoId(s.eventoId ?? null));
+    authService.getSession().then((s) => {
+      setEventoId(s.eventoId ?? null);
+      setPermissions(s.permissions ?? []);
+    });
   }, []);
 
   useEffect(() => {
@@ -452,6 +475,8 @@ export default function FacturacionPage() {
   };
 
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
+  const puedeSolicitarFactura =
+    permissions.includes(PERMISSIONS.FACTURACION_SOLICITAR) || permissions.includes(PERMISSIONS.ADMIN_FULL);
 
   return (
     <main className="flex-1 py-6">
@@ -571,6 +596,7 @@ export default function FacturacionPage() {
                     <TableHead className="text-xs">Stand</TableHead>
                     <TableHead className="text-xs">Estado</TableHead>
                     <TableHead className="text-xs">Monto</TableHead>
+                    <TableHead className="text-xs">Siguiente paso</TableHead>
                     {requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA ? (
                       <>
                         <TableHead className="text-xs hidden md:table-cell">Cuota</TableHead>
@@ -589,6 +615,15 @@ export default function FacturacionPage() {
                   {rows.map((row) => {
                     const esConFactura = requerimiento === REQUERIMIENTOS_FACTURACION.CON_FACTURA;
                     const cuotasFacturadas = row.cuotas.filter(cuotaFacturada);
+                    /* Cuota de origen de los requisitos, para completarlos en nombre del cliente. */
+                    const cuotaRequisitos = row.cuotas.find((c) => c.numero === (row.requisitos?.cuota ?? 1)) ?? row.cuotas[0];
+                    /* Cuota sugerida para registrar la solicitud (primera no pagada). */
+                    const cuotaSolicitud = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? row.cuotas[0];
+                    const diasSolicitud = cuotaSolicitud ? diasParaHabilitarSolicitudFactura(cuotaSolicitud.fechaVencimiento) : null;
+                    const solicitudHabilitada = cuotaSolicitud ? solicitudFacturaHabilitada(cuotaSolicitud.fechaVencimiento) : false;
+                    const cuotasRegistro = row.cuotas
+                      .filter((c) => solicitudFacturaHabilitada(c.fechaVencimiento))
+                      .map((c) => ({ id: c.id, numero: c.numero }));
                     /* Con factura generada se renderiza una fila por cada cuota facturada. */
                     const filas: Array<CuotaItem | null> = esConFactura
                       ? (cuotasFacturadas.length > 0 ? cuotasFacturadas : [null])
@@ -608,6 +643,60 @@ export default function FacturacionPage() {
                                     </Badge>
                                   </TableCell>
                                   <TableCell rowSpan={filas.length} className="align-top text-xs font-medium">{row.montoTotal.toFixed(2)} {row.moneda}</TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top">
+                                    {!row.iimpContrato && cuotaSolicitud ? (
+                                      <div className="flex flex-col items-start gap-1">
+                                        <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
+                                          <span>Sin solicitud</span>
+                                        </Badge>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 gap-1 px-2 text-[10px]"
+                                          disabled={!puedeSolicitarFactura || !solicitudHabilitada}
+                                          title={
+                                            !puedeSolicitarFactura
+                                              ? "Requiere el permiso \"Solicitar factura\""
+                                              : !solicitudHabilitada && diasSolicitud !== null
+                                                ? `Disponible en ${diasSolicitud} día${diasSolicitud === 1 ? "" : "s"} (30 días antes de la cuota)`
+                                                : undefined
+                                          }
+                                          onClick={() => setSolicitarAdmin({
+                                            cuotaId: cuotaSolicitud.id,
+                                            numero: cuotaSolicitud.numero,
+                                            standCode: row.standCode,
+                                            cuotas: cuotasRegistro,
+                                          })}
+                                        >
+                                          <FileText className="h-3 w-3" />
+                                          <span>Solicitar factura</span>
+                                        </Button>
+                                        {!solicitudHabilitada && diasSolicitud !== null && (
+                                          <p className="text-[9px] text-muted-foreground">
+                                            Disponible en {diasSolicitud} día{diasSolicitud === 1 ? "" : "s"}
+                                          </p>
+                                        )}
+                                      </div>
+                                    ) : row.iimpContrato && requisitosVacios(row.requisitos) && cuotaRequisitos ? (
+                                      <div className="flex flex-col items-start gap-1">
+                                        <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.WARNING}`}>
+                                          <span>Requisitos pendientes</span>
+                                        </Badge>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 gap-1 px-2 text-[10px]"
+                                          onClick={() => setCompletar({ cuotaId: cuotaRequisitos.id, numero: cuotaRequisitos.numero, standCode: row.standCode })}
+                                        >
+                                          <FileText className="h-3 w-3" />
+                                          <span>Completar requisitos</span>
+                                        </Button>
+                                      </div>
+                                    ) : row.iimpContrato ? (
+                                      <Badge className={`pointer-events-none text-[9px] ${row.cuotas.some(cuotaFacturada) ? BADGE_STYLES.SUCCESS : BADGE_STYLES.INFO}`}>
+                                        <span>{row.cuotas.some(cuotaFacturada) ? "Factura emitida" : "Requisitos OK"}</span>
+                                      </Badge>
+                                    ) : null}
+                                  </TableCell>
                                 </>
                               )}
                               {esConFactura ? (
@@ -691,6 +780,37 @@ export default function FacturacionPage() {
       <NotificarRecordatoriosDialog
         open={notifyOpen}
         onOpenChange={setNotifyOpen}
+        onEnviado={() => {
+          if (eventoId) void loadStats(eventoId);
+          void load(page);
+        }}
+      />
+
+      <EnviarReservaIimp
+        key={solicitarAdmin?.cuotaId ?? "solicitar-admin"}
+        open={solicitarAdmin !== null}
+        onOpenChange={(v) => { if (!v) setSolicitarAdmin(null); }}
+        cuotaId={solicitarAdmin?.cuotaId ?? ""}
+        cuotaNumero={solicitarAdmin?.numero}
+        standCode={solicitarAdmin?.standCode}
+        cuotas={solicitarAdmin?.cuotas}
+        modo="solicitud"
+        admin
+        onEnviado={() => {
+          if (eventoId) void loadStats(eventoId);
+          void load(page);
+        }}
+      />
+
+      <EnviarReservaIimp
+        key={completar?.cuotaId ?? "completar-requisitos"}
+        open={completar !== null}
+        onOpenChange={(v) => { if (!v) setCompletar(null); }}
+        cuotaId={completar?.cuotaId ?? ""}
+        cuotaNumero={completar?.numero}
+        standCode={completar?.standCode}
+        modo="completar"
+        admin
         onEnviado={() => {
           if (eventoId) void loadStats(eventoId);
           void load(page);
@@ -955,6 +1075,12 @@ export default function FacturacionPage() {
                           <RequisitoFila marcado={Boolean(expediente.requisitos.otros)} titulo="Otros requisitos" descripcion="especifica qué documento necesita tu empresa." />
                           <RequisitoFila marcado={expediente.requisitos.ninguna} titulo="Ninguna de las anteriores" descripcion="mi empresa no requiere estos documentos (por ejemplo, empresas extranjeras o sin orden de compra)." />
                         </div>
+                        {expediente.requisitos.descripcionFactura && (
+                          <div className="mt-2 rounded-md border border-border bg-muted/20 px-2.5 py-1.5 text-[11px]">
+                            <span className="font-semibold text-foreground">Descripción de mi factura: </span>
+                            <span className="text-muted-foreground">{expediente.requisitos.descripcionFactura}</span>
+                          </div>
+                        )}
                         {expediente.requisitos.plataforma && (
                           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-muted/40 px-2.5 py-1.5 text-[10px] text-muted-foreground">
                             <span>Plataforma: <span className="font-medium text-foreground">{expediente.requisitos.plataformaNombre ?? "—"}</span></span>

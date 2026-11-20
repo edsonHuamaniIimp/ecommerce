@@ -26,6 +26,9 @@ son **referenciales**.
 
 - **Facturación / Admin**: bandeja `/dashboard/facturacion` (`facturacion:view` o
   `admin:full`): listado, expediente, archivar, cambiar tipo y dar de baja.
+- **Solicitar factura**: permiso específico `facturacion:solicitar` (o `admin:full`) para
+  registrar la reserva en nombre del cliente desde la bandeja. Se asigna en
+  `/dashboard/roles`; sin él, el botón aparece deshabilitado y el API responde 403.
 - **Exhibidor (cliente)**: `/dashboard/mis-pagos` ("Mis documentos") con `pagos:view`
   y `pagos:manage`; toda operación valida que la cuota sea de una solicitud propia.
 - **Niubiz deshabilitado**: `NIUBIZ_HABILITADO = false`; las rutas de pasarela responden 503.
@@ -62,6 +65,15 @@ Al pulsar el ícono de **solicitar factura** de una cuota se abre un único moda
      cuenta corriente del IIMP con ese número de cuota.
 3. **Enviar solicitud de factura**: valida requisitos y documentos y llama a
    `POST /api/pagos/solicitar-factura` con `{cuotaId, archivos, requisitos}`.
+4. **Descripción de mi factura** (opcional, máx. `MAX_DESCRIPCION_FACTURA = 100`): se
+   envía al SIE como `Cuotas[].TextoLibre` de la cuota de origen al crear la reserva
+   (SAP `FreeTxt` de la orden de venta). En el flujo "Completar requisitos" la reserva
+   ya existe: el texto se guarda localmente y se muestra en el expediente, pero el SIE
+   no admite actualizarlo.
+5. **Ventana de habilitación**: la solicitud solo se puede enviar desde
+   `DIAS_HABILITACION_SOLICITUD_FACTURA = 30` días antes de la `fechaVencimiento` de la
+   cuota de origen. Antes, el ícono queda deshabilitado con el conteo de días y el
+   backend responde **409**.
 
 Efecto: se registra la **reserva** en el IIMP (contrato y cuenta corriente) y la
 declaración de requisitos en `solicitud.requisitos_facturacion` (con la cuota de
@@ -161,6 +173,9 @@ El estado de la facturación se muestra como **"En proceso"** / **"Completado"**
   factura"** con la fecha real de emisión (o "—" si no fue notificada; no se usa la
   programada).
 - **Fecha de solicitud**: fecha de creación de la facturación.
+- **Siguiente paso**: badge + acción según el registro: `Sin solicitud` (botón
+  **Solicitar factura**), `Requisitos pendientes` (botón **Completar requisitos**),
+  `Requisitos OK` o `Factura emitida`.
 
 ### 5.4 Expediente (ojito)
 
@@ -181,6 +196,14 @@ Modal por objetivo, con tabs:
 
 - Ver detalle (expediente), archivar (facturación completada), cambiar tipo de pago y
   eliminar (baja lógica). No hay registro manual de pagos en la bandeja.
+- **Solicitar factura** (columna Siguiente paso, filas sin contrato IIMP): Facturación
+  registra la reserva en nombre del cliente (`POST /api/facturacion/solicitar-factura`).
+  El modal permite elegir la **cuota de origen** (por defecto la primera pendiente) y
+  declara requisitos + documentos + descripción; la reserva se envía una sola vez para
+  todas las cuotas.
+- **Completar requisitos** (filas con reserva registrada y declaración vacía):
+  Facturación abre el mismo modal del cliente y guarda la declaración + documentos en su
+  nombre (`POST /api/facturacion/completar-requisitos`); no reenvía la reserva.
 
 ### 5.6 Notificar recordatorios
 

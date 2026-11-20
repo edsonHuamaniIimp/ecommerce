@@ -20,6 +20,7 @@ import { BADGE_STYLES, DIAS_ANTICIPACION_CUOTA, ESTADO_CUOTA_LABELS, ESTADOS_CUO
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
 import { tiposDocumentosPorRequisitos, tiposRequeridosPorRequisitos, requisitosVacios } from "@/lib/shared/utils/requisitos-facturacion";
+import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada, textoSolicitudFactura } from "@/lib/shared/utils/facturacion";
 
 const ESTADO_FACTURACION_LABELS: Record<string, string> = {
   [ESTADOS_FACTURACION.PENDIENTE]: "Pendiente",
@@ -246,6 +247,9 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
     const cuotaSugerida = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? row.cuotas[0];
     /* Cuota de origen de la declaracion de requisitos (para completarla si quedo vacia). */
     const cuotaRequisitos = row.cuotas.find((c) => c.numero === (row.requisitos?.cuota ?? 1)) ?? row.cuotas[0] ?? null;
+    /* La solicitud se habilita 30 dias antes de la fecha de la primera cuota pendiente. */
+    const solicitudHabilitada = cuotaSugerida ? solicitudFacturaHabilitada(cuotaSugerida.fechaVencimiento) : false;
+    const diasParaSolicitud = cuotaSugerida ? diasParaHabilitarSolicitudFactura(cuotaSugerida.fechaVencimiento) : null;
     /* Seguimiento: siguiente cuota pendiente. Antes de emitirse la factura se cuenta
        contra su fecha programada; si la factura ya se emitio, se avisa el pago. */
     const cuotaPendiente = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? null;
@@ -266,7 +270,11 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" />
           <span className="text-foreground">
             <strong>Solicitud de factura pendiente:</strong> aún no enviaste tu solicitud de factura.
-            {cuotaSugerida ? ` Usa el ícono de solicitud de la cuota ${cuotaSugerida.numero}.` : ""}
+            {cuotaSugerida && solicitudHabilitada
+              ? ` Usa el ícono de solicitud de la cuota ${cuotaSugerida.numero}.`
+              : diasParaSolicitud !== null && diasParaSolicitud > 0
+                ? ` Se habilita en ${diasParaSolicitud} día${diasParaSolicitud === 1 ? "" : "s"} (30 días antes de la fecha de la cuota).`
+                : ""}
           </span>
         </div>
       )}
@@ -338,7 +346,11 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
               </Badge>
               {!row.iimpContrato && (puedeGestionar || soloLectura) && cuotaSugerida?.id === cuota.id && (
-                <span className="text-[10px] font-semibold text-warning">Solicitar factura aquí</span>
+                <span className="text-[10px] font-semibold text-warning">
+                  {solicitudFacturaHabilitada(cuota.fechaVencimiento)
+                    ? "Solicitar factura aquí"
+                    : `Disponible en ${diasParaHabilitarSolicitudFactura(cuota.fechaVencimiento)} día(s)`}
+                </span>
               )}
               {cuotaSeguimiento?.id === cuota.id && (
                 <span className="text-[10px] font-semibold text-info">
@@ -438,14 +450,14 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        disabled={soloLectura}
+                        disabled={soloLectura || !solicitudFacturaHabilitada(cuota.fechaVencimiento)}
                         onClick={() => setReservaCuota({ cuotaId: cuota.id, standCode: row.standCode, numero: cuota.numero })}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <span>{soloLectura ? "Solo lectura: Solicitar factura" : "Solicitar factura"}</span>
+                      <span>{soloLectura ? `Solo lectura: ${textoSolicitudFactura(cuota.fechaVencimiento)}` : textoSolicitudFactura(cuota.fechaVencimiento)}</span>
                     </TooltipContent>
                   </Tooltip>
                 )}

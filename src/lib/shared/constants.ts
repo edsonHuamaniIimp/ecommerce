@@ -449,6 +449,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
     "laboratorio:view",
     "laboratorio:manage",
     "facturacion:view",
+    "facturacion:solicitar",
     "pagos:view",
     "pagos:manage",
     "portal:manage",
@@ -466,7 +467,7 @@ export const ROLES_PERMISSIONS: Record<Rol, string[]> = {
   [ROLES.LEGAL]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:legal", "solicitudes:view", "solicitudes:gestion", "solicitudes:review:legal", "dd:ver", "dd:legal"],
   [ROLES.COMUNICACION]: ["dashboard:view", "eventos:datos", "stands:plano", "auspicios:view", "read:reservas", "approve:comunicacion", "solicitudes:view", "solicitudes:gestion", "dd:ver", "dd:reputacion"],
   [ROLES.CLIENTE]: ["eventos:datos", "stands:plano", "mis-reservas:view", "write:reservas", "pagos:view", "pagos:manage", "dd:formulario"],
-  [ROLES.CONTABILIDAD]: ["dashboard:view", "eventos:datos", "facturacion:view"],
+  [ROLES.CONTABILIDAD]: ["dashboard:view", "eventos:datos", "facturacion:view", "facturacion:solicitar"],
 };
 
 export const ALL_PERMISSIONS = [
@@ -487,6 +488,7 @@ export const ALL_PERMISSIONS = [
   { key: "laboratorio:manage", label: "Editar Laboratorio 3D", descripcion: "Crear, editar, importar y exportar mapas 3D", section: "laboratorio" },
   // Facturacion
   { key: "facturacion:view", label: "Ver facturacion", descripcion: "Gestionar facturacion y pagos de solicitudes", section: "facturacion" },
+  { key: "facturacion:solicitar", label: "Solicitar factura", descripcion: "Registrar la solicitud de factura en nombre del cliente (reserva en el IIMP)", section: "facturacion" },
   // Pagos del exhibidor (vista cliente)
   { key: "pagos:view", label: "Ver mis pagos", descripcion: "Ver el plan de pagos (cuotas) de sus solicitudes", section: "facturacion" },
   { key: "pagos:manage", label: "Configurar mis pagos", descripcion: "Agregar, editar y eliminar cuotas de sus solicitudes", section: "facturacion" },
@@ -547,6 +549,7 @@ export const PERMISSIONS = {
   LABORATORIO_VIEW: "laboratorio:view",
   LABORATORIO_MANAGE: "laboratorio:manage",
   FACTURACION_VIEW: "facturacion:view",
+  FACTURACION_SOLICITAR: "facturacion:solicitar",
   PAGOS_VIEW: "pagos:view",
   PAGOS_MANAGE: "pagos:manage",
   SOLICITUDES_VIEW: "solicitudes:view",
@@ -1240,6 +1243,9 @@ export const MAX_CONTACTOS_FACTURACION = 5;
 
 /** Dias de anticipacion para marcar la siguiente cuota pendiente en Mis documentos. */
 export const DIAS_ANTICIPACION_CUOTA = 15;
+
+/** Ventana de habilitacion para solicitar la factura: 30 dias antes de la fecha de la cuota. */
+export const DIAS_HABILITACION_SOLICITUD_FACTURA = 30;
 
 /** Maximo de correos internos que reciben avisos de nuevas solicitudes. */
 export const MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES = 5;
@@ -2597,6 +2603,9 @@ export const MAX_DOCUMENTO_FACTURACION = 250;
 
 /** Longitud maxima de la justificacion de anulacion/rechazo notificada por el sistema de facturacion. */
 export const MAX_JUSTIFICACION_FACTURACION = 500;
+
+/** Longitud maxima del texto libre que se envia al SIE por cuota (FreeTxt en SAP). */
+export const MAX_DESCRIPCION_FACTURA = 100;
 
 /* ================================================================
    Carga masiva de empresas (Excel / CSV)

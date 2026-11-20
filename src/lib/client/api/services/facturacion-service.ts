@@ -1,6 +1,7 @@
 import 'client-only';
 
 import { internalApi } from "./internal-api";
+import type { RequisitosFacturacionDTO, ArchivoIImpInputDTO, ResultadoSolicitudFacturaDTO } from "./pagos-service";
 import type {
   EnviarRecordatoriosRequestDTO,
   EnviarRecordatoriosResultDTO,
@@ -21,5 +22,23 @@ export const facturacionService = {
   /** Envia los recordatorios seleccionados (correo con enlace al manual del cliente). */
   enviarRecordatorios(body: EnviarRecordatoriosRequestDTO) {
     return internalApi.post<EnviarRecordatoriosResultDTO>("/api/facturacion/recordatorios/enviar", body);
+  },
+
+  /** Facturacion registra la solicitud de factura en nombre del cliente. */
+  solicitarFactura(cuotaId: string, requisitos: RequisitosFacturacionDTO, archivos: ArchivoIImpInputDTO[] = []) {
+    return internalApi.post<ResultadoSolicitudFacturaDTO>("/api/facturacion/solicitar-factura", {
+      cuotaId,
+      ...(archivos.length > 0 ? { archivos } : {}),
+      requisitos,
+    });
+  },
+
+  /** Facturacion completa los requisitos de una solicitud ya enviada (sin reenviar la reserva). */
+  completarRequisitos(cuotaId: string, requisitos: RequisitosFacturacionDTO, archivos: ArchivoIImpInputDTO[] = []) {
+    return internalApi.post<{ ok: boolean }>("/api/facturacion/completar-requisitos", {
+      cuotaId,
+      ...(archivos.length > 0 ? { archivos } : {}),
+      requisitos,
+    });
   },
 };
