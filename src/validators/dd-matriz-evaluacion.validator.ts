@@ -11,6 +11,7 @@ import {
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_DOCUMENTOS,
   DD_MATRIZ_OBSERVACION_MAX,
+  DD_OBSERVACION_VINCULO_TIPOS,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
   REGEX_PAIS,
@@ -140,15 +141,37 @@ export const ddMatrizEvaluacionGuardarSchema = z.object({
   finalComentario: textoNullable(DD_MATRIZ_FINAL_COMENTARIO_MAX),
   clienteComentario: textoNullable(1000),
   documentosObservados: z.array(z.enum(valores(DD_DOCUMENTOS))).default([]),
+  vinculosObservados: z
+    .array(
+      z.object({
+        tipo: z.enum(valores(DD_OBSERVACION_VINCULO_TIPOS)),
+        beneficiarioId: z.string().trim().max(60).nullable().optional(),
+        comentario: textoNullable(1000),
+      }),
+    )
+    .default([]),
 }).superRefine((valor, ctx) => {
+  for (const [indice, vinculo] of valor.vinculosObservados.entries()) {
+    if (vinculo.tipo === DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO && !vinculo.beneficiarioId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["vinculosObservados", indice, "beneficiarioId"],
+        message: "El beneficiarioId es obligatorio para un vínculo observado",
+      });
+    }
+  }
   const esDocumentacionObservada =
     normalizarResultadoFinal(valor.resultadoFinal) ===
     DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
-  if (esDocumentacionObservada && !valor.clienteComentario?.trim()) {
+  const hayComentarioVinculo = valor.vinculosObservados.some((vinculo) =>
+    Boolean(vinculo.comentario?.trim()),
+  );
+  if (esDocumentacionObservada && !valor.clienteComentario?.trim() && !hayComentarioVinculo) {
     ctx.addIssue({
       code: "custom",
       path: ["clienteComentario"],
-      message: "El comentario para el cliente es obligatorio para DOCUMENTACIÓN OBSERVADA",
+      message:
+        "El comentario general o al menos un comentario de vínculo es obligatorio para DOCUMENTACIÓN OBSERVADA",
     });
   }
 });

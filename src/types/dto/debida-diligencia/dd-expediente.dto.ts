@@ -67,6 +67,9 @@ export interface DdObservacionDTO {
   id: string;
   area: string;
   documentoTipo: string | null;
+  vinculoTipo: string | null;
+  beneficiarioId: string | null;
+  vinculoNombre: string | null;
   texto: string;
   estado: string;
   creadoPor: string;

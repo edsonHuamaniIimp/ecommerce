@@ -78,6 +78,7 @@ export type {
 export type {
   DdMatrizBloqueRequestDTO,
   DdMatrizEvaluacionGuardarRequestDTO,
+  DdVinculoObservadoRequestDTO,
 } from "./dd-matriz-evaluacion-guardar-request.dto";
 export type { DdMatrizEvaluacionExportarRequestDTO } from "./dd-matriz-evaluacion-exportar-request.dto";
 export type {

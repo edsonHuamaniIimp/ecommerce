@@ -49,6 +49,7 @@ import {
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_OBSERVACION_ESTADOS,
+  DD_OBSERVACION_VINCULO_TIPOS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_ESTADO_LABELS,
   DD_REPUTACION_RESULTADOS,
@@ -72,6 +73,7 @@ import type {
   DdExpedienteDTO,
   DdMatrizEvaluacionDetalleDTO,
   DdMatrizEvaluacionFilaDTO,
+  DdVinculoObservadoRequestDTO,
 } from "@/types/dto/debida-diligencia";
 
 function DatoResumen({ label, children }: { label: string; children: ReactNode }) {
@@ -98,6 +100,7 @@ interface Props {
     cierre?: {
       clienteComentario?: string | null;
       documentosObservados?: DdDocumentoTipo[];
+      vinculosObservados?: DdVinculoObservadoRequestDTO[];
     },
   ) => Promise<void> | void;
 }
@@ -134,6 +137,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const [loading, setLoading] = useState(true);
   const [accion, setAccion] = useState<DdAccionRevision>(DD_ACCIONES_REVISION.APROBAR);
   const [documentosObservados, setDocumentosObservados] = useState<DdDocumentoTipo[]>([]);
+  const [vinculosObservados, setVinculosObservados] = useState<DdVinculoObservadoRequestDTO[]>([]);
   const [texto, setTexto] = useState("");
   const [informeLogisticaUrl, setInformeLogisticaUrl] = useState("");
   const [derivando, setDerivando] = useState(false);
@@ -299,6 +303,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const sinDecision = enLegal || rechazadaCerrada;
   const documentoObservadoFinal =
     resultadoFinalSeleccionado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+  const hayComentarioVinculo = vinculosObservados.some((vinculo) =>
+    Boolean(vinculo.comentario?.trim()),
+  );
   const marcandoDocumentos = onResultadoFinal
     ? documentoObservadoFinal && !finalBloqueado
     : accion === DD_ACCIONES_REVISION.OBSERVAR && !sinDecision;
@@ -402,6 +409,47 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     setError(null);
   };
 
+  const alternarVinculo = (
+    tipo: DdVinculoObservadoRequestDTO["tipo"],
+    beneficiarioId?: string | null,
+  ) => {
+    if (!documentoObservadoFinal || guardandoFinal !== null) return;
+    setVinculosObservados((prev) => {
+      const existe = prev.some(
+        (vinculo) => vinculo.tipo === tipo && (vinculo.beneficiarioId ?? null) === (beneficiarioId ?? null),
+      );
+      return existe
+        ? prev.filter(
+            (vinculo) => !(vinculo.tipo === tipo && (vinculo.beneficiarioId ?? null) === (beneficiarioId ?? null)),
+          )
+        : [...prev, { tipo, beneficiarioId: beneficiarioId ?? null, comentario: "" }];
+    });
+    setError(null);
+  };
+
+  const comentarioVinculo = (
+    tipo: DdVinculoObservadoRequestDTO["tipo"],
+    beneficiarioId?: string | null,
+  ) =>
+    vinculosObservados.find(
+      (vinculo) => vinculo.tipo === tipo && (vinculo.beneficiarioId ?? null) === (beneficiarioId ?? null),
+    )?.comentario ?? "";
+
+  const actualizarComentarioVinculo = (
+    tipo: DdVinculoObservadoRequestDTO["tipo"],
+    beneficiarioId: string | null,
+    comentario: string,
+  ) => {
+    setVinculosObservados((prev) =>
+      prev.map((vinculo) =>
+        vinculo.tipo === tipo && (vinculo.beneficiarioId ?? null) === beneficiarioId
+          ? { ...vinculo, comentario }
+          : vinculo,
+      ),
+    );
+    setError(null);
+  };
+
   const guardarRevalidacion = async (accionDeclaracion: "aprobar" | "observar") => {
     if (revalidacionGuardando) return;
     const comentario = textoRevalidacion.trim();
@@ -453,8 +501,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       setError("Escribe el comentario interno antes de registrar la conclusión final");
       return;
     }
-    if (esDocumentacionObservada && !comentarioClienteFinal.trim()) {
-      setError("Escribe el comentario para el cliente antes de registrar la conclusión final");
+    if (esDocumentacionObservada && !comentarioClienteFinal.trim() && !hayComentarioVinculo) {
+      setError(
+        "Escribe el comentario general o un comentario específico para al menos un vínculo antes de registrar la conclusión final",
+      );
       return;
     }
     const ok = await confirm({
@@ -471,6 +521,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       await onResultadoFinal(resultado, comentarioFinal.trim() || undefined, {
         clienteComentario: esDocumentacionObservada ? comentarioClienteFinal.trim() || null : null,
         documentosObservados: esDocumentacionObservada ? documentosObservados : [],
+        vinculosObservados: esDocumentacionObservada ? vinculosObservados : [],
       });
       toast.success(`Resultado final: ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`);
       onDone();
@@ -1280,14 +1331,96 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                           placeholder="Indica qué documentación debe subsanar el cliente."
                         />
                         <p className="text-[10px] text-muted-foreground">
-                          Obligatorio. Este texto sí se envía al cliente. Marca los documentos a subsanar en la pestaña{" "}
-                          <span className="font-semibold text-foreground">Documentos</span>.
+                          Obligatorio si no escribes un comentario específico por vínculo. Este texto se envía al cliente.
+                          Marca los documentos en la pestaña{" "}
+                          <span className="font-semibold text-foreground">Documentos</span> y los vínculos que deba corregir.
                         </p>
                         {documentosObservados.length > 0 ? (
                           <p className="text-[10px] font-medium text-warning">
                             {documentosObservados.length} documento(s) marcado(s) para subsanación.
                           </p>
                         ) : null}
+                        <div className="space-y-2 border-t border-amber-300/60 pt-3">
+                          <p className="text-[10px] font-medium uppercase text-muted-foreground">
+                            Vínculos a subsanar
+                          </p>
+                          <div className="grid gap-2">
+                            {[
+                              {
+                                tipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE,
+                                beneficiarioId: null as string | null,
+                                etiqueta: "Falta agregar un vínculo",
+                                placeholder:
+                                  "Indica qué vínculo falta y los datos que debe registrar el cliente.",
+                              },
+                              ...(detalle?.representanteNombre
+                                ? [{
+                                    tipo: DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE,
+                                    beneficiarioId: null as string | null,
+                                    etiqueta: `Representante legal: ${detalle.representanteNombre}`,
+                                    placeholder: "Describe qué debe corregir el cliente en este representante.",
+                                  }]
+                                : []),
+                              ...(detalle?.beneficiarios ?? []).map((beneficiario) => ({
+                                tipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO,
+                                beneficiarioId: beneficiario.id as string | null,
+                                etiqueta: `${beneficiario.nombre}${
+                                  beneficiario.documento ? ` · ${beneficiario.documento}` : ""
+                                }`,
+                                placeholder: "Describe qué debe corregir el cliente en este vínculo.",
+                              })),
+                            ].map((candidato) => {
+                              const activo = vinculosObservados.some(
+                                (vinculo) =>
+                                  vinculo.tipo === candidato.tipo &&
+                                  (vinculo.beneficiarioId ?? null) === candidato.beneficiarioId,
+                              );
+                              return (
+                                <div key={`${candidato.tipo}:${candidato.beneficiarioId ?? "nuevo"}`} className="space-y-1">
+                                  <label className="flex items-start gap-2 text-[11px] text-foreground">
+                                    <Checkbox
+                                      className="mt-0.5"
+                                      checked={activo}
+                                      onCheckedChange={() =>
+                                        alternarVinculo(candidato.tipo, candidato.beneficiarioId)
+                                      }
+                                      disabled={guardandoFinal !== null}
+                                    />
+                                    <span className={candidato.tipo === DD_OBSERVACION_VINCULO_TIPOS.FALTANTE ? "font-semibold text-warning" : ""}>
+                                      {candidato.etiqueta}
+                                    </span>
+                                  </label>
+                                  {activo ? (
+                                    <div className="ml-6">
+                                      <Textarea
+                                        className="min-h-16 bg-card text-xs"
+                                        maxLength={1000}
+                                        disabled={guardandoFinal !== null}
+                                        value={comentarioVinculo(candidato.tipo, candidato.beneficiarioId)}
+                                        onChange={(event) =>
+                                          actualizarComentarioVinculo(
+                                            candidato.tipo,
+                                            candidato.beneficiarioId,
+                                            event.target.value,
+                                          )
+                                        }
+                                        placeholder={candidato.placeholder}
+                                      />
+                                      <p className="mt-1 text-[10px] text-muted-foreground">
+                                        Comentario específico. Si queda vacío se usa el comentario general.
+                                      </p>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {vinculosObservados.length > 0 ? (
+                            <p className="text-[10px] font-medium text-warning">
+                              {vinculosObservados.length} vínculo(s) marcado(s) para subsanación.
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     ) : null}
 
@@ -1299,7 +1432,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                         finalBloqueado ||
                         !resultadoFinalSeleccionado ||
                         (!documentoObservadoFinal && !comentarioFinal.trim()) ||
-                        (documentoObservadoFinal && !comentarioClienteFinal.trim()) ||
+                        (documentoObservadoFinal &&
+                          !comentarioClienteFinal.trim() &&
+                          !hayComentarioVinculo) ||
                         guardandoFinal !== null
                       }
                       onClick={() => {

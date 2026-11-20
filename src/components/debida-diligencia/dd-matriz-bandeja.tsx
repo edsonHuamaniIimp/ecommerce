@@ -58,6 +58,7 @@ import type {
   DdMatrizEvaluacionFilaDTO,
   DdMatrizEvaluacionResponseDTO,
   DdMatrizEvaluacionResumenDTO,
+  DdVinculoObservadoRequestDTO,
 } from "@/types/dto/debida-diligencia";
 
 import { DdPaisBandera } from "./dd-pais-bandera";
@@ -597,6 +598,7 @@ export function DdMatrizBandeja() {
     cierre?: {
       clienteComentario?: string | null;
       documentosObservados?: DdDocumentoTipo[];
+      vinculosObservados?: DdVinculoObservadoRequestDTO[];
     },
   ) => {
     if (!revisionFila) return;
@@ -607,6 +609,7 @@ export function DdMatrizBandeja() {
       finalComentario: comentario?.trim() || null,
       clienteComentario: cierre?.clienteComentario ?? null,
       documentosObservados: cierre?.documentosObservados ?? [],
+      vinculosObservados: cierre?.vinculosObservados ?? [],
     });
   };
 

@@ -180,6 +180,7 @@ export const ddMatrizEvaluacionController = {
           expedienteId: previo.vinculo.expediente.expedienteId,
           motivo: parsed.data.clienteComentario ?? null,
           documentosObservados: parsed.data.documentosObservados,
+          vinculosObservados: parsed.data.vinculosObservados,
         },
         session,
       );

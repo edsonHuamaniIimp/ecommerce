@@ -48,6 +48,9 @@ interface Props {
   buscandoBeneficiario: string | null;
   buscandoRepresentante: boolean;
   representanteValidado: "DNI" | "RUC" | null;
+  observacionesRepresentante: string[];
+  observacionesVinculoFaltante: string[];
+  observacionesBeneficiario: Record<string, string[]>;
   actualizarDocumentoRepresentante: (valor: string) => void;
   cambiarNacionalidadRepresentante: (valor: string) => void;
   cambiarTipoDocumentoRepresentante: (valor: string) => void;
@@ -66,6 +69,9 @@ export function DdWizardPaso3({
   buscandoBeneficiario,
   buscandoRepresentante,
   representanteValidado,
+  observacionesRepresentante,
+  observacionesVinculoFaltante,
+  observacionesBeneficiario,
   actualizarDocumentoRepresentante,
   cambiarNacionalidadRepresentante,
   cambiarTipoDocumentoRepresentante,
@@ -75,6 +81,11 @@ export function DdWizardPaso3({
   agregarBeneficiario,
   quitarBeneficiario,
 }: Props) {
+  const totalVinculosObservados =
+    (observacionesRepresentante.length > 0 ? 1 : 0) +
+    (observacionesVinculoFaltante.length > 0 ? 1 : 0) +
+    Object.values(observacionesBeneficiario).filter((textos) => textos.length > 0).length;
+
   return (
     <div className="space-y-7">
       <section className="space-y-4" aria-labelledby="dd-paso3-representante">
@@ -88,10 +99,21 @@ export function DdWizardPaso3({
               Persona que actúa en nombre de la empresa y recibe las comunicaciones del proceso.
             </p>
           </div>
-          <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
-            <span>Obligatorio</span>
+          <Badge className={`pointer-events-none text-[10px] ${observacionesRepresentante.length > 0 ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL}`}>
+            <span>{observacionesRepresentante.length > 0 ? "Observado" : "Obligatorio"}</span>
           </Badge>
         </div>
+
+        {observacionesRepresentante.length > 0 ? (
+          <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+            <p className="text-xs font-semibold text-warning">Logística observó al representante legal</p>
+            <ul className="mt-1 list-inside list-disc space-y-1 text-xs text-foreground">
+              {observacionesRepresentante.map((texto) => (
+                <li key={texto}>{texto}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="grid gap-4 rounded-xl border border-border bg-secondary/20 p-4 sm:grid-cols-2">
           <div>
@@ -159,6 +181,20 @@ export function DdWizardPaso3({
         </div>
       </section>
 
+      {observacionesVinculoFaltante.length > 0 ? (
+        <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+          <p className="text-xs font-semibold text-warning">Falta agregar un vínculo</p>
+          <ul className="mt-1 list-inside list-disc space-y-1 text-xs text-foreground">
+            {observacionesVinculoFaltante.map((texto) => (
+              <li key={texto}>{texto}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Usa “Agregar vínculo” en la sección siguiente y registra los datos solicitados.
+          </p>
+        </div>
+      ) : null}
+
       <section className="space-y-4 border-t border-border pt-6" aria-labelledby="dd-paso3-vinculos">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
           <div>
@@ -166,6 +202,11 @@ export function DdWizardPaso3({
               <Users className="h-4 w-4" />
               <span>Beneficiarios y personas vinculadas</span>
               <Badge className="pointer-events-none text-[10px]">{beneficiarios.length} registro(s)</Badge>
+              {totalVinculosObservados > 0 ? (
+                <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}>
+                  <span>{totalVinculosObservados} observado(s)</span>
+                </Badge>
+              ) : null}
             </h2>
             <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
               Registre personas naturales o jurídicas vinculadas a la empresa. La participación es opcional; si corresponde, indique el porcentaje.
@@ -189,6 +230,7 @@ export function DdWizardPaso3({
           <div className="space-y-3">
             {beneficiarios.map((beneficiario, indice) => {
               const empresaVinculada = esEmpresaVinculada(beneficiario.tipoVinculoPersona);
+              const observacionesVinculo = observacionesBeneficiario[beneficiario.id] ?? [];
               const tipoConsulta = tipoDocumentoVinculoConConsulta(
                 beneficiario.tipoVinculoPersona,
                 beneficiario.tipoDocumento,
@@ -202,7 +244,12 @@ export function DdWizardPaso3({
                     ? "Buscar DNI en RENIEC"
                     : "La consulta solo aplica a DNI o RUC.";
               return (
-              <div key={beneficiario.id} className="overflow-hidden rounded-xl border border-border bg-card">
+              <div
+                key={beneficiario.id}
+                className={`overflow-hidden rounded-xl border bg-card ${
+                  observacionesVinculo.length > 0 ? "border-warning ring-2 ring-warning/20" : "border-border"
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-secondary/30 px-3 py-2.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-bold text-foreground">Vínculo {indice + 1}</span>
@@ -231,6 +278,17 @@ export function DdWizardPaso3({
                     <span>Eliminar</span>
                   </Button>
                 </div>
+
+                {observacionesVinculo.length > 0 ? (
+                  <div className="border-b border-warning/30 bg-warning/5 px-3 py-2">
+                    <p className="text-[11px] font-semibold text-warning">Logística observó este vínculo</p>
+                    <ul className="mt-1 list-inside list-disc space-y-1 text-[11px] text-foreground">
+                      {observacionesVinculo.map((texto) => (
+                        <li key={texto}>{texto}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
 
                 <div className="grid gap-3 p-3 sm:grid-cols-2">
                   <div>

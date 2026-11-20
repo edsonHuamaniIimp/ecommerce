@@ -1892,6 +1892,22 @@ export const DD_OBSERVACION_ESTADOS = {
   RESUELTA: "resuelta",
 } as const;
 
+/** Vínculos del expediente que el cliente puede corregir en el wizard. */
+export const DD_OBSERVACION_VINCULO_TIPOS = {
+  REPRESENTANTE: "representante",
+  BENEFICIARIO: "beneficiario",
+  FALTANTE: "faltante",
+} as const;
+
+export type DdObservacionVinculoTipo =
+  (typeof DD_OBSERVACION_VINCULO_TIPOS)[keyof typeof DD_OBSERVACION_VINCULO_TIPOS];
+
+export const DD_OBSERVACION_VINCULO_LABELS: Record<DdObservacionVinculoTipo, string> = {
+  [DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE]: "Representante legal",
+  [DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO]: "Beneficiario o vínculo",
+  [DD_OBSERVACION_VINCULO_TIPOS.FALTANTE]: "Vínculo faltante",
+};
+
 /** Tipos de evento del historial visible de un expediente DD. */
 export const DD_HISTORIAL_TIPOS = {
   OBSERVACION: "observacion",

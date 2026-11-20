@@ -116,6 +116,9 @@ export function MiDebidaDiligencia() {
   const documentosObservadosCount = new Set(
     observacionesAbiertas.flatMap((observacion) => observacion.documentoTipo ? [observacion.documentoTipo] : []),
   ).size;
+  const vinculosObservadosCount = new Set(
+    observacionesAbiertas.flatMap((observacion) => observacion.vinculoNombre ? [observacion.vinculoNombre] : []),
+  ).size;
   const vigencia = useMemo(() => {
     if (!expediente || expediente.estado !== DD_ESTADOS.APROBADA) return null;
     const transcurridos = Math.max(0, Math.min(DD_VIGENCIA_MESES, dateUtils.monthsBetween(expediente.fechaAprobacion, dateUtils.now()) ?? 0));
@@ -152,7 +155,9 @@ export function MiDebidaDiligencia() {
         detalle: observado
           ? documentosObservadosCount > 0
             ? `${documentosObservadosCount} documento(s) observado(s) por corregir.`
-            : `${observacionesAgrupadas.length} observación(es) por corregir.`
+            : vinculosObservadosCount > 0
+              ? `${vinculosObservadosCount} vínculo(s) observado(s) por corregir.`
+              : `${observacionesAgrupadas.length} observación(es) por corregir.`
           : revisado
             ? "No se registraron observaciones."
             : "Se mostrarán aquí si las hubiera.",
@@ -172,7 +177,13 @@ export function MiDebidaDiligencia() {
             : "Pendiente de aprobación.",
       },
     ];
-  }, [expediente, observacionesAbiertas.length, observacionesAgrupadas.length, documentosObservadosCount]);
+  }, [
+    expediente,
+    observacionesAbiertas.length,
+    observacionesAgrupadas.length,
+    documentosObservadosCount,
+    vinculosObservadosCount,
+  ]);
 
   const cargandoVista = cargando || (Boolean(eventoId) && loading && data === null);
   const ddVencida =
@@ -444,8 +455,8 @@ export function MiDebidaDiligencia() {
                     <span className="text-base font-bold text-primary">Observaciones ({observacionesAgrupadas.length})</span>
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    {documentosObservadosCount > 0
-                      ? `Corrige ${documentosObservadosCount} documento(s) observado(s) y vuelve a enviar tu expediente.`
+                    {documentosObservadosCount > 0 || vinculosObservadosCount > 0
+                      ? `Corrige ${documentosObservadosCount} documento(s) y ${vinculosObservadosCount} vínculo(s) observado(s), y vuelve a enviar tu expediente.`
                       : "Revisa las observaciones y vuelve a enviar tu expediente."}
                   </p>
                 </CardHeader>
@@ -466,9 +477,21 @@ export function MiDebidaDiligencia() {
                           {observacion.documentos.map((documento) => documento.titulo).join(", ")}
                         </div>
                       ) : null}
+                      {observacion.vinculos.length > 0 ? (
+                        <div className="mt-1 text-[11px] text-muted-foreground">
+                          <span className="font-semibold text-foreground">
+                            Vínculo{observacion.vinculos.length === 1 ? "" : "s"}:
+                          </span>{" "}
+                          {observacion.vinculos.join(", ")}
+                        </div>
+                      ) : null}
                       <Button asChild variant="link" size="sm" className="mt-1 h-auto p-0 text-[11px] text-primary">
                         <Link href={DD_RUTAS.FORMULARIO}>
-                          {observacion.documentos.length === 1 ? "Corregir documento" : "Corregir documentos"}
+                          {observacion.documentos.length === 0 && observacion.vinculos.length > 0
+                            ? "Corregir vínculos"
+                            : observacion.documentos.length === 1
+                              ? "Corregir documento"
+                              : "Corregir documentos"}
                         </Link>
                       </Button>
                     </div>

@@ -23,7 +23,9 @@ import type {
   DdMatrizResult,
   DdMisExpedientesParams,
   DdMisExpedientesResult,
+  DdObservacionCreacion,
   DdObservacionEntity,
+  DdVinculoObservadoInput,
   DdPanelData,
   DdReputacionParams,
   DdReputacionResult,
@@ -52,6 +54,7 @@ import {
   DD_ORIGENES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
+  DD_OBSERVACION_VINCULO_TIPOS,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_RESULTADOS,
   DD_MATRIZ_CONCLUSIONES,
@@ -1792,6 +1795,7 @@ export class DebidaDiligenciaApplicationService {
       expedienteId: string;
       motivo: string | null;
       documentosObservados: DdDocumentoTipo[];
+      vinculosObservados?: DdVinculoObservadoInput[];
     },
     session: DdSession,
   ): Promise<DdExpedienteEntity> {
@@ -1814,31 +1818,85 @@ export class DebidaDiligenciaApplicationService {
     }
 
     const motivo = dto.motivo?.trim() || null;
-    if (!motivo && dto.documentosObservados.length === 0) {
+    const vinculosObservados = dto.vinculosObservados ?? [];
+    if (!motivo && dto.documentosObservados.length === 0 && vinculosObservados.length === 0) {
       throw new DomainError(
-        "Registra el comentario para el cliente o selecciona un documento observado",
+        "Registra el comentario para el cliente o selecciona un documento o vínculo observado",
         API_ERROR_CODES.VALIDATION,
         400,
       );
     }
 
-    const observaciones = dto.documentosObservados.length > 0
-      ? dto.documentosObservados.map((documentoTipo) => ({
-          documentoTipo,
-          texto: motivo || "El documento requiere una nueva versión.",
-        }))
-      : [{ documentoTipo: null, texto: motivo as string }];
+    const observaciones: DdObservacionCreacion[] = dto.documentosObservados.map((documentoTipo) => ({
+      area: DD_OBSERVACION_AREAS.LOGISTICA,
+      documentoTipo,
+      texto: motivo || "El documento requiere una nueva versión.",
+    }));
+    const vistos = new Set<string>();
+    for (const vinculo of vinculosObservados) {
+      let clave: string;
+      let beneficiarioId: string | null = null;
+      let vinculoNombre: string;
+      if (vinculo.tipo === DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE) {
+        clave = DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE;
+        vinculoNombre = expediente.representanteNombre?.trim() ?? "";
+        if (!vinculoNombre) {
+          throw new DomainError(
+            "El expediente no tiene representante legal para observar",
+            API_ERROR_CODES.VALIDATION,
+            400,
+          );
+        }
+      } else if (vinculo.tipo === DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO) {
+        const beneficiario = expediente.beneficiarios.find(
+          (item) => item.id === vinculo.beneficiarioId,
+        );
+        if (!beneficiario) {
+          throw new DomainError(
+            "El beneficiario observado no pertenece al expediente",
+            API_ERROR_CODES.VALIDATION,
+            400,
+          );
+        }
+        clave = `${DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO}:${beneficiario.id}`;
+        beneficiarioId = beneficiario.id;
+        vinculoNombre = beneficiario.nombre;
+      } else if (vinculo.tipo === DD_OBSERVACION_VINCULO_TIPOS.FALTANTE) {
+        clave = DD_OBSERVACION_VINCULO_TIPOS.FALTANTE;
+        vinculoNombre = "Vínculo faltante";
+      } else {
+        throw new DomainError(
+          "Tipo de vínculo observado inválido",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      observaciones.push({
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        documentoTipo: null,
+        vinculoTipo: vinculo.tipo,
+        beneficiarioId,
+        vinculoNombre,
+        texto:
+          vinculo.comentario?.trim() ||
+          motivo ||
+          (vinculo.tipo === DD_OBSERVACION_VINCULO_TIPOS.FALTANTE
+            ? "Falta agregar un vínculo al expediente."
+            : "El vínculo requiere corrección."),
+      });
+    }
+    if (observaciones.length === 0 && motivo) {
+      observaciones.push({
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
+        documentoTipo: null,
+        texto: motivo,
+      });
+    }
 
     const ahora = dateUtils.now();
-    await this.repo.crearObservaciones(
-      expediente.id,
-      observaciones.map((observacion) => ({
-        area: DD_OBSERVACION_AREAS.LOGISTICA,
-        documentoTipo: observacion.documentoTipo,
-        texto: observacion.texto,
-      })),
-      session.email,
-    );
+    await this.repo.crearObservaciones(expediente.id, observaciones, session.email);
     if (dto.documentosObservados.length > 0) {
       await this.repo.resolverDocumentos(
         expediente.id,
@@ -1875,7 +1933,11 @@ export class DebidaDiligenciaApplicationService {
         razonSocial: actualizado.empresa.razonSocial,
         observaciones: observacionesAbiertas
           .filter((observacion) => observacion.estado === DD_OBSERVACION_ESTADOS.ABIERTA)
-          .map((observacion) => observacion.texto),
+          .map((observacion) =>
+            observacion.vinculoNombre
+              ? `${observacion.vinculoNombre}: ${observacion.texto}`
+              : observacion.texto,
+          ),
       });
     }
 

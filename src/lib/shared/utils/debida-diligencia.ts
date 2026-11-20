@@ -405,6 +405,7 @@ export const ddUtils = {
       texto: string;
       createdAt: Date | string;
       documentoTipo?: string | null;
+      vinculoNombre?: string | null;
     }[],
   ): {
     id: string;
@@ -412,6 +413,7 @@ export const ddUtils = {
     texto: string;
     createdAt: Date | string;
     documentos: string[];
+    vinculos: string[];
   }[] {
     const grupos = new Map<string, {
       id: string;
@@ -419,12 +421,14 @@ export const ddUtils = {
       texto: string;
       createdAt: Date | string;
       documentos: Set<string>;
+      vinculos: Set<string>;
     }>();
     for (const observacion of observaciones) {
       const clave = `${observacion.area}::${observacion.texto.trim()}`;
       const grupo = grupos.get(clave);
       if (grupo) {
         if (observacion.documentoTipo) grupo.documentos.add(observacion.documentoTipo);
+        if (observacion.vinculoNombre) grupo.vinculos.add(observacion.vinculoNombre);
         continue;
       }
       grupos.set(clave, {
@@ -433,11 +437,13 @@ export const ddUtils = {
         texto: observacion.texto,
         createdAt: observacion.createdAt,
         documentos: new Set(observacion.documentoTipo ? [observacion.documentoTipo] : []),
+        vinculos: new Set(observacion.vinculoNombre ? [observacion.vinculoNombre] : []),
       });
     }
     return [...grupos.values()].map((grupo) => ({
       ...grupo,
       documentos: [...grupo.documentos],
+      vinculos: [...grupo.vinculos],
     }));
   },
 

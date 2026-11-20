@@ -60,6 +60,7 @@ import {
   DD_ESTADOS,
   DD_OBSERVACION_AREA_LABELS,
   DD_OBSERVACION_ESTADOS,
+  DD_OBSERVACION_VINCULO_TIPOS,
   DD_PAIS_DEFAULT,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
   DD_TIPOS_DOCUMENTO_VINCULO,
@@ -250,7 +251,37 @@ export function DdWizard({
     const documento = documentos.find((item) => item.tipo === observacion.documentoTipo);
     return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
   });
-  const observacionesAgrupadas = ddUtils.agruparObservacionesPorComentario(observacionesAbiertas);
+  const observacionesGenerales = observacionesAbiertas.filter(
+    (observacion) => !observacion.vinculoTipo,
+  );
+  const observacionesRepresentante = [...new Set(
+    observacionesAbiertas
+      .filter((observacion) => observacion.vinculoTipo === DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE)
+      .map((observacion) => observacion.texto.trim())
+      .filter((texto) => texto.length > 0),
+  )];
+  const observacionesVinculoFaltante = [...new Set(
+    observacionesAbiertas
+      .filter((observacion) => observacion.vinculoTipo === DD_OBSERVACION_VINCULO_TIPOS.FALTANTE)
+      .map((observacion) => observacion.texto.trim())
+      .filter((texto) => texto.length > 0),
+  )];
+  const observacionesBeneficiario = observacionesAbiertas.reduce<Record<string, string[]>>(
+    (mapa, observacion) => {
+      if (
+        observacion.vinculoTipo === DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO &&
+        observacion.beneficiarioId &&
+        observacion.texto.trim()
+      ) {
+        mapa[observacion.beneficiarioId] = [
+          ...new Set([...(mapa[observacion.beneficiarioId] ?? []), observacion.texto.trim()]),
+        ];
+      }
+      return mapa;
+    },
+    {},
+  );
+  const observacionesAgrupadas = ddUtils.agruparObservacionesPorComentario(observacionesGenerales);
   const textosObservaciones = new Set(observacionesAgrupadas.map((observacion) => observacion.texto.trim()));
   const documentosVisibles: {
     tipo: DdDocumentoTipo;
@@ -958,6 +989,9 @@ export function DdWizard({
               buscandoBeneficiario={buscandoBeneficiario}
               buscandoRepresentante={buscandoRepresentante}
               representanteValidado={representanteValidado}
+              observacionesRepresentante={observacionesRepresentante}
+              observacionesVinculoFaltante={observacionesVinculoFaltante}
+              observacionesBeneficiario={observacionesBeneficiario}
               actualizarDocumentoRepresentante={actualizarDocumentoRepresentante}
               cambiarNacionalidadRepresentante={cambiarNacionalidadRepresentante}
               cambiarTipoDocumentoRepresentante={cambiarTipoDocumentoRepresentante}

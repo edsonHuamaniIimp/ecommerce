@@ -10,6 +10,7 @@ import {
   DD_HISTORIAL_TIPOS,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
+  DD_OBSERVACION_VINCULO_TIPOS,
   PERMISSIONS,
 } from "@/lib/shared/constants";
 
@@ -20,7 +21,10 @@ const SESION = {
   eventoId: "evento-1",
 };
 
-function crearServicio(estado = DD_ESTADOS.APROBADA) {
+function crearServicio(
+  estado: string = DD_ESTADOS.APROBADA,
+  extra: Record<string, unknown> = {},
+) {
   const expediente = {
     id: "exp-1",
     codigo: "DD-2026-0001",
@@ -31,6 +35,7 @@ function crearServicio(estado = DD_ESTADOS.APROBADA) {
       representanteCorreo: null,
       emailContacto: null,
     },
+    ...extra,
   };
   const actualizado = { ...expediente, estado: DD_ESTADOS.OBSERVADA };
   const repo = {
@@ -104,12 +109,121 @@ describe("observarDocumentacionFinal", () => {
     );
   });
 
-  it("exige comentario o documento observado", async () => {
+  it("exige comentario, documento o vínculo observado", async () => {
     const { servicio } = crearServicio();
 
     await expect(
       servicio.observarDocumentacionFinal(
         { expedienteId: "exp-1", motivo: null, documentosObservados: [] },
+        SESION,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("crea observaciones para representante y beneficiarios", async () => {
+    const { servicio, repo } = crearServicio(DD_ESTADOS.EN_REVISION, {
+      representanteNombre: "CARLOS GONZÁLEZ",
+      beneficiarios: [
+        { id: "ben-1", nombre: "INVERSIONES SUR S.A.C." },
+        { id: "ben-2", nombre: "ANA TORRES" },
+      ],
+    });
+
+    await servicio.observarDocumentacionFinal(
+      {
+        expedienteId: "exp-1",
+        motivo: "Corrige los datos del vínculo.",
+        documentosObservados: [],
+        vinculosObservados: [
+          { tipo: DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE },
+          { tipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO, beneficiarioId: "ben-2" },
+        ],
+      },
+      SESION,
+    );
+
+    expect(repo.crearObservaciones).toHaveBeenCalledWith(
+      "exp-1",
+      [
+        expect.objectContaining({
+          documentoTipo: null,
+          vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE,
+          beneficiarioId: null,
+          vinculoNombre: "CARLOS GONZÁLEZ",
+          texto: "Corrige los datos del vínculo.",
+        }),
+        expect.objectContaining({
+          documentoTipo: null,
+          vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO,
+          beneficiarioId: "ben-2",
+          vinculoNombre: "ANA TORRES",
+          texto: "Corrige los datos del vínculo.",
+        }),
+      ],
+      SESION.email,
+    );
+    expect(repo.resolverDocumentos).not.toHaveBeenCalled();
+  });
+
+  it("usa el comentario específico y registra un vínculo faltante", async () => {
+    const { servicio, repo } = crearServicio(DD_ESTADOS.EN_REVISION, {
+      representanteNombre: "CARLOS GONZALEZ",
+      beneficiarios: [{ id: "ben-1", nombre: "ANA TORRES" }],
+    });
+
+    await servicio.observarDocumentacionFinal(
+      {
+        expedienteId: "exp-1",
+        motivo: "Revisa los vínculos.",
+        documentosObservados: [],
+        vinculosObservados: [
+          {
+            tipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO,
+            beneficiarioId: "ben-1",
+            comentario: "El nombre del vínculo no coincide con SUNAT.",
+          },
+          {
+            tipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE,
+            comentario: "Falta registrar al socio mayoritario.",
+          },
+        ],
+      },
+      SESION,
+    );
+
+    expect(repo.crearObservaciones).toHaveBeenCalledWith(
+      "exp-1",
+      [
+        expect.objectContaining({
+          vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO,
+          beneficiarioId: "ben-1",
+          texto: "El nombre del vínculo no coincide con SUNAT.",
+        }),
+        expect.objectContaining({
+          vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE,
+          beneficiarioId: null,
+          vinculoNombre: "Vínculo faltante",
+          texto: "Falta registrar al socio mayoritario.",
+        }),
+      ],
+      SESION.email,
+    );
+  });
+
+  it("rechaza un beneficiario que no pertenece al expediente", async () => {
+    const { servicio } = crearServicio(DD_ESTADOS.EN_REVISION, {
+      representanteNombre: "CARLOS GONZÁLEZ",
+      beneficiarios: [{ id: "ben-1", nombre: "ANA TORRES" }],
+    });
+
+    await expect(
+      servicio.observarDocumentacionFinal(
+        {
+          expedienteId: "exp-1",
+          motivo: "Corrige el vínculo.",
+          documentosObservados: [],
+          vinculosObservados: [{ tipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO, beneficiarioId: "otro" }],
+        },
         SESION,
       ),
     ).rejects.toMatchObject({ status: 400 });

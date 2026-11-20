@@ -1453,6 +1453,7 @@ model DebidaDiligenciaBeneficiario {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+  observaciones DebidaDiligenciaObservacion[]
 
   @@index([expedienteId])
   @@map("debida_diligencia_beneficiario")
@@ -1504,8 +1505,14 @@ model DebidaDiligenciaObservacion {
   expedienteId    String    @map("expediente_id")
   /// Area que emite la observacion (ver DD_OBSERVACION_AREAS).
   area            String    @db.VarChar(30)
-  /// Tipo de documento observado (null = observacion general).
+  /// Tipo de documento observado (null = observacion general o de vinculo).
   documentoTipo   String?   @map("documento_tipo") @db.VarChar(40)
+  /// Tipo de vinculo observado (DD_OBSERVACION_VINCULO_TIPOS); null = no aplica.
+  vinculoTipo     String?   @map("vinculo_tipo") @db.VarChar(20)
+  /// Beneficiario observado; null para representante o documentos.
+  beneficiarioId  String?   @map("beneficiario_id")
+  /// Nombre del vinculo al momento de la observacion.
+  vinculoNombre   String?   @map("vinculo_nombre") @db.VarChar(200)
   texto           String    @db.VarChar(1000)
   /// abierta | resuelta
   estado          String    @default("abierta") @db.VarChar(20)
@@ -1515,8 +1522,10 @@ model DebidaDiligenciaObservacion {
   createdAt DateTime @default(now()) @map("created_at")
 
   expediente DebidaDiligencia @relation(fields: [expedienteId], references: [id], onDelete: Cascade)
+  beneficiario DebidaDiligenciaBeneficiario? @relation(fields: [beneficiarioId], references: [id], onDelete: SetNull)
 
   @@index([expedienteId, estado])
+  @@index([beneficiarioId])
   @@map("debida_diligencia_observacion")
 }
 

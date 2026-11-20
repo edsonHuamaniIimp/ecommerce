@@ -1,3 +1,13 @@
+import type { DdObservacionVinculoTipo } from "@/lib/shared/constants";
+
+/** Vínculo marcado para subsanación desde la conclusión final. */
+export interface DdVinculoObservadoRequestDTO {
+  tipo: DdObservacionVinculoTipo;
+  beneficiarioId?: string | null;
+  /** Comentario específico del vínculo; si falta se usa el comentario general. */
+  comentario?: string | null;
+}
+
 /** Bloque editable de un area; los valores aceptan etiqueta de negocio o codigo. */
 export interface DdMatrizBloqueRequestDTO {
   /** Fecha de evaluacion (YYYY-MM-DD); si no se envia se registra la de hoy. */
@@ -50,4 +60,6 @@ export interface DdMatrizEvaluacionGuardarRequestDTO {
   clienteComentario?: string | null;
   /** Documentos que el cliente debe subsanar. */
   documentosObservados?: string[];
+  /** Representante o beneficiarios que el cliente debe corregir. */
+  vinculosObservados?: DdVinculoObservadoRequestDTO[];
 }

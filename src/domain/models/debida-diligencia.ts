@@ -7,6 +7,7 @@ import type {
   DdEstadoEvaluacion,
   DdHistorialTipo,
   DdObservacionArea,
+  DdObservacionVinculoTipo,
   DdReputacionEstado,
   DdReputacionOrden,
   DdReputacionResultado,
@@ -81,11 +82,21 @@ export interface DdObservacionEntity {
   id: string;
   area: DdObservacionArea;
   documentoTipo: DdDocumentoTipo | null;
+  vinculoTipo: DdObservacionVinculoTipo | null;
+  beneficiarioId: string | null;
+  vinculoNombre: string | null;
   texto: string;
   estado: string;
   creadoPor: string;
   fechaResolucion: Date | null;
   createdAt: Date;
+}
+
+/** Vínculo marcado por Logística para que el cliente lo corrija. */
+export interface DdVinculoObservadoInput {
+  tipo: DdObservacionVinculoTipo;
+  beneficiarioId?: string | null;
+  comentario?: string | null;
 }
 
 /** Evento persistido del flujo (envios, decisiones y derivaciones). */
@@ -624,6 +635,12 @@ export interface DdRevisionData {
 export interface DdObservacionCreacion {
   area: DdObservacionArea;
   documentoTipo: DdDocumentoTipo | null;
+  /** Tipo de vínculo observado; null para documentos u observación general. */
+  vinculoTipo?: DdObservacionVinculoTipo | null;
+  /** Beneficiario observado; null para representante o documentos. */
+  beneficiarioId?: string | null;
+  /** Nombre del vínculo al momento de la observación. */
+  vinculoNombre?: string | null;
   texto: string;
 }
 
