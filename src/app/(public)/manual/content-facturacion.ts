@@ -47,7 +47,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <h2 id="seccion-3">3. Declara tus requisitos de facturación</h2>
 <p>Antes de solicitar tu factura, el portal te muestra el formulario <strong>Requisitos de facturación</strong>. Ábrelo con el <strong>ícono de solicitud</strong> que está a la derecha de la cuota pendiente (marcado en rojo en la Figura 2). Si aún no enviaste tu solicitud, la cuota muestra la etiqueta "Solicitar factura aquí".</p>
 <p><img src="/manual/img/fact-02a-tarjeta-solicitar.png" alt="Icono de solicitud de factura"><br><em>Figura 2 — Ícono de solicitud de factura en la cuota.</em></p>
-<p>El ícono de solicitud se habilita <strong>30 días antes</strong> de la fecha configurada de la cuota; antes de esa fecha verás cuántos días faltan.</p>
+<p>La <strong>cuota 1</strong> se puede solicitar en cualquier momento (si aún no enviaste la solicitud). Las <strong>cuotas siguientes</strong> se habilitan <strong>30 días antes</strong> de su fecha configurada; antes verás cuántos días faltan.</p>
 <p>Marca todos los requisitos que exige tu empresa:</p>
 <div class="manual-table-wrap"><table>
 <thead>

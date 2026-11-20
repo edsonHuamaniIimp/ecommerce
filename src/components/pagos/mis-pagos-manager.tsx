@@ -248,8 +248,12 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
     /* Cuota de origen de la declaracion de requisitos (para completarla si quedo vacia). */
     const cuotaRequisitos = row.cuotas.find((c) => c.numero === (row.requisitos?.cuota ?? 1)) ?? row.cuotas[0] ?? null;
     /* La solicitud se habilita 30 dias antes de la fecha de la primera cuota pendiente. */
-    const solicitudHabilitada = cuotaSugerida ? solicitudFacturaHabilitada(cuotaSugerida.fechaVencimiento) : false;
-    const diasParaSolicitud = cuotaSugerida ? diasParaHabilitarSolicitudFactura(cuotaSugerida.fechaVencimiento) : null;
+    const solicitudHabilitada = cuotaSugerida
+      ? solicitudFacturaHabilitada(cuotaSugerida.fechaVencimiento, cuotaSugerida.numero)
+      : false;
+    const diasParaSolicitud = cuotaSugerida && cuotaSugerida.numero !== 1
+      ? diasParaHabilitarSolicitudFactura(cuotaSugerida.fechaVencimiento)
+      : null;
     /* Seguimiento: siguiente cuota pendiente. Antes de emitirse la factura se cuenta
        contra su fecha programada; si la factura ya se emitio, se avisa el pago. */
     const cuotaPendiente = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? null;
@@ -347,7 +351,7 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               </Badge>
               {!row.iimpContrato && (puedeGestionar || soloLectura) && cuotaSugerida?.id === cuota.id && (
                 <span className="text-[10px] font-semibold text-warning">
-                  {solicitudFacturaHabilitada(cuota.fechaVencimiento)
+                  {solicitudFacturaHabilitada(cuota.fechaVencimiento, cuota.numero)
                     ? "Solicitar factura aquí"
                     : `Disponible en ${diasParaHabilitarSolicitudFactura(cuota.fechaVencimiento)} día(s)`}
                 </span>
@@ -450,14 +454,14 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                         variant="ghost"
                         size="sm"
                         className="h-7 w-7 p-0"
-                        disabled={soloLectura || !solicitudFacturaHabilitada(cuota.fechaVencimiento)}
+                        disabled={soloLectura || !solicitudFacturaHabilitada(cuota.fechaVencimiento, cuota.numero)}
                         onClick={() => setReservaCuota({ cuotaId: cuota.id, standCode: row.standCode, numero: cuota.numero })}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top">
-                      <span>{soloLectura ? `Solo lectura: ${textoSolicitudFactura(cuota.fechaVencimiento)}` : textoSolicitudFactura(cuota.fechaVencimiento)}</span>
+                      <span>{soloLectura ? `Solo lectura: ${textoSolicitudFactura(cuota.fechaVencimiento, cuota.numero)}` : textoSolicitudFactura(cuota.fechaVencimiento, cuota.numero)}</span>
                     </TooltipContent>
                   </Tooltip>
                 )}

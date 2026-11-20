@@ -90,7 +90,7 @@ export class SolicitarFacturaApplicationService {
     /* La solicitud se habilita 30 dias antes de la fecha configurada de la cuota. */
     const cuotaOrigen = fact.cuotas.find((c) => c.id === cuotaId);
     if (!cuotaOrigen) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
-    if (!solicitudFacturaHabilitada(cuotaOrigen.fechaVencimiento)) {
+    if (!solicitudFacturaHabilitada(cuotaOrigen.fechaVencimiento, cuotaOrigen.numero)) {
       const dias = diasParaHabilitarSolicitudFactura(cuotaOrigen.fechaVencimiento);
       throw new DomainError(
         `La solicitud de factura se habilita 30 dias antes de la fecha de la cuota${dias !== null ? ` (faltan ${dias} dias)` : ""}`,

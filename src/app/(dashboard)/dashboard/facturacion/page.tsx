@@ -619,10 +619,14 @@ export default function FacturacionPage() {
                     const cuotaRequisitos = row.cuotas.find((c) => c.numero === (row.requisitos?.cuota ?? 1)) ?? row.cuotas[0];
                     /* Cuota sugerida para registrar la solicitud (primera no pagada). */
                     const cuotaSolicitud = row.cuotas.find((c) => c.estado !== ESTADOS_CUOTA.PAGADO) ?? row.cuotas[0];
-                    const diasSolicitud = cuotaSolicitud ? diasParaHabilitarSolicitudFactura(cuotaSolicitud.fechaVencimiento) : null;
-                    const solicitudHabilitada = cuotaSolicitud ? solicitudFacturaHabilitada(cuotaSolicitud.fechaVencimiento) : false;
+                    const diasSolicitud = cuotaSolicitud && cuotaSolicitud.numero !== 1
+                      ? diasParaHabilitarSolicitudFactura(cuotaSolicitud.fechaVencimiento)
+                      : null;
+                    const solicitudHabilitada = cuotaSolicitud
+                      ? solicitudFacturaHabilitada(cuotaSolicitud.fechaVencimiento, cuotaSolicitud.numero)
+                      : false;
                     const cuotasRegistro = row.cuotas
-                      .filter((c) => solicitudFacturaHabilitada(c.fechaVencimiento))
+                      .filter((c) => solicitudFacturaHabilitada(c.fechaVencimiento, c.numero))
                       .map((c) => ({ id: c.id, numero: c.numero }));
                     /* Con factura generada se renderiza una fila por cada cuota facturada. */
                     const filas: Array<CuotaItem | null> = esConFactura

@@ -184,15 +184,29 @@ describe("SolicitarFacturaApplicationService", () => {
     expect(m.reserva.reservar).not.toHaveBeenCalled();
   });
 
-  it("rechaza solicitar fuera de la ventana de 30 dias (409)", async () => {
+  it("rechaza solicitar la cuota 2 fuera de la ventana de 30 dias (409)", async () => {
+    const m = mocks();
+    vi.mocked(m.facturacion.facturacionDeCuota).mockResolvedValue({
+      ...factRow,
+      cuotas: [
+        { id: "c1", numero: 1, fechaVencimiento: "2026-11-15" },
+        { id: "c2", numero: 2, fechaVencimiento: "2099-01-01" },
+      ],
+    } as never);
+
+    await expect(servicio(m).solicitar("c2", ident, [], { ninguna: true })).rejects.toMatchObject({ status: 409 });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
+  it("permite solicitar la cuota 1 aunque su fecha este lejos", async () => {
     const m = mocks();
     vi.mocked(m.facturacion.facturacionDeCuota).mockResolvedValue({
       ...factRow,
       cuotas: [{ id: "c1", numero: 1, fechaVencimiento: "2099-01-01" }],
     } as never);
 
-    await expect(servicio(m).solicitar("c1", ident, [], { ninguna: true })).rejects.toMatchObject({ status: 409 });
-    expect(m.reserva.reservar).not.toHaveBeenCalled();
+    await expect(servicio(m).solicitar("c1", ident, [], { ninguna: true }))
+      .resolves.toMatchObject({ numeroSolicitud: "CTRS-s1" });
   });
 
   it("envia la descripcion de la factura como TextoLibre de la cuota de origen", async () => {

@@ -70,10 +70,10 @@ Al pulsar el ícono de **solicitar factura** de una cuota se abre un único moda
    (SAP `FreeTxt` de la orden de venta). En el flujo "Completar requisitos" la reserva
    ya existe: el texto se guarda localmente y se muestra en el expediente, pero el SIE
    no admite actualizarlo.
-5. **Ventana de habilitación**: la solicitud solo se puede enviar desde
-   `DIAS_HABILITACION_SOLICITUD_FACTURA = 30` días antes de la `fechaVencimiento` de la
-   cuota de origen. Antes, el ícono queda deshabilitado con el conteo de días y el
-   backend responde **409**.
+5. **Ventana de habilitación**: la **cuota 1** se puede solicitar en cualquier momento
+   (si no hay solicitud); las **cuotas 2 en adelante** solo desde
+   `DIAS_HABILITACION_SOLICITUD_FACTURA = 30` días antes de su `fechaVencimiento`.
+   Antes, el ícono queda deshabilitado con el conteo de días y el backend responde **409**.
 
 Efecto: se registra la **reserva** en el IIMP (contrato y cuenta corriente) y la
 declaración de requisitos en `solicitud.requisitos_facturacion` (con la cuota de
