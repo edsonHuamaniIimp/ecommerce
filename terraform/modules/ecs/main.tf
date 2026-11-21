@@ -797,8 +797,14 @@ resource "aws_ecs_service" "app" {
   # ECS Exec (SSM): seed/mantenimiento sin SSH
   enable_execute_command = var.enable_exec_command
 
+  # task_definition: el CI (deploy.yml) registra una revision por commit con la imagen
+  # :<sha> y la despliega (rollback real). Sin este ignore, cada `terraform apply`
+  # devolveria el servicio a la revision de Terraform (:latest).
+  # OJO: un cambio de env/secretos/memoria hecho por Terraform crea una revision nueva
+  # pero NO la despliega: llega a prod en el siguiente deploy del CI (push a main o
+  # Actions > Run workflow), que parte de la ultima revision de la familia.
   lifecycle {
-    ignore_changes = [desired_count]
+    ignore_changes = [desired_count, task_definition]
   }
 
   tags = local.tags

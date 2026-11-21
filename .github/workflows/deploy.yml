@@ -12,7 +12,9 @@ name: CI/CD — ContratosStands
 # - build-db-backup se re-sube en CADA push A PROPOSITO: el lifecycle de ECR conserva solo
 #   las ultimas N imagenes (tagStatus=any); si dejara de subirse, `db-backup` podria expirar
 #   y romper el backup programado. No esta en la ruta critica (deploy-ecs no lo espera).
-# - deploy-ecs hace `aws ecs update-service --force-new-deployment` (imagen :latest).
+# - deploy-ecs registra una revision de la task definition con la imagen :<sha> y la
+#   despliega (rollback real del circuit breaker). Si no puede, cae al metodo anterior
+#   (`--force-new-deployment` con :latest). Se sigue subiendo :latest igual.
 # - Terraform se usa solo para infraestructura, no para cada deploy de app.
 # - EC2 queda como legado (deshabilitado salvo vars.DEPLOY_EC2=1).
 # - Los cambios solo de docs (.md / docs/**) no disparan el pipeline.
@@ -246,27 +248,98 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_DEFAULT_REGION || 'us-east-1' }}
 
-      - name: Forzar nuevo deployment en ECS
+      # Deploy INMUTABLE por SHA (rollback real):
+      #  1. Toma la ULTIMA revision de la familia de la task definition del servicio
+      #     (asi recoge cambios de Terraform: env, secretos, memoria).
+      #  2. Cambia SOLO la imagen del contenedor `app` a :<sha del commit> y registra
+      #     una revision nueva. 3. update-service a esa revision.
+      #  Si el circuit breaker revierte, vuelve a la revision anterior, que apunta a
+      #  OTRO sha fijo (no a :latest) => rollback real.
+      #  Rollback manual: aws ecs update-service --cluster <c> --service <s> \
+      #    --task-definition <familia>:<revision anterior>
+      #  FALLBACK: si algo falla ANTES de tocar el servicio (p. ej. faltan permisos
+      #  ecs:DescribeTaskDefinition / ecs:RegisterTaskDefinition / iam:PassRole),
+      #  se usa el metodo anterior (force-new-deployment con :latest). Nunca se deja
+      #  el deploy a medias.
+      - name: Rollout ECS (revision con imagen :sha)
         if: steps.check-ecr.outputs.skip != 'true'
+        env:
+          SHA: ${{ github.sha }}
         run: |
           CLUSTER="${{ secrets.ECS_CLUSTER }}"; CLUSTER="${CLUSTER:-iimp-ctrst-prod-cluster}"
           SERVICE="${{ secrets.ECS_SERVICE }}"; SERVICE="${SERVICE:-iimp-ctrst-prod-service}"
-          echo "Rollout en $CLUSTER / $SERVICE ..."
-          aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-deployment >/dev/null
-          # El `wait services-stable` nativo expira a los 10 min y el pull de la imagen
-          # (node_modules completo) puede tardar mas. Se sondea rolloutState cada 10s
-          # (detecta el fin antes que con 30s) hasta 20 min (120 x 10s).
+          CONTAINER="app"
+          echo "Rollout en $CLUSTER / $SERVICE (commit $SHA) ..."
+
+          # Prepara la revision nueva. Devuelve 1 (sin efectos en el servicio) ante cualquier fallo.
+          preparar_revision() {
+            local cur_td family td_json img repo new_img payload
+            cur_td=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+              --query "services[0].taskDefinition" --output text) || return 1
+            [ -n "$cur_td" ] && [ "$cur_td" != "None" ] || return 1
+            family=$(aws ecs describe-task-definition --task-definition "$cur_td" \
+              --query "taskDefinition.family" --output text) || return 1
+            # Sin revision => la ultima ACTIVE de la familia.
+            td_json=$(aws ecs describe-task-definition --task-definition "$family" --include TAGS) || return 1
+            img=$(echo "$td_json" | jq -r --arg c "$CONTAINER" \
+              '.taskDefinition.containerDefinitions[] | select(.name==$c) | .image')
+            case "$img" in ""|null|*@*) echo "Imagen actual no reconocida: '$img'"; return 1;; esac
+            repo="${img%:*}"
+            new_img="${repo}:${SHA}"
+            # Solo la imagen cambia; se quitan los campos de solo lectura. Se conservan los tags.
+            payload=$(echo "$td_json" | jq --arg c "$CONTAINER" --arg img "$new_img" '
+              .taskDefinition
+              | .containerDefinitions |= map(if .name == $c then .image = $img else . end)
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                    .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+            ' | jq --argjson tags "$(echo "$td_json" | jq '.tags // []')" \
+              'if ($tags | length) > 0 then . + {tags: $tags} else . end') || return 1
+            NEW_TD=$(aws ecs register-task-definition --cli-input-json "$payload" \
+              --query "taskDefinition.taskDefinitionArn" --output text) || return 1
+            [ -n "$NEW_TD" ] && [ "$NEW_TD" != "None" ] || return 1
+            echo "Revision registrada: $NEW_TD (base $family ultima ACTIVE, imagen $new_img)"
+          }
+
+          NEW_TD=""
+          if preparar_revision; then
+            MODO="sha"
+            if ! DEP_ID=$(aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+                --task-definition "$NEW_TD" \
+                --query "service.deployments[?status=='PRIMARY'] | [0].id" --output text); then
+              MODO="latest"; NEW_TD=""
+              echo "::warning::update-service con la revision por SHA fallo. Fallback: force-new-deployment con :latest."
+              DEP_ID=$(aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+                --force-new-deployment \
+                --query "service.deployments[?status=='PRIMARY'] | [0].id" --output text)
+            fi
+          else
+            MODO="latest"
+            echo "::warning::No se pudo registrar la revision por SHA (ver arriba; revisar permisos IAM del CI). Fallback: force-new-deployment con :latest."
+            DEP_ID=$(aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" \
+              --force-new-deployment \
+              --query "service.deployments[?status=='PRIMARY'] | [0].id" --output text)
+          fi
+          echo "Modo: $MODO · deployment: $DEP_ID"
+
+          # Se sigue ESE deployment por id (no deployments[0]): si el circuit breaker
+          # revierte, el job falla en vez de reportar exito por el deployment de rollback.
+          # El `wait services-stable` nativo expira a los 10 min; se sondea cada 10s hasta 20 min.
           for i in $(seq 1 120); do
             STATE=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
-              --query "services[0].deployments[0].rolloutState" --output text 2>/dev/null || echo "UNKNOWN")
+              --query "services[0].deployments[?id=='$DEP_ID'] | [0].rolloutState" \
+              --output text 2>/dev/null || echo "UNKNOWN")
             if [ "$STATE" = "COMPLETED" ]; then
-              echo "✅  Rollout ECS completado."
+              echo "✅  Rollout ECS completado ($MODO${NEW_TD:+ · $NEW_TD})."
               exit 0
             fi
             if [ "$STATE" = "FAILED" ]; then
-              echo "❌  Rollout ECS fallo (rolloutState=FAILED):"
+              echo "❌  Rollout ECS fallo (rolloutState=FAILED); el circuit breaker revierte a la revision anterior:"
               aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
-                --query "services[0].deployments[0].rolloutStateReason" --output text
+                --query "services[0].deployments[?id=='$DEP_ID'] | [0].rolloutStateReason" --output text
+              exit 1
+            fi
+            if [ "$STATE" = "None" ]; then
+              echo "❌  El deployment $DEP_ID ya no esta activo (probable rollback)."
               exit 1
             fi
             echo "[$i/120] rolloutState=$STATE — esperando 10s..."

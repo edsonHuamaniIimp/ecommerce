@@ -22,11 +22,18 @@
   (exit 2 = hay diferencias). Si el schema tiene cambios **sin migración versionada**, CI falla.
 - `deploy-ecs` **depende de `ci`** (`needs: [build-image, ci]`): un drift o tests rojos **bloquean el deploy**.
   No suma tiempo (`ci` ~1.5 min < `build` ~3.5 min).
-- `build-image`: runner **ARM nativo** (`ubuntu-24.04-arm`, **sin QEMU**) + cache `type:gha`.
+- `build-image`: runner **ARM nativo** (`ubuntu-24.04-arm`, **sin QEMU**) + cache de capas en
+  **ECR** (tag `buildcache`, `mode=max`, `ignore-error=true`).
   **Idempotente**: si la imagen de ese commit ya existe en ECR, **no se reconstruye**.
-- `deploy-ecs`: `aws ecs update-service --force-new-deployment` + `wait services-stable`.
-- ⏱️ Tiempos medidos: `ci` ~1.5 min (paralelo), `build` ~3.5 min, `rollout` ~3.5 min.
-- **Rollback**: re-deploy de una imagen previa (`:<sha>`) o revertir commit.
+- `deploy-ecs` (**deploy inmutable por SHA**, 2026-11-21): registra una revisión nueva de la
+  familia `iimp-ctrst-prod-app` (a partir de la **última** revisión) cambiando solo la imagen de
+  `app` a `:<sha>`, y hace `update-service --task-definition` a esa revisión. Sigue **ese**
+  deployment por id cada 10 s (máx. 20 min). Si no puede registrar la revisión (p. ej. faltan
+  permisos IAM del CI), **cae** al método anterior (`--force-new-deployment` con `:latest`) y lo
+  avisa con un `::warning::`.
+- ⏱️ Tiempos medidos (2026-11-21, sin cache): `ci` ~2.5 min (paralelo), `build` ~4.5 min,
+  `rollout` ~4.4 min → **~9 min** total.
+- **Rollback**: ver §2.1 (revisión anterior, cada una con su `:<sha>` fijo).
 - Push de **solo docs** (`docs/**`, `**/*.md`) → no dispara el pipeline.
 
 ### 0.2 GitHub Actions secrets — YA CARGADOS (no recrear)
@@ -118,17 +125,41 @@ Usuario → ecommerce.sistemasiimp.org.pe → CloudFront → ALB → ECS Fargate
 
 1. **`ci`**: lint + tipos + tests. Corre en paralelo y **no bloquea**.
 2. **`build-image`**: construye `Dockerfile.ecs` **arm64** (runner ARM nativo, sin QEMU) con
-   **cache de capas** (`type=gha`) y publica `…:<sha>` **y** `:latest` en ECR.
+   **cache de capas en ECR** (`:buildcache`) y publica `…:<sha>` **y** `:latest` en ECR.
    - Si la imagen de ese commit **ya existe** en ECR, **no reconstruye** (idempotente).
-   - Cache: el `npm ci` se reutiliza si no cambió `package.json`; solo se rehace la capa de
-     código + `next build`.
-3. **`deploy-ecs`**: `aws ecs update-service --force-new-deployment` + `wait services-stable`
-   → ECS hace rolling update (circuit breaker, min 100% / max 200%, drain 30s).
-   **No depende de `ci` ni de Terraform.**
+   - Cache: deps (`npm ci`) y LibreOffice se reutilizan si no cambió `package-lock.json`; solo
+     se rehace la capa de código + `next build`.
+3. **`deploy-ecs`**: registra la revisión `iimp-ctrst-prod-app:<N+1>` con la imagen `:<sha>` y
+   hace `update-service --task-definition` → rolling update (circuit breaker con rollback,
+   min 100% / max 200%, drain 30s). **Requiere `ci` en verde**; no depende de Terraform.
 4. **Verificar**: `curl -fsS https://ecommerce.sistemasiimp.org.pe/api/health` (200).
 
 Terraform se usa **solo para infraestructura** (Aurora/ALB/CloudFront/WAF/ECS base), no para
-cada deploy de app. **Rollback**: re-deploy de una imagen previa (por `:<sha>`) o revertir commit.
+cada deploy de app. El servicio ECS tiene `ignore_changes = [desired_count, task_definition]`:
+un `terraform apply` **no** cambia la revisión desplegada.
+
+> ⚠️ Un cambio de **env / secretos / memoria** hecho por Terraform crea una revisión nueva pero
+> **no la despliega**. Llega a prod en el **siguiente deploy del CI** (push a `main` o
+> Actions → *Run workflow*), que parte de la última revisión de la familia.
+
+### 2.1 Rollback
+
+- **Automático**: si las tareas nuevas no pasan el health check, el circuit breaker vuelve a la
+  revisión anterior, que apunta a **otro `:<sha>` fijo** (no a `:latest`). El job falla.
+- **Manual** (volver a una versión previa sin rebuild):
+
+  ```bash
+  # Ver revisiones e imagen de cada una
+  aws ecs list-task-definitions --family-prefix iimp-ctrst-prod-app --sort DESC --max-items 5
+  aws ecs describe-task-definition --task-definition iimp-ctrst-prod-app:<N> \
+    --query "taskDefinition.containerDefinitions[?name=='app'].image"
+  # Desplegar esa revisión
+  aws ecs update-service --cluster iimp-ctrst-prod-cluster --service iimp-ctrst-prod-service \
+    --task-definition iimp-ctrst-prod-app:<N>
+  ```
+- Límite: ECR retiene las últimas `ecr_keep_last_images` (10) imágenes; una revisión cuya imagen
+  ya expiró no sirve para rollback.
+- Alternativa: `git revert` + push a `qa` y `main`.
 
 ## 3. Secrets/variables de CI requeridos
 
