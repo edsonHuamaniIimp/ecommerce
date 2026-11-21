@@ -1714,7 +1714,7 @@ model DdMatrizVinculo {
   /// Bloque Compliance (Legal).
   cmpFecha         DateTime? @map("cmp_fecha")
   cmpResponsable   String?   @map("cmp_responsable") @db.VarChar(200)
-  cmpResultado     String?   @map("cmp_resultado") @db.VarChar(20)
+  cmpResultado     String?   @map("cmp_resultado") @db.VarChar(40)
   cmpObservaciones String?   @map("cmp_observaciones") @db.VarChar(2000)
   cmpConclusion    String?   @map("cmp_conclusion") @db.VarChar(40)
 

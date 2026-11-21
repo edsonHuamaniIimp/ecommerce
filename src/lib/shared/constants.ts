@@ -1442,6 +1442,11 @@ export const DD_FILTRO_TODAS = "todas";
 export const DD_FILTRO_VENCIDA = "vencida";
 /** DD aprobadas y vigentes a las que les falta la declaracion de vigencia. */
 export const DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA = "requiere_declaracion_vigencia";
+/**
+ * Bandeja de Legal: expedientes en revision legal mas los que Legal observo y
+ * esperan la subsanacion del cliente (seguimiento).
+ */
+export const DD_FILTRO_LEGAL_SEGUIMIENTO = "legal_seguimiento";
 /** Valor del selector de evento para consultar todos los eventos. */
 export const DD_EVENTO_TODOS = "todos";
 export const DD_EVENTO_TODOS_LABEL = "Todos los eventos";
@@ -2296,6 +2301,8 @@ export const DD_MATRIZ_GRUPOS_LISTA = {
   EMPRESA_NACIONAL: "empresa_nacional",
   PERSONA_VINCULADA: "persona_vinculada",
   EXTRANJERA: "extranjera",
+  /** Criterios adicionales que aplican a cualquier vinculo (p. ej. "Otros"). */
+  ADICIONAL: "adicional",
 } as const;
 export type DdMatrizGrupoLista = (typeof DD_MATRIZ_GRUPOS_LISTA)[keyof typeof DD_MATRIZ_GRUPOS_LISTA];
 
@@ -2305,6 +2312,12 @@ export interface DdMatrizListaDef {
   grupo: DdMatrizGrupoLista;
   color: DdMatrizColor;
 }
+
+/**
+ * Criterio adicional "Otros": evidencia libre para cualquier vinculo o empresa.
+ * No pertenece a la matriz oficial (no se exporta al Excel) y su respuesta es opcional.
+ */
+export const DD_MATRIZ_LISTA_OTROS = "otros";
 
 /** Listas restrictivas de la matriz oficial (columnas Q-V, AA-AE y AF-AP). */
 export const DD_MATRIZ_LISTAS: readonly DdMatrizListaDef[] = [
@@ -2330,7 +2343,35 @@ export const DD_MATRIZ_LISTAS: readonly DdMatrizListaDef[] = [
   { codigo: "banco_mundial", label: "Lista del Banco Mundial de firmas e individuos inelegibles", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
   { codigo: "interpol", label: "Registra antecedentes en INTERPOL", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
   { codigo: "dea", label: "Registra antecedentes en DEA", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
+  { codigo: DD_MATRIZ_LISTA_OTROS, label: "Otros", grupo: DD_MATRIZ_GRUPOS_LISTA.ADICIONAL, color: DD_MATRIZ_COLORES.COMUN },
 ];
+
+/** Descripcion breve de cada criterio: que se revisa y que evidencia conviene adjuntar. */
+export const DD_MATRIZ_LISTA_DESCRIPCIONES: Record<string, string> = {
+  indecopi: "Quejas o reclamos registrados en INDECOPI.",
+  corrupcion_empresa: "Noticias o procesos por corrupción, soborno o lavado.",
+  oefa: "Infracciones ambientales sancionadas por el OEFA.",
+  peps_prp_empresa: "Empresa o socios en listas de PEP / PRP.",
+  central_riesgo_empresa: "Calificación de la empresa en centrales de riesgo.",
+  bancarizado_empresa: "La empresa opera con cuentas bancarias.",
+  corrupcion_persona: "Reportes de corrupción, soborno o lavado de la persona.",
+  peps_prp_persona: "La persona es PEP o está vinculada a una.",
+  central_riesgo_persona: "Calificación de la persona en centrales de riesgo.",
+  conflicto_interes: "Vínculos con personal del IIMP que generen conflicto.",
+  bancarizado_persona: "La persona opera con cuentas bancarias.",
+  ofac: "Lista de sanciones OFAC (EE. UU.).",
+  naciones_unidas: "Lista consolidada de sanciones de la ONU.",
+  opensanctions: "Sanciones y PEP en OpenSanctions.",
+  ohmyfin: "Sanciones y riesgo en OhMyFin (requiere login).",
+  sanciones_canada: "Lista de sanciones de Canadá.",
+  sanciones_europa: "Lista de sanciones de la Unión Europea.",
+  sanciones_reino_unido: "Lista de sanciones del Reino Unido.",
+  sanciones_australia: "Lista de sanciones de Australia.",
+  banco_mundial: "Firmas e individuos inelegibles del Banco Mundial.",
+  interpol: "Notificaciones y antecedentes en INTERPOL.",
+  dea: "Antecedentes en la DEA (EE. UU.).",
+  [DD_MATRIZ_LISTA_OTROS]: "Otra evidencia relevante no cubierta arriba.",
+};
 
 /**
  * Fuente oficial de cada criterio. `consultaParam` solo se usa en portales
@@ -2457,6 +2498,72 @@ export const DD_REPOSITORIO_FUENTES = {
 } as const;
 
 export const DD_REPOSITORIO_RESPONSABLE_EXPEDIENTE = "Expediente";
+
+/** Clave del "vinculo" que agrupa los documentos base (no pertenecen a un vinculo de la matriz). */
+export const DD_REPOSITORIO_VINCULO_EXPEDIENTE = "__expediente__";
+export const DD_REPOSITORIO_VINCULO_EXPEDIENTE_LABEL = "Expediente (documentos base)";
+
+
+/** Formatos de archivo para filtrar y mostrar iconos. */
+export const DD_REPOSITORIO_FORMATOS = {
+  PDF: "pdf",
+  IMAGEN: "imagen",
+  WORD: "word",
+  OTRO: "otro",
+} as const;
+export type DdRepositorioFormato = (typeof DD_REPOSITORIO_FORMATOS)[keyof typeof DD_REPOSITORIO_FORMATOS];
+export const DD_REPOSITORIO_FORMATO_LABELS: Record<DdRepositorioFormato, string> = {
+  [DD_REPOSITORIO_FORMATOS.PDF]: "PDF",
+  [DD_REPOSITORIO_FORMATOS.IMAGEN]: "Imagen",
+  [DD_REPOSITORIO_FORMATOS.WORD]: "Word",
+  [DD_REPOSITORIO_FORMATOS.OTRO]: "Otro",
+};
+
+/** Periodos de carga del filtro por fecha. */
+export const DD_REPOSITORIO_PERIODOS = {
+  TODO: "todo",
+  SIETE_DIAS: "7",
+  TREINTA_DIAS: "30",
+  NOVENTA_DIAS: "90",
+} as const;
+export type DdRepositorioPeriodo = (typeof DD_REPOSITORIO_PERIODOS)[keyof typeof DD_REPOSITORIO_PERIODOS];
+export const DD_REPOSITORIO_PERIODO_OPCIONES: { value: DdRepositorioPeriodo; label: string; dias: number | null }[] = [
+  { value: DD_REPOSITORIO_PERIODOS.TODO, label: "Cualquier fecha", dias: null },
+  { value: DD_REPOSITORIO_PERIODOS.SIETE_DIAS, label: "Últimos 7 días", dias: 7 },
+  { value: DD_REPOSITORIO_PERIODOS.TREINTA_DIAS, label: "Últimos 30 días", dias: 30 },
+  { value: DD_REPOSITORIO_PERIODOS.NOVENTA_DIAS, label: "Últimos 90 días", dias: 90 },
+];
+
+/** Agrupaciones de la lista de archivos. */
+export const DD_REPOSITORIO_AGRUPACIONES = {
+  VINCULO: "vinculo",
+  CLASE: "clase",
+  AREA: "area",
+  NINGUNA: "ninguna",
+} as const;
+export type DdRepositorioAgrupacion = (typeof DD_REPOSITORIO_AGRUPACIONES)[keyof typeof DD_REPOSITORIO_AGRUPACIONES];
+export const DD_REPOSITORIO_AGRUPACION_OPCIONES: { value: DdRepositorioAgrupacion; label: string }[] = [
+  { value: DD_REPOSITORIO_AGRUPACIONES.VINCULO, label: "Por vínculo" },
+  { value: DD_REPOSITORIO_AGRUPACIONES.CLASE, label: "Por tipo de documento" },
+  { value: DD_REPOSITORIO_AGRUPACIONES.AREA, label: "Por área" },
+  { value: DD_REPOSITORIO_AGRUPACIONES.NINGUNA, label: "Sin agrupar" },
+];
+
+/** Ordenes de la lista de archivos. */
+export const DD_REPOSITORIO_ORDENES = {
+  RECIENTES: "recientes",
+  ANTIGUOS: "antiguos",
+  NOMBRE: "nombre",
+} as const;
+export type DdRepositorioOrden = (typeof DD_REPOSITORIO_ORDENES)[keyof typeof DD_REPOSITORIO_ORDENES];
+export const DD_REPOSITORIO_ORDEN_OPCIONES: { value: DdRepositorioOrden; label: string }[] = [
+  { value: DD_REPOSITORIO_ORDENES.RECIENTES, label: "Más recientes" },
+  { value: DD_REPOSITORIO_ORDENES.ANTIGUOS, label: "Más antiguos" },
+  { value: DD_REPOSITORIO_ORDENES.NOMBRE, label: "Nombre (A-Z)" },
+];
+
+/** Un archivo cargado hace menos de estas horas se marca como "Nuevo". */
+export const DD_REPOSITORIO_NUEVO_HORAS = 48;
 export const DD_REPOSITORIO_EMPRESAS_POR_PAGINA = 8;
 export const DD_REPOSITORIO_SKELETON_ROWS = 8;
 export const DD_REPOSITORIO_SKELETON_COLUMNS = 7;
@@ -2898,6 +3005,23 @@ export const BADGE_STYLES = {
 } as const;
 
 export type BadgeStyle = (typeof BADGE_STYLES)[keyof typeof BADGE_STYLES];
+
+/** Color de la insignia de cada area en el Centro documental. */
+export const DD_REPOSITORIO_AREA_ESTILOS: Record<string, string> = {
+  [DD_REPOSITORIO_AREAS.DOCUMENTO_BASE]: BADGE_STYLES.NEUTRAL,
+  [DD_REPOSITORIO_AREAS.SIG]: BADGE_STYLES.INFO,
+  [DD_REPOSITORIO_AREAS.REPUTACIONAL]: BADGE_STYLES.WARNING,
+  [DD_REPOSITORIO_AREAS.LEGAL]: BADGE_STYLES.INDIGO,
+  [DD_REPOSITORIO_AREAS.MATRIZ]: BADGE_STYLES.SUCCESS,
+};
+
+/** Color del icono de cada formato de archivo. */
+export const DD_REPOSITORIO_FORMATO_ESTILOS: Record<string, string> = {
+  [DD_REPOSITORIO_FORMATOS.PDF]: "bg-red-50 text-red-600 border-red-100",
+  [DD_REPOSITORIO_FORMATOS.IMAGEN]: "bg-sky-50 text-sky-600 border-sky-100",
+  [DD_REPOSITORIO_FORMATOS.WORD]: "bg-indigo-50 text-indigo-600 border-indigo-100",
+  [DD_REPOSITORIO_FORMATOS.OTRO]: "bg-slate-50 text-slate-500 border-slate-200",
+};
 
 /* ================================================================
    Validaciones de formularios (longitudes y formatos)

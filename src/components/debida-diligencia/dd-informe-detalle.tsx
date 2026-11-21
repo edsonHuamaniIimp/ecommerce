@@ -52,6 +52,7 @@ import {
   type DdMatrizAdjuntoCategoria,
   type DdMatrizResultadoFinal,
   type DdMatrizTipoVinculo,
+  DD_MATRIZ_LISTA_OTROS,
 } from "@/lib/shared/constants";
 import {
   evidenciasInforme,
@@ -276,10 +277,11 @@ export function DdInformeDetalle({ expedienteId }: Props) {
     (a, b) => a.createdAt.localeCompare(b.createdAt) || a.nombreARevisar.localeCompare(b.nombreARevisar),
   );
   const tieneLegal = Boolean(expediente?.decisionLegal || expediente?.motivoLegal);
-  const totalListas = vinculos.reduce((total, vinculo) => total + vinculo.listas.length, 0);
-  const listasConResultado = vinculos
+  const listasEvaluables = vinculos
     .flatMap((vinculo) => vinculo.listas)
-    .filter((lista) => Boolean(lista.valor)).length;
+    .filter((lista) => lista.codigo !== DD_MATRIZ_LISTA_OTROS);
+  const totalListas = listasEvaluables.length;
+  const listasConResultado = listasEvaluables.filter((lista) => Boolean(lista.valor)).length;
   const datosEmpresa = empresa.generales;
   const esEmpresaPeruana =
     /^\d{11}$/.test(exp.empresaRuc) &&

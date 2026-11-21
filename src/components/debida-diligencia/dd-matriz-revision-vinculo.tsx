@@ -41,6 +41,8 @@ import {
   DD_MATRIZ_TIPOS_VINCULO,
   DD_RUTAS,
   type DdMatrizTipoVinculo,
+  DD_MATRIZ_LISTA_DESCRIPCIONES,
+  DD_MATRIZ_LISTA_OTROS,
 } from "@/lib/shared/constants";
 import { urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { nombrePais } from "@/lib/shared/utils/pais";
@@ -283,6 +285,11 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
                   <tr key={lista.codigo} className="hover:bg-secondary/20">
                     <td className="px-4 py-2.5 font-medium text-foreground">
                       <span>{lista.label}</span>
+                      {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo] ? (
+                        <span className="mt-0.5 block text-[10px] font-normal leading-snug text-muted-foreground">
+                          {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo]}
+                        </span>
+                      ) : null}
                       {(() => {
                         const fuenteUrl = urlFuenteLista(lista.codigo, detalle.nombre, detalle.documento);
                         return fuenteUrl ? (
@@ -300,7 +307,7 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${colorResultadoLista(lista.valor)}`}>
-                        {lista.valor ? (SI_NO_NA_LABELS[lista.valor] ?? lista.valor) : "Pendiente"}
+                        {lista.valor ? (SI_NO_NA_LABELS[lista.valor] ?? lista.valor) : lista.codigo === DD_MATRIZ_LISTA_OTROS ? "Opcional" : "Pendiente"}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-[11px] text-muted-foreground">

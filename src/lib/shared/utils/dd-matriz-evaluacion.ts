@@ -217,15 +217,19 @@ export function listasAplicables(
     tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA ||
     (tipo === DD_MATRIZ_TIPOS_VINCULO.VINCULADO &&
       normalizarTexto(tipoDocumento) === normalizarTexto("RUC"));
+  const adicionales = DD_MATRIZ_LISTAS.filter((l) => l.grupo === DD_MATRIZ_GRUPOS_LISTA.ADICIONAL);
   if (ambito === DD_MATRIZ_AMBITOS.EXTRANJERO) {
-    return DD_MATRIZ_LISTAS.filter(
-      (l) =>
-        l.grupo === DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA ||
-        (!esEmpresa && l.codigo === "conflicto_interes"),
-    );
+    return [
+      ...DD_MATRIZ_LISTAS.filter(
+        (l) =>
+          l.grupo === DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA ||
+          (!esEmpresa && l.codigo === "conflicto_interes"),
+      ),
+      ...adicionales,
+    ];
   }
   const grupo = esEmpresa ? DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL : DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA;
-  return DD_MATRIZ_LISTAS.filter((l) => l.grupo === grupo);
+  return [...DD_MATRIZ_LISTAS.filter((l) => l.grupo === grupo), ...adicionales];
 }
 
 export interface BloqueAreaEntrada {

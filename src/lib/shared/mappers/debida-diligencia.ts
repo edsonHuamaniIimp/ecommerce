@@ -407,6 +407,9 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     reputacionSinHallazgos: row.reputacionSinHallazgos,
     reputacionConHallazgos: row.reputacionConHallazgos,
     reputacionRequiereInformacion: row.reputacionRequiereInformacion,
+    decisionLegal: row.decisionLegal,
+    motivoLegal: row.motivoLegal,
+    fechaLegal: fecha(row.fechaLegal),
   };
 }
 

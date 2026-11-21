@@ -41,6 +41,7 @@ import {
   DD_MATRIZ_CONCLUSION_LABELS,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CRITERIO_PREFIJO,
+  DD_MATRIZ_LISTA_DESCRIPCIONES,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADO_LABELS,
@@ -380,7 +381,14 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         <td className="px-4 py-3">
                           <div className="flex items-start gap-2">
                             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">{indice + 1}</span>
-                            <span className="text-[11px] font-medium text-foreground">{lista.label}</span>
+                            <span className="min-w-0">
+                              <span className="block text-[11px] font-medium text-foreground">{lista.label}</span>
+                              {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo] ? (
+                                <span className="mt-0.5 block text-[10px] font-normal leading-snug text-muted-foreground">
+                                  {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo]}
+                                </span>
+                              ) : null}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-3">

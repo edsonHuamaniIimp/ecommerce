@@ -23,6 +23,8 @@ import {
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CONCLUSIONES_COMPLIANCE,
   DD_MATRIZ_GRUPOS_LISTA,
+  DD_MATRIZ_LISTA_DESCRIPCIONES,
+  DD_MATRIZ_LISTA_OTROS,
   DD_MATRIZ_LISTA_URLS,
   DD_MATRIZ_LISTAS,
   DD_MATRIZ_RESULTADOS,
@@ -191,31 +193,52 @@ describe("derivarAmbito", () => {
 });
 
 describe("listasAplicables", () => {
+  const sinAdicionales = (listas: ReturnType<typeof listasAplicables>) =>
+    listas.filter((x) => x.grupo !== DD_MATRIZ_GRUPOS_LISTA.ADICIONAL);
+
   it("empresa nacional: 6 listas de empresa nacional", () => {
-    const l = listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.NACIONAL);
+    const l = sinAdicionales(listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.NACIONAL));
     expect(l).toHaveLength(6);
     expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL)).toBe(true);
+  });
+
+  it("todo vinculo incluye el criterio adicional Otros, sea cual sea su tipo o ambito", () => {
+    const combinaciones = [
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.NACIONAL),
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.EXTRANJERO),
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE, DD_MATRIZ_AMBITOS.NACIONAL),
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.EXTRANJERO),
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.NACIONAL, "RUC"),
+    ];
+    for (const listas of combinaciones) {
+      const otros = listas.filter((x) => x.codigo === DD_MATRIZ_LISTA_OTROS);
+      expect(otros).toHaveLength(1);
+      expect(otros[0]?.label).toBe("Otros");
+    }
+  });
+
+  it("Otros no pertenece a la matriz oficial: queda fuera de los grupos exportables al Excel", () => {
+    const otros = DD_MATRIZ_LISTAS.find((x) => x.codigo === DD_MATRIZ_LISTA_OTROS);
+    expect(otros?.grupo).toBe(DD_MATRIZ_GRUPOS_LISTA.ADICIONAL);
   });
 
   it("persona nacional: listas de persona vinculada", () => {
     const l = listasAplicables(DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE, DD_MATRIZ_AMBITOS.NACIONAL);
     expect(l.map((x) => x.codigo)).toContain("conflicto_interes");
-    expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA)).toBe(true);
+    expect(sinAdicionales(l).every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA)).toBe(true);
   });
 
   it("extranjero: listas extranjeras (11) y, si es persona, conflicto de interes", () => {
-    const empresa = listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.EXTRANJERO);
+    const empresa = sinAdicionales(listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.EXTRANJERO));
     expect(empresa).toHaveLength(11);
-    const persona = listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.EXTRANJERO);
+    const persona = sinAdicionales(listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.EXTRANJERO));
     expect(persona).toHaveLength(12);
     expect(persona.map((x) => x.codigo)).toContain("conflicto_interes");
   });
 
   it("empresa vinculada con RUC usa listas de empresa", () => {
-    const l = listasAplicables(
-      DD_MATRIZ_TIPOS_VINCULO.VINCULADO,
-      DD_MATRIZ_AMBITOS.NACIONAL,
-      "RUC",
+    const l = sinAdicionales(
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.NACIONAL, "RUC"),
     );
     expect(l).toHaveLength(6);
     expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL)).toBe(true);
@@ -223,13 +246,22 @@ describe("listasAplicables", () => {
   });
 
   it("persona vinculada con DNI conserva listas de persona", () => {
-    const l = listasAplicables(
-      DD_MATRIZ_TIPOS_VINCULO.VINCULADO,
-      DD_MATRIZ_AMBITOS.NACIONAL,
-      "DNI",
+    const l = sinAdicionales(
+      listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.NACIONAL, "DNI"),
     );
     expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA)).toBe(true);
     expect(l.map((x) => x.codigo)).toContain("conflicto_interes");
+  });
+
+  it("cada criterio tiene una descripcion breve y no hay descripciones huerfanas", () => {
+    for (const lista of DD_MATRIZ_LISTAS) {
+      const descripcion = DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo];
+      expect(descripcion, lista.codigo).toBeTruthy();
+      expect(descripcion?.length ?? 0).toBeLessThanOrEqual(70);
+    }
+    for (const codigo of Object.keys(DD_MATRIZ_LISTA_DESCRIPCIONES)) {
+      expect(DD_MATRIZ_LISTAS.some((lista) => lista.codigo === codigo), codigo).toBe(true);
+    }
   });
 
   it("todas las fuentes configuradas son HTTPS y pertenecen a un criterio existente", () => {

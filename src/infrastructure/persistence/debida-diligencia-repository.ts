@@ -52,6 +52,9 @@ import {
   DD_FILTRO_POR_VENCER,
   DD_FILTRO_REQUIERE_DECLARACION_VIGENCIA,
   DD_FILTRO_VENCIDA,
+  DD_FILTRO_LEGAL_SEGUIMIENTO,
+  DD_ACCIONES_LEGAL,
+  type DdAccionLegal,
   DD_TIPO_VINCULO_PERSONA_LABELS,
   DD_TIPOS_VINCULO_PERSONA,
   DD_FILTRO_SIN_INICIAR,
@@ -1085,6 +1088,13 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       if (params.eventoActivoId) {
         condicionesAnd.push({ eventoId: { not: params.eventoActivoId } });
       }
+    } else if (params.estado === DD_FILTRO_LEGAL_SEGUIMIENTO) {
+      condicionesAnd.push({
+        OR: [
+          { estado: DD_ESTADOS.EN_LEGAL },
+          { estado: DD_ESTADOS.OBSERVADA, decisionLegal: DD_ACCIONES_LEGAL.OBSERVAR },
+        ],
+      });
     } else if (params.estado === DD_ESTADOS.PENDIENTE) {
       where.estado = { in: [...DD_ESTADOS_PENDIENTES] };
     } else if (params.estado && params.estado !== DD_FILTRO_TODAS) {
@@ -1358,6 +1368,9 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         reputacionSinHallazgos,
         reputacionConHallazgos,
         reputacionRequiereInformacion,
+        decisionLegal: (row.decisionLegal as DdAccionLegal | null) ?? null,
+        motivoLegal: row.motivoLegal ?? null,
+        fechaLegal: row.fechaLegal ?? null,
         };
       }),
       total: totalVisibles,

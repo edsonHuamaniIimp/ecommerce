@@ -42,10 +42,12 @@ import { debidaDiligenciaService } from "@/lib/client/api/services/debida-dilige
 import {
   BADGE_STYLES,
   DD_PER_PAGE_DEFAULT,
+  DD_ESTADOS,
   DD_REPUTACION_ESTADOS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import type { DdBandejaResponseDTO, DdBandejaRowDTO } from "@/types/dto/debida-diligencia";
 
 const VACIO: DdBandejaResponseDTO = {
@@ -244,7 +246,16 @@ export function DdLegalBandeja() {
                               </p>
                             </TableCell>
                             <TableCell className="hidden max-w-[220px] text-[11px] text-muted-foreground md:table-cell">
-                              <p className="line-clamp-2">{fila.motivoRechazo ?? "Derivado a revisión legal"}</p>
+                              {ddUtils.subsanoObservacionLegal(fila.estado, fila.decisionLegal) ? (
+                                <div className="space-y-1">
+                                  <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INFO}`}>
+                                    <span>Cliente subsanó</span>
+                                  </Badge>
+                                  <p className="line-clamp-2">{fila.motivoLegal ?? "Observación de Legal subsanada"}</p>
+                                </div>
+                              ) : (
+                                <p className="line-clamp-2">{fila.motivoRechazo ?? "Derivado a revisión legal"}</p>
+                              )}
                             </TableCell>
                             <TableCell className="hidden lg:table-cell">
                               {fila.reputacionCasos > 0 ? (
@@ -272,7 +283,7 @@ export function DdLegalBandeja() {
                                 }}
                               >
                                 <Scale className="h-3.5 w-3.5" />
-                                <span>Revisar</span>
+                                <span>{fila.estado === DD_ESTADOS.EN_LEGAL ? "Revisar" : "Seguimiento"}</span>
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -387,10 +398,14 @@ export function DdLegalBandeja() {
 
                 <div className="space-y-2">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Motivo de la derivación de Logística
+                    {ddUtils.subsanoObservacionLegal(seleccionado.estado, seleccionado.decisionLegal)
+                      ? "Observación de Legal subsanada por el cliente"
+                      : "Motivo de la derivación de Logística"}
                   </h3>
                   <p className="rounded-lg border border-warning/40 bg-warning/5 p-3 text-[11px] text-foreground">
-                    {seleccionado.motivoRechazo ?? "Sin motivo registrado."}
+                    {ddUtils.subsanoObservacionLegal(seleccionado.estado, seleccionado.decisionLegal)
+                      ? (seleccionado.motivoLegal ?? "Sin comentario registrado.")
+                      : (seleccionado.motivoRechazo ?? "Sin motivo registrado.")}
                   </p>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <span>Derivado: {seleccionado.fechaEnvio ? dateUtils.format(seleccionado.fechaEnvio) : "-"}</span>

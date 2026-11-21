@@ -68,19 +68,34 @@ export class DebidaDiligenciaNotificacion implements IDebidaDiligenciaNotificaci
     codigo: string;
     razonSocial: string;
     motivo: string | null;
+    reenvio?: boolean;
   }): Promise<void> {
     try {
-      const usuarios = await prisma.userRole.findMany({
-        where: { role: { nombre: ROLES.LEGAL } },
+      const candidatos = await prisma.userRole.findMany({
+        where: {
+          flgActivo: true,
+          role: {
+            OR: [
+              { nombre: ROLES.LEGAL },
+              { permisos: { has: PERMISSIONS.DD_LEGAL } },
+              { permisos: { has: PERMISSIONS.ADMIN_FULL } },
+            ],
+          },
+        },
         select: { userId: true, email: true },
       });
+      const usuarios = [...new Map(candidatos.map((usuario) => [usuario.userId, usuario])).values()];
       if (usuarios.length === 0) return;
       await prisma.alerta.createMany({
         data: usuarios.map((usuario) => ({
           userId: usuario.userId,
           tipo: ALERTA_TIPOS.DD_LEGAL,
-          titulo: "Debida diligencia derivada a Legal",
-          mensaje: `${datos.razonSocial} (${datos.codigo}) requiere revisión legal.${datos.motivo ? ` Motivo: ${datos.motivo}` : ""}`,
+          titulo: datos.reenvio
+            ? "Debida diligencia subsanada: revisión legal pendiente"
+            : "Debida diligencia derivada a Legal",
+          mensaje: datos.reenvio
+            ? `${datos.razonSocial} (${datos.codigo}) subsanó la observación de Legal y requiere una nueva revisión.`
+            : `${datos.razonSocial} (${datos.codigo}) requiere revisión legal.${datos.motivo ? ` Motivo: ${datos.motivo}` : ""}`,
           url: DD_RUTAS.LEGAL,
         })),
       });

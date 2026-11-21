@@ -282,6 +282,9 @@ export interface DdBandejaRow {
   reputacionSinHallazgos: number;
   reputacionConHallazgos: number;
   reputacionRequiereInformacion: number;
+  decisionLegal: DdAccionLegal | null;
+  motivoLegal: string | null;
+  fechaLegal: Date | null;
 }
 
 export interface DdBandejaParams {

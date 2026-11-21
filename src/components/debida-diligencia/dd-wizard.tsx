@@ -220,6 +220,11 @@ export function DdWizard({
       ? 4
       : 1,
   );
+  /** Subsanacion: el expediente ya fue completado; el cliente solo corrige puntos puntuales. */
+  const modoSubsanacion = expedienteInicial?.estado === DD_ESTADOS.OBSERVADA;
+  const [pasoMaximo, setPasoMaximo] = useState(paso);
+  const pasoPrevioRef = useRef(paso);
+  if (paso > pasoMaximo) setPasoMaximo(paso);
   const [form, setForm] = useState<FormState>(() => formDesde(empresa, expedienteInicial));
   const [beneficiarios, setBeneficiarios] = useState<BeneficiarioForm[]>(
     () => beneficiariosDesde(expedienteInicial),
@@ -331,7 +336,8 @@ export function DdWizard({
   };
 
   useEffect(() => {
-    if (paso === 1) window.scrollTo({ top: 0, behavior: "smooth" });
+    if (pasoPrevioRef.current !== paso) window.scrollTo({ top: 0, behavior: "smooth" });
+    pasoPrevioRef.current = paso;
   }, [paso]);
 
   useEffect(() => {
@@ -624,7 +630,13 @@ export function DdWizard({
     if (validarPaso(definicion.numero) !== null) break;
     pasosCompletados.push(definicion.numero);
   }
-  const pasosNavegables = [...new Set([paso, ...pasosCompletados])];
+  const pasosNavegables = ddUtils.pasosNavegables({
+    actual: paso,
+    completados: pasosCompletados,
+    pasoMaximo,
+    totalPasos: DD_PASOS.length,
+    modoSubsanacion,
+  });
   const irAPaso = (numero: number) => {
     if (!pasosNavegables.includes(numero)) return;
     setPaso(numero);
@@ -819,7 +831,7 @@ export function DdWizard({
         </ol>
       </nav>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-clip">
         <CardHeader className="border-b border-border pb-5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
@@ -849,6 +861,18 @@ export function DdWizard({
         </CardHeader>
 
         <CardContent className="space-y-6 pt-5">
+          {modoSubsanacion && paso !== 4 && documentosObservados.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3">
+              <p className="text-xs text-foreground">
+                Tu expediente fue observado. Solo debes corregir lo observado:{" "}
+                <strong>{documentosObservados.length} documento(s)</strong> en el paso Documentos. Puedes revisar los
+                demás pasos libremente.
+              </p>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => irAPaso(4)}>
+                <span>Ir a los documentos observados</span>
+              </Button>
+            </div>
+          ) : null}
           {expedienteInicial?.estado === DD_ESTADOS.OBSERVADA && observacionesAbiertas.length > 0 ? (
             <Alert className="border-warning/40 bg-warning/10">
               <Info className="h-4 w-4 text-warning" />
@@ -1266,14 +1290,14 @@ export function DdWizard({
           ) : null}
         </CardContent>
 
-        <div className="border-t border-border bg-secondary/30 px-5 py-4">
-          <div className="mb-3 flex items-center justify-between gap-2 text-xs">
+        <div className="sticky bottom-0 z-20 border-t border-border bg-card/95 px-5 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur supports-[backdrop-filter]:bg-card/85">
+          <div className="mb-2 flex items-center justify-between gap-2 text-xs">
             <span className="font-semibold text-primary">Paso {paso} de {DD_PASOS.length}</span>
             <span className="text-[11px] text-muted-foreground">
               {paso === 1 ? "Siguiente: Datos de la empresa" : paso === 2 ? "Siguiente: Representante y vínculos" : paso === 3 ? "Siguiente: Documentos" : "Último paso"}
             </span>
           </div>
-          <Progress className="mb-4 h-1.5" value={(paso / DD_PASOS.length) * 100} />
+          <Progress className="mb-3 h-1.5" value={(paso / DD_PASOS.length) * 100} />
           {errorPasoActual ? (
             <p className="mb-3 text-[11px] font-medium text-warning">
               Completa los campos obligatorios para continuar: {errorPasoActual}

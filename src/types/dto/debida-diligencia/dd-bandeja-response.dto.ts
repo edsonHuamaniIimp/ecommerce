@@ -41,6 +41,9 @@ export interface DdBandejaRowDTO {
   reputacionSinHallazgos: number;
   reputacionConHallazgos: number;
   reputacionRequiereInformacion: number;
+  decisionLegal: string | null;
+  motivoLegal: string | null;
+  fechaLegal: string | null;
 }
 
 export interface DdBandejaResumenDTO {

@@ -5,6 +5,7 @@
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
+  DD_ACCIONES_LEGAL,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_MENSAJES,
@@ -63,6 +64,35 @@ export const ddUtils = {
     return (vinculos ?? [])
       .map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo)
       .join(", ");
+  },
+
+  /**
+   * true si el cliente ya subsano una observacion de Legal: el expediente volvio a
+   * revision legal conservando la decision `observar` del ciclo anterior.
+   */
+  subsanoObservacionLegal(
+    estado: string | null | undefined,
+    decisionLegal: string | null | undefined,
+  ): boolean {
+    return estado === DD_ESTADOS.EN_LEGAL && decisionLegal === DD_ACCIONES_LEGAL.OBSERVAR;
+  },
+
+  /**
+   * Pasos del wizard a los que el cliente puede saltar desde el stepper: el actual,
+   * los completados y todos los ya visitados (para volver sin repetir "Continuar").
+   * En subsanacion el expediente ya esta completo, por lo que todos son navegables.
+   */
+  pasosNavegables(params: {
+    actual: number;
+    completados: number[];
+    pasoMaximo: number;
+    totalPasos: number;
+    modoSubsanacion: boolean;
+  }): number[] {
+    const visitados = Array.from({ length: params.totalPasos }, (_, indice) => indice + 1).filter(
+      (numero) => params.modoSubsanacion || numero <= params.pasoMaximo,
+    );
+    return [...new Set([params.actual, ...params.completados, ...visitados])].sort((a, b) => a - b);
   },
 
   /** true si el expediente admite edicion del cliente. */

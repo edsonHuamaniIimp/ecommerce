@@ -15,7 +15,7 @@ export default function DebidaDiligenciaRepositorioPage() {
   return (
     <PaginaDashboard
       titulo="Centro documental de Debida Diligencia"
-      descripcion="Evidencias por empresa, vínculo y campo de matriz."
+      descripcion="Documentos del cliente y evidencias de cada vínculo, con filtros por tipo, área, formato y fecha."
       cargando={cargando}
       tieneEvento={Boolean(eventoId)}
       ancho="amplio"

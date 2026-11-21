@@ -76,6 +76,7 @@ import {
   REGEX_RUC,
   ROLES,
   type DdDocumentoTipo,
+  DD_FILTRO_LEGAL_SEGUIMIENTO,
 } from "@/lib/shared/constants";
 import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import {
@@ -703,6 +704,7 @@ export class DebidaDiligenciaApplicationService {
         codigo: actualizado.codigo,
         razonSocial: actualizado.empresa.razonSocial,
         motivo: "El cliente subsanó la observación de Legal.",
+        reenvio: true,
       });
     } else if (esReenvio) {
       await this.notificaciones.notificarReenvioLogistica({
@@ -767,7 +769,7 @@ export class DebidaDiligenciaApplicationService {
       page: Math.max(1, params.page),
       perPage: Math.min(DD_PER_PAGE_MAX, Math.max(1, params.perPage)),
       search: params.search?.trim() || undefined,
-      estado: DD_ESTADOS.EN_LEGAL,
+      estado: DD_FILTRO_LEGAL_SEGUIMIENTO,
       origen: params.origen,
       vinculo: params.vinculo,
       documentos: params.documentos,

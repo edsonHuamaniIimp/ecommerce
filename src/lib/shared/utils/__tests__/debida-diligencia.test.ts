@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
+  DD_ACCIONES_LEGAL,
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
@@ -491,3 +492,34 @@ describe("ddPuedeEditar", () => {
   });
 });
 
+
+describe("ddUtils.subsanoObservacionLegal", () => {
+  it("es true cuando vuelve a revision legal tras una observacion de Legal", () => {
+    expect(ddUtils.subsanoObservacionLegal(DD_ESTADOS.EN_LEGAL, DD_ACCIONES_LEGAL.OBSERVAR)).toBe(true);
+  });
+
+  it("es false si Legal aun no observo o el expediente no esta en revision legal", () => {
+    expect(ddUtils.subsanoObservacionLegal(DD_ESTADOS.EN_LEGAL, null)).toBe(false);
+    expect(ddUtils.subsanoObservacionLegal(DD_ESTADOS.EN_LEGAL, DD_ACCIONES_LEGAL.APROBAR)).toBe(false);
+    expect(ddUtils.subsanoObservacionLegal(DD_ESTADOS.OBSERVADA, DD_ACCIONES_LEGAL.OBSERVAR)).toBe(false);
+    expect(ddUtils.subsanoObservacionLegal(undefined, undefined)).toBe(false);
+  });
+});
+
+describe("ddUtils.pasosNavegables", () => {
+  const base = { totalPasos: 4, modoSubsanacion: false };
+
+  it("permite volver al paso mas lejano visitado aunque su validacion falle", () => {
+    expect(ddUtils.pasosNavegables({ ...base, actual: 2, completados: [1, 2], pasoMaximo: 4 })).toEqual([1, 2, 3, 4]);
+  });
+
+  it("no habilita pasos que aun no se visitaron", () => {
+    expect(ddUtils.pasosNavegables({ ...base, actual: 2, completados: [1], pasoMaximo: 2 })).toEqual([1, 2]);
+  });
+
+  it("en subsanacion habilita todos los pasos", () => {
+    expect(
+      ddUtils.pasosNavegables({ ...base, modoSubsanacion: true, actual: 4, completados: [], pasoMaximo: 4 }),
+    ).toEqual([1, 2, 3, 4]);
+  });
+});
