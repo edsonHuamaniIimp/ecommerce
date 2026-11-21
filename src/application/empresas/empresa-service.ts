@@ -303,7 +303,7 @@ export class EmpresaApplicationService {
       }
 
       const datos = await this.consultaDocumento.consultarDni(documento).catch(() => null);
-      if (!datos?.apellidoPaterno || !datos.nombres) return null;
+      if (!datos?.apellidoPaterno || !datos.nombres) return existente?.sie_code ?? null;
       const deseada = {
         tipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
         documento,

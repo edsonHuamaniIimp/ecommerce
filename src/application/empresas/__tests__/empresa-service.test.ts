@@ -1214,6 +1214,27 @@ describe("EmpresaApplicationService.sincronizarRepresentante", () => {
     await expect(service.sincronizarRepresentante(creada.id)).rejects.toMatchObject({ status: 400 });
   });
 
+  it("reutiliza una persona existente aunque RENIEC no devuelva datos", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed(empresaRep);
+    const personas = fakePersonaClient({
+      existente: {
+        sie_code: "P0000238035",
+        id_tipo_documento: TIPOS_DOCUMENTO_PERSONA.DNI,
+        documento: "45871233",
+        nombre_completo: "QUISPE RAMOS, JORGE",
+      },
+    });
+    const consulta = fakeConsultaDocumento();
+    const service = crearServicio(repo, fakeAuthRepo(), fakeRoleRepo(), personas, fakeEmpresaClient(), consulta);
+
+    const empresa = await service.sincronizarRepresentante(creada.id);
+
+    expect(empresa.representanteSieCode).toBe("P0000238035");
+    expect(consulta.consultarDni).toHaveBeenCalledWith("45871233");
+    expect(personas.crearPersona).not.toHaveBeenCalled();
+  });
+
   it("502 si la fuente no devuelve datos (RENIEC sin respuesta)", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed(empresaRep);
