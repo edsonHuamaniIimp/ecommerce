@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import {
   Badge,
@@ -33,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Pencil, RotateCcw, Search, UserRound, X, ZoomIn, ZoomOut } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, Loader2, Pencil, RotateCcw, Search, UserRound, X, ZoomIn, ZoomOut } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { CuotasEditor, crearCuotaFilaInicial, validarFilasCuotas, type CuotaFila } from "@/components/shared/cuotas-editor";
@@ -74,6 +74,13 @@ const ESTADOS_FILTRO = [
   ESTADOS_STAND.EN_EVALUACION,
   ESTADOS_STAND.EN_PROCESO,
 ] as const;
+
+const VISTAS_DESCUENTO = {
+  LISTA: "lista",
+  GRID: "grid",
+} as const;
+
+type VistaDescuento = (typeof VISTAS_DESCUENTO)[keyof typeof VISTAS_DESCUENTO];
 
 const AYUDA_CRONOGRAMA_RESERVA =
   "Las fechas definen el cronograma del contrato que el cliente firmará. Después de la firma, la solicitud pasa a revisión del Asociado; recién con su aprobación se genera la orden de pago. La primera cuota puede ser hoy; las siguientes deben ser posteriores y en orden ascendente.";
@@ -169,6 +176,9 @@ export function ReservarEmpresaPanel() {
   const [descuentoPorcentaje, setDescuentoPorcentaje] = useState("0");
   const [descuentoMontoInput, setDescuentoMontoInput] = useState("0");
   const [descuentosStand, setDescuentosStand] = useState<Record<string, string>>({});
+  const [descuentoSeleccionados, setDescuentoSeleccionados] = useState<Set<string>>(new Set());
+  const [descuentoMasivo, setDescuentoMasivo] = useState("");
+  const [vistaDescuento, setVistaDescuento] = useState<VistaDescuento>(VISTAS_DESCUENTO.LISTA);
   const [busquedaDescuentoStand, setBusquedaDescuentoStand] = useState("");
   const descuentoLabels = useMaestraLabels(
     MAESTRA_TABLAS.DESCUENTO_TIPO,
@@ -352,6 +362,13 @@ export function ReservarEmpresaPanel() {
     () => stands.filter((stand) => selected.has(stand.id)),
     [stands, selected],
   );
+  const descuentoSeleccionadosActivos = useMemo(() => {
+    const activos = new Set<string>();
+    for (const standId of descuentoSeleccionados) {
+      if (selected.has(standId)) activos.add(standId);
+    }
+    return activos;
+  }, [descuentoSeleccionados, selected]);
   const codigoComercialPorBloque = useMemo(() => {
     const mapa: Record<string, string> = {};
     for (const stand of stands) {
@@ -418,8 +435,20 @@ export function ReservarEmpresaPanel() {
   const busquedaStand = busquedaDescuentoStand.trim().toLowerCase();
   const standsDescuentoFiltrados = seleccionados.filter((stand) => {
     if (!busquedaStand) return true;
-    return `${stand.standCode} ${stand.tipoStand ?? ""}`.toLowerCase().includes(busquedaStand);
+    return `${stand.standCode} ${normalizarTipoStand(stand.tipoStand) ?? ""}`.toLowerCase().includes(busquedaStand);
   });
+  const seleccionadosDescuentoFiltrados = standsDescuentoFiltrados.filter((stand) => descuentoSeleccionadosActivos.has(stand.id)).length;
+  const todosDescuentoFiltradosSeleccionados =
+    standsDescuentoFiltrados.length > 0 && seleccionadosDescuentoFiltrados === standsDescuentoFiltrados.length;
+  const algunosDescuentoFiltradosSeleccionados =
+    seleccionadosDescuentoFiltrados > 0 && !todosDescuentoFiltradosSeleccionados;
+  const estadoSeleccionDescuentoFiltrados: boolean | "indeterminate" = todosDescuentoFiltradosSeleccionados
+    ? true
+    : algunosDescuentoFiltradosSeleccionados
+      ? "indeterminate"
+      : false;
+  const etiquetaDescuentoSeleccionados = `${descuentoSeleccionadosActivos.size} ${descuentoSeleccionadosActivos.size === 1 ? "seleccionado" : "seleccionados"}`;
+  const etiquetaDescuentoFiltrados = `${standsDescuentoFiltrados.length} ${standsDescuentoFiltrados.length === 1 ? "filtrado" : "filtrados"}`;
   const descuentosStandValidos = !esDescuentoPorStand || detallesDescuentoStand.every((detalle) => detalle.valido);
   const netoPorStand = redondear2(detallesDescuentoStand.reduce((total, detalle) => total + detalle.neto, 0));
   const descuentoValido = !aplicarDescuento || (
@@ -452,6 +481,7 @@ export function ReservarEmpresaPanel() {
     setTipoDescuento(tipo);
     setDescuentoPorcentaje("0");
     setDescuentoMontoInput("0");
+    setDescuentoMasivo("");
     setDescuentosStand({});
   };
   const igv = importes.igv;
@@ -470,11 +500,21 @@ export function ReservarEmpresaPanel() {
   const paso3Valido = cuotasValidas && cuotas.length > 0;
   const puedeAvanzar = paso === 0 ? paso1Valido : paso === 1 ? paso2Valido : false;
 
+  const quitarDescuentoStands = (ids: string[]) => {
+    setDescuentoSeleccionados((prev) => {
+      if (!ids.some((id) => prev.has(id))) return prev;
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
+  };
+
   const toggle = (stand: GessStandDTO) => {
     if (!esStandSeleccionableAdmin(stand)) {
       toast.error("Solo se pueden seleccionar stands disponibles o pre-reservados");
       return;
     }
+    if (selected.has(stand.id)) quitarDescuentoStands([stand.id]);
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(stand.id)) {
@@ -491,6 +531,8 @@ export function ReservarEmpresaPanel() {
   };
 
   const seleccionarPagina = (checked: boolean) => {
+    const idsPagina = visiblesSeleccionables.map((stand) => stand.id);
+    if (!checked) quitarDescuentoStands(idsPagina);
     setSelected((prev) => {
       const next = new Set(prev);
       const seleccionables = visiblesSeleccionables.filter((stand) => !next.has(stand.id));
@@ -504,6 +546,85 @@ export function ReservarEmpresaPanel() {
       }
       return next;
     });
+  };
+
+  const toggleDescuentoStand = (standId: string, checked: boolean) => {
+    setDescuentoSeleccionados((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(standId);
+      else next.delete(standId);
+      return next;
+    });
+  };
+
+  const alternarDescuentoDesdeFila = (event: MouseEvent<HTMLDivElement>, standId: string) => {
+    if (guardando) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("input, button, select, textarea, a, [data-no-toggle]")) return;
+    toggleDescuentoStand(standId, !descuentoSeleccionadosActivos.has(standId));
+  };
+
+  const seleccionarDescuentosFiltrados = (checked: boolean) => {
+    setDescuentoSeleccionados((prev) => {
+      const next = new Set(prev);
+      for (const stand of standsDescuentoFiltrados) {
+        if (checked) next.add(stand.id);
+        else next.delete(stand.id);
+      }
+      return next;
+    });
+  };
+
+  const aplicarDescuentoMasivo = (destino: "seleccionados" | "filtrados") => {
+    const objetivo = destino === "seleccionados"
+      ? seleccionados.filter((stand) => descuentoSeleccionadosActivos.has(stand.id))
+      : standsDescuentoFiltrados;
+    if (objetivo.length === 0) {
+      toast.error("Selecciona al menos un stand");
+      return;
+    }
+    const valorTexto = descuentoMasivo.trim();
+    const valor = Number(valorTexto);
+    if (!valorTexto || !Number.isFinite(valor)) {
+      toast.error("Ingresa un descuento valido");
+      return;
+    }
+    if (tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE) {
+      if (!descuentoPorcentajeValido(valor)) {
+        toast.error("El porcentaje debe estar entre 0 y 100, con maximo 2 decimales");
+        return;
+      }
+    } else {
+      const standInvalido = objetivo.find((stand) => {
+        const precio = convertirNeto(resolverPrecioStand(stand), monedaPago, tipoCambio);
+        return !descuentoMontoValido(precio, valor);
+      });
+      if (standInvalido) {
+        toast.error(`El monto debe tener maximo 2 decimales y no superar el precio neto de ${standInvalido.standCode}`);
+        return;
+      }
+    }
+    setDescuentosStand((prev) => {
+      const next = { ...prev };
+      for (const stand of objetivo) next[stand.id] = valorTexto;
+      return next;
+    });
+    toast.success(`Descuento aplicado a ${objetivo.length} stand(s)`);
+  };
+
+  const quitarDescuentoMasivo = () => {
+    const objetivo = seleccionados.filter((stand) => descuentoSeleccionadosActivos.has(stand.id));
+    if (objetivo.length === 0) {
+      toast.error("Selecciona al menos un stand");
+      return;
+    }
+    setDescuentosStand((prev) => {
+      const next = { ...prev };
+      for (const stand of objetivo) delete next[stand.id];
+      return next;
+    });
+    toast.success(`Descuento quitado a ${objetivo.length} stand(s)`);
   };
 
   const cambiarFiltro = (cambios: Partial<{ search: string; pabellon: string; empresaPreReserva: string; tipo: string; estado: string }>) => {
@@ -690,6 +811,8 @@ export function ReservarEmpresaPanel() {
       setModalOpen(false);
       toast.success("Reserva creada. Contrato generado; pendiente de firma.");
       setSelected(new Set());
+      setDescuentoSeleccionados(new Set());
+      setDescuentoMasivo("");
       setEmpresa(null);
       setAplicarDescuento(false);
       setModoDescuento(MODOS_DESCUENTO.GRUPAL);
@@ -1287,12 +1410,38 @@ export function ReservarEmpresaPanel() {
                         <div>
                           <p className="text-sm font-semibold text-foreground">Descuento por stand</p>
                           <p className="text-[11px] text-muted-foreground">
-                            Elige porcentaje o monto fijo para cada stand. El descuento se aplica al precio neto antes de IGV.
+                            Elige porcentaje o monto fijo para cada stand. Marca varios stands para aplicar el mismo descuento en bloque. El descuento se aplica al precio neto antes de IGV.
                           </p>
                         </div>
-                        <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INFO}`}>
-                          {seleccionados.length} stand(s)
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INFO}`}>
+                            {seleccionados.length} stand(s)
+                          </Badge>
+                          <div className="flex items-center rounded-md border border-border bg-card p-0.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={vistaDescuento === VISTAS_DESCUENTO.LISTA ? "secondary" : "ghost"}
+                              className="h-7 gap-1 px-2 text-[10px]"
+                              aria-pressed={vistaDescuento === VISTAS_DESCUENTO.LISTA}
+                              onClick={() => setVistaDescuento(VISTAS_DESCUENTO.LISTA)}
+                            >
+                              <LayoutList className="h-3.5 w-3.5" />
+                              <span>Lista</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={vistaDescuento === VISTAS_DESCUENTO.GRID ? "secondary" : "ghost"}
+                              className="h-7 gap-1 px-2 text-[10px]"
+                              aria-pressed={vistaDescuento === VISTAS_DESCUENTO.GRID}
+                              onClick={() => setVistaDescuento(VISTAS_DESCUENTO.GRID)}
+                            >
+                              <LayoutGrid className="h-3.5 w-3.5" />
+                              <span>Grid</span>
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
@@ -1310,72 +1459,267 @@ export function ReservarEmpresaPanel() {
                         </span>
                       </div>
                       <div className="overflow-hidden rounded-lg border border-border bg-card">
-                        <div className="hidden grid-cols-[minmax(0,1fr)_130px_180px_150px] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
-                          <span>Stand</span>
-                          <span>Precio neto</span>
-                          <span>Descuento</span>
-                          <span>Neto con descuento</span>
+                        <div className="flex flex-col gap-2 border-b border-border bg-muted/30 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.INFO}`}>
+                              {descuentoSeleccionadosActivos.size > 0 ? etiquetaDescuentoSeleccionados : "Sin selección"}
+                            </Badge>
+                            <span className="text-[11px] text-muted-foreground">
+                              Haz clic en una fila o tarjeta para marcarla.
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 self-start text-[11px] sm:self-auto"
+                            onClick={() => seleccionarDescuentosFiltrados(!todosDescuentoFiltradosSeleccionados)}
+                            disabled={guardando || standsDescuentoFiltrados.length === 0}
+                          >
+                            <span>{todosDescuentoFiltradosSeleccionados ? "Quitar filtrados" : "Seleccionar filtrados"}</span>
+                          </Button>
                         </div>
-                        <div className="max-h-[min(42vh,380px)] overflow-y-auto">
-                          {standsDescuentoFiltrados.map((stand) => {
-                            const detalle = detalleDescuentoPorStand.get(stand.id);
-                            if (!detalle) return null;
-                            return (
-                              <div key={stand.id} className="grid gap-2 border-b border-border/60 px-3 py-2.5 last:border-0 sm:grid-cols-[minmax(0,1fr)_130px_180px_150px] sm:items-center sm:gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-mono text-xs font-semibold text-foreground">{stand.standCode}</p>
-                                  <p className="truncate text-[10px] text-muted-foreground">
-                                    {stand.tipoStand ?? "Stand"}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Precio neto</p>
-                                  <p className="text-xs text-foreground">{formatearMonto(detalle.precio, monedaPago, { decimales: 2 })}</p>
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-[10px] text-muted-foreground sm:hidden">Descuento</Label>
-                                  <div className="flex items-center gap-1.5">
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      max={tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? DESCUENTO_PORCENTAJE_MAX : undefined}
-                                      step={DESCUENTO_PORCENTAJE_PASO}
-                                      value={detalle.valor}
-                                      onChange={(event) => setDescuentosStand((prev) => ({ ...prev, [stand.id]: event.target.value }))}
-                                      className="h-9 w-28 text-right text-xs"
+                        <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-end">
+                          <div className="space-y-1">
+                            <Label htmlFor="reserva-descuento-masivo" className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Descuento en bloque
+                            </Label>
+                            <div className="flex items-center gap-1.5" data-no-toggle>
+                              <Input
+                                id="reserva-descuento-masivo"
+                                type="number"
+                                min={0}
+                                max={tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? DESCUENTO_PORCENTAJE_MAX : undefined}
+                                step={DESCUENTO_PORCENTAJE_PASO}
+                                value={descuentoMasivo}
+                                onChange={(event) => setDescuentoMasivo(event.target.value)}
+                                placeholder={tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "10" : "500"}
+                                className="h-9 w-28 text-right text-xs"
+                                disabled={guardando}
+                              />
+                              <span className="w-8 text-[10px] font-medium text-muted-foreground">
+                                {tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "%" : monedaPago}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex flex-1 flex-wrap items-center gap-1.5 sm:justify-end">
+                            {descuentoSeleccionadosActivos.size > 0 ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-9 text-xs"
+                                  onClick={() => aplicarDescuentoMasivo("seleccionados")}
+                                  disabled={guardando || descuentoMasivo.trim() === ""}
+                                >
+                                  <span>Aplicar a {etiquetaDescuentoSeleccionados}</span>
+                                </Button>
+                                {standsDescuentoFiltrados.length > 0 && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-9 text-xs"
+                                    onClick={() => aplicarDescuentoMasivo("filtrados")}
+                                    disabled={guardando || descuentoMasivo.trim() === ""}
+                                  >
+                                    <span>Aplicar a {etiquetaDescuentoFiltrados}</span>
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-9 text-xs"
+                                  onClick={quitarDescuentoMasivo}
+                                  disabled={guardando}
+                                >
+                                  <span>Quitar descuento</span>
+                                </Button>
+                              </>
+                            ) : standsDescuentoFiltrados.length > 0 ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-9 text-xs"
+                                onClick={() => aplicarDescuentoMasivo("filtrados")}
+                                disabled={guardando || descuentoMasivo.trim() === ""}
+                              >
+                                <span>Aplicar a {etiquetaDescuentoFiltrados}</span>
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">No hay stands filtrados.</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {vistaDescuento === VISTAS_DESCUENTO.LISTA ? (
+                        <div className="overflow-hidden rounded-lg border border-border bg-card">
+                          <div className="hidden grid-cols-[24px_minmax(0,1fr)_130px_180px_150px] gap-3 border-b border-border bg-muted/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground sm:grid">
+                            <div className="flex items-center">
+                              <Checkbox
+                                checked={estadoSeleccionDescuentoFiltrados}
+                                onCheckedChange={(value) => seleccionarDescuentosFiltrados(value === true)}
+                                disabled={guardando || standsDescuentoFiltrados.length === 0}
+                                aria-label="Seleccionar todos los stands filtrados"
+                              />
+                            </div>
+                            <span>Stand</span>
+                            <span>Precio neto</span>
+                            <span>Descuento</span>
+                            <span>Neto con descuento</span>
+                          </div>
+                          <div className="max-h-[min(42vh,380px)] overflow-y-auto">
+                            {standsDescuentoFiltrados.map((stand) => {
+                              const detalle = detalleDescuentoPorStand.get(stand.id);
+                              if (!detalle) return null;
+                              return (
+                                <div
+                                  key={stand.id}
+                                  className="grid cursor-pointer gap-2 border-b border-border/60 px-3 py-2.5 last:border-0 sm:grid-cols-[24px_minmax(0,1fr)_130px_180px_150px] sm:items-center sm:gap-3"
+                                  onClick={(event) => alternarDescuentoDesdeFila(event, stand.id)}
+                                >
+                                  <div className="flex items-center">
+                                    <Checkbox
+                                      checked={descuentoSeleccionadosActivos.has(stand.id)}
+                                      onCheckedChange={(value) => toggleDescuentoStand(stand.id, value === true)}
                                       disabled={guardando}
-                                      placeholder="0.00"
-                                      aria-label={`Descuento para ${stand.standCode}`}
+                                      aria-label={`Seleccionar ${stand.standCode} para descuento masivo`}
                                     />
-                                    <span className="w-8 text-[10px] font-medium text-muted-foreground">
-                                      {tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "%" : monedaPago}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-mono text-xs font-semibold text-foreground">{stand.standCode}</p>
+                                    <p className="truncate text-[10px] text-muted-foreground">
+                                      {normalizarTipoStand(stand.tipoStand) ?? "Stand"}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Precio neto</p>
+                                    <p className="text-xs text-foreground">{formatearMonto(detalle.precio, monedaPago, { decimales: 2 })}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground sm:hidden">Descuento</Label>
+                                    <div className="flex items-center gap-1.5" data-no-toggle>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? DESCUENTO_PORCENTAJE_MAX : undefined}
+                                        step={DESCUENTO_PORCENTAJE_PASO}
+                                        value={detalle.valor}
+                                        onChange={(event) => setDescuentosStand((prev) => ({ ...prev, [stand.id]: event.target.value }))}
+                                        className="h-9 w-28 text-right text-xs"
+                                        disabled={guardando}
+                                        placeholder="0.00"
+                                        aria-label={`Descuento para ${stand.standCode}`}
+                                      />
+                                      <span className="w-8 text-[10px] font-medium text-muted-foreground">
+                                        {tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "%" : monedaPago}
+                                      </span>
+                                    </div>
+                                    {!detalle.valido && (
+                                      <p className="text-[10px] text-destructive">
+                                        {tipoDescuento === TIPOS_DESCUENTO.MONTO
+                                          ? "No puede superar el precio neto."
+                                          : "Entre 0% y 100%."}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Neto</p>
+                                    <p className="text-xs font-semibold text-foreground">{formatearMonto(detalle.neto, monedaPago, { decimales: 2 })}</p>
+                                    {detalle.descuento > 0 && (
+                                      <p className="text-[10px] text-success">- {formatearMonto(detalle.descuento, monedaPago, { decimales: 2 })}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {standsDescuentoFiltrados.length === 0 && (
+                              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                                No hay stands que coincidan con la búsqueda.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="max-h-[min(42vh,380px)] overflow-y-auto rounded-lg border border-border bg-card p-2">
+                          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {standsDescuentoFiltrados.map((stand) => {
+                              const detalle = detalleDescuentoPorStand.get(stand.id);
+                              if (!detalle) return null;
+                              const seleccionado = descuentoSeleccionadosActivos.has(stand.id);
+                              return (
+                                <div
+                                  key={stand.id}
+                                  className={`cursor-pointer rounded-lg border p-3 transition-colors ${
+                                    seleccionado ? "border-primary/50 bg-primary/5" : "border-border bg-card"
+                                  }`}
+                                  onClick={(event) => alternarDescuentoDesdeFila(event, stand.id)}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex min-w-0 items-start gap-2">
+                                      <Checkbox
+                                        checked={seleccionado}
+                                        onCheckedChange={(value) => toggleDescuentoStand(stand.id, value === true)}
+                                        disabled={guardando}
+                                        className="mt-0.5"
+                                        aria-label={`Seleccionar ${stand.standCode} para descuento masivo`}
+                                      />
+                                      <div className="min-w-0">
+                                        <p className="truncate font-mono text-xs font-semibold text-foreground">{stand.standCode}</p>
+                                        <p className="truncate text-[10px] text-muted-foreground">{normalizarTipoStand(stand.tipoStand) ?? "Stand"}</p>
+                                      </div>
+                                    </div>
+                                    <span className="shrink-0 text-right">
+                                      <span className="block text-[9px] uppercase tracking-wide text-muted-foreground">Precio neto</span>
+                                      <span className="block text-xs text-foreground">{formatearMonto(detalle.precio, monedaPago, { decimales: 2 })}</span>
                                     </span>
                                   </div>
-                                  {!detalle.valido && (
-                                    <p className="text-[10px] text-destructive">
-                                      {tipoDescuento === TIPOS_DESCUENTO.MONTO
-                                        ? "No puede superar el precio neto."
-                                        : "Entre 0% y 100%."}
-                                    </p>
-                                  )}
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Neto</p>
-                                  <p className="text-xs font-semibold text-foreground">{formatearMonto(detalle.neto, monedaPago, { decimales: 2 })}</p>
+                                  <div className="mt-3 space-y-1">
+                                    <Label className="text-[10px] text-muted-foreground">Descuento</Label>
+                                    <div className="flex items-center gap-1.5" data-no-toggle>
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? DESCUENTO_PORCENTAJE_MAX : undefined}
+                                        step={DESCUENTO_PORCENTAJE_PASO}
+                                        value={detalle.valor}
+                                        onChange={(event) => setDescuentosStand((prev) => ({ ...prev, [stand.id]: event.target.value }))}
+                                        className="h-9 w-full text-right text-xs"
+                                        disabled={guardando}
+                                        placeholder="0.00"
+                                        aria-label={`Descuento para ${stand.standCode}`}
+                                      />
+                                      <span className="w-8 text-[10px] font-medium text-muted-foreground">
+                                        {tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? "%" : monedaPago}
+                                      </span>
+                                    </div>
+                                    {!detalle.valido && (
+                                      <p className="text-[10px] text-destructive">
+                                        {tipoDescuento === TIPOS_DESCUENTO.MONTO
+                                          ? "No puede superar el precio neto."
+                                          : "Entre 0% y 100%."}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 flex items-center justify-between border-t border-border/60 pt-2">
+                                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Neto</span>
+                                    <span className="text-xs font-semibold text-foreground">{formatearMonto(detalle.neto, monedaPago, { decimales: 2 })}</span>
+                                  </div>
                                   {detalle.descuento > 0 && (
-                                    <p className="text-[10px] text-success">- {formatearMonto(detalle.descuento, monedaPago, { decimales: 2 })}</p>
+                                    <p className="text-right text-[10px] text-success">- {formatearMonto(detalle.descuento, monedaPago, { decimales: 2 })}</p>
                                   )}
                                 </div>
-                              </div>
-                            );
-                          })}
+                              );
+                            })}
+                          </div>
                           {standsDescuentoFiltrados.length === 0 && (
                             <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                               No hay stands que coincidan con la búsqueda.
                             </p>
                           )}
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>

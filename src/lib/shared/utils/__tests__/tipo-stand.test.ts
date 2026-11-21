@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { claveTipoStand, labelTipoStand } from "../tipo-stand";
+import { claveTipoStand, labelTipoStand, normalizarTipoStand } from "../tipo-stand";
+
+describe("normalizarTipoStand", () => {
+  it("repara los caracteres CP437 que llegan del API externo", () => {
+    expect(normalizarTipoStand("EST\u2534NDAR 6MT2")).toBe("ESTÁNDAR 6MT2");
+    expect(normalizarTipoStand("EXHIBICIËN DE MAQUINARIA 100 MT2")).toBe("EXHIBICIÓN DE MAQUINARIA 100 MT2");
+  });
+
+  it("devuelve null para valores vacios", () => {
+    expect(normalizarTipoStand(null)).toBeNull();
+    expect(normalizarTipoStand("   ")).toBeNull();
+  });
+});
 
 describe("claveTipoStand", () => {
   it("normaliza mayusculas y espacios", () => {

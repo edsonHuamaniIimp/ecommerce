@@ -1,11 +1,12 @@
 import { TIPOS_STAND_CATALOGO } from "@/lib/shared/constants";
+import { repararTextoCp437 } from "@/lib/shared/utils/texto-externo";
 
 /**
- * Repara el caracter CP437 que aparece cuando un "Á" llega desde una fuente
- * codificada como Latin-1/CP437 ("EST┴NDAR" -> "ESTÁNDAR").
+ * Repara los caracteres CP437 que aparecen cuando una vocal acentuada llega
+ * desde una fuente Latin-1/CP437 ("EST┴NDAR" / "EXHIBICIËN" -> "ESTÁNDAR" / "EXHIBICIÓN").
  */
 export function normalizarTipoStand(tipo: string | null | undefined): string | null {
-  const normalizado = String(tipo ?? "").replace(/\u2534/g, "Á").trim();
+  const normalizado = repararTextoCp437(String(tipo ?? "")).trim();
   return normalizado || null;
 }
 
