@@ -22,7 +22,8 @@ export const facturacionController = {
     const search = searchParams.get("search") ?? undefined;
     const tipo = searchParams.get("tipo") ?? undefined;
     const requerimiento = searchParams.get("requerimiento") ?? undefined;
-    return success(await service.listar({ page, perPage, eventoId, estado, search, tipo, requerimiento }));
+    const tipoSolicitud = searchParams.get("tipoSolicitud") ?? undefined;
+    return success(await service.listar({ page, perPage, eventoId, estado, search, tipo, requerimiento, tipoSolicitud }));
   },
 
   async detalle(request: Request): Promise<NextResponse> {

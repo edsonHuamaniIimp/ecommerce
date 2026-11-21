@@ -2,7 +2,7 @@ import 'server-only';
 
 import { prisma } from "@/lib/server/db";
 import { usuariosDeEmpresa } from "@/infrastructure/persistence/empresa-usuarios";
-import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_PAGO_SOLICITUD, REQUERIMIENTOS_FACTURACION } from "@/lib/shared/constants";
+import { ACCIONES_FACTURACION, AUTORES_SISTEMA, ESTADOS_FACTURACION, ESTADOS_CUOTA, ESTADOS_PAGO_EXTERNO, ESTADOS_PAGO_SOLICITUD, REQUERIMIENTOS_FACTURACION, SOLICITUDES_FILTRO_TIPO, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type {
   IFacturacionRepository,
@@ -99,7 +99,6 @@ function toRow(r: FacturacionRaw, empresasPorUsuario: ReadonlyMap<string, string
     id: r.id,
     solicitudId: r.solicitudId,
     tipo: r.tipo,
-    tipoSolicitud: r.solicitud.tipo,
     estado: r.estado,
     montoTotal: Number(r.montoTotal),
     moneda: r.moneda,
@@ -111,6 +110,7 @@ function toRow(r: FacturacionRaw, empresasPorUsuario: ReadonlyMap<string, string
     requisitos: (r.solicitud.requisitosFacturacion as FacturacionRow["requisitos"]) ?? null,
     iimpContrato: r.solicitud.iimpContrato ?? null,
     iimpCuentaCorriente: r.solicitud.iimpCuentaCorriente ?? null,
+    tipoSolicitud: r.solicitud.tipo ?? null,
     createdAt: r.createdAt.toISOString(),
     cuotas: r.cuotas.map((c) => ({
       id: c.id, numero: c.numero, monto: Number(c.monto),
@@ -182,6 +182,12 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
     /* Solicitud enviada (reserva registrada) pendiente de que se genere la factura. */
     if (params.requerimiento === REQUERIMIENTOS_FACTURACION.CON_SOLICITUD_SIN_FACTURA) {
       condicionesSolicitud.push({ iimpContrato: { not: null } });
+    }
+    /* Tipo de solicitud: regular (tipo null) o reserva administrativa. */
+    if (params.tipoSolicitud === SOLICITUDES_FILTRO_TIPO.RESERVA_EMPRESA) {
+      condicionesSolicitud.push({ tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA });
+    } else if (params.tipoSolicitud === SOLICITUDES_FILTRO_TIPO.REGULAR) {
+      condicionesSolicitud.push({ tipo: null });
     }
     const busqueda = params.search?.trim();
     if (busqueda) {

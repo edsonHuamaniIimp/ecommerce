@@ -15,7 +15,7 @@ import { NotificarRecordatoriosDialog } from "@/components/facturacion/notificar
 import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
 import { requisitosVacios } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, PERMISSIONS, REQUERIMIENTOS_FACTURACION, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, PERMISSIONS, REQUERIMIENTOS_FACTURACION, SOLICITUDES_FILTRO_TIPO, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, TIPOS_SOLICITUD, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { numberUtils } from "@/lib/shared/utils/number";
 
@@ -102,6 +102,8 @@ interface FacturacionItem {
   requisitos: RequisitosExpediente | null;
   /** Contrato del IIMP (null = la reserva aun no se registro). */
   iimpContrato: string | null;
+  /** Tipo de solicitud: null = regular; reserva_empresa = administrativa. */
+  tipoSolicitud: string | null;
   solicitudEstado: string;
   createdAt: string;
   cuotas: CuotaItem[];
@@ -318,6 +320,7 @@ export default function FacturacionPage() {
   // Filtros de la bandeja: busqueda, tipo de pago y requerimiento de facturacion.
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState<string | null>(null);
+  const [tipoSolicitud, setTipoSolicitud] = useState<string | null>(null);
   const [requerimiento, setRequerimiento] = useState<string | null>(null);
   // Indicadores por requerimiento de facturacion (solo emision: sin pagos).
   const [stats, setStats] = useState<{
@@ -335,6 +338,7 @@ export default function FacturacionPage() {
       if (eventoId) qs.set("eventoId", eventoId);
       if (search.trim()) qs.set("search", search.trim());
       if (tipo) qs.set("tipo", tipo);
+      if (tipoSolicitud) qs.set("tipoSolicitud", tipoSolicitud);
       if (requerimiento) qs.set("requerimiento", requerimiento);
       const data = await internalApi.get<{ data: FacturacionItem[]; total: number }>(`/api/facturacion/listar?${qs.toString()}`);
       setRows(data.data ?? []);
@@ -342,7 +346,7 @@ export default function FacturacionPage() {
       setPage(p);
     } catch { }
     setLoading(false);
-  }, [eventoId, search, tipo, requerimiento]);
+  }, [eventoId, search, tipo, tipoSolicitud, requerimiento]);
 
   /** Indicadores: cuenta total, por estado y por requerimiento de facturacion. */
   const loadStats = useCallback(async (ev: string) => {
@@ -569,16 +573,24 @@ export default function FacturacionPage() {
                 <SelectItem value={REQUERIMIENTOS_FACTURACION.ANULADA}><span>Factura anulada</span></SelectItem>
               </SelectContent>
             </Select>
+            <Select value={tipoSolicitud ?? "todos"} onValueChange={(v) => setTipoSolicitud(v === "todos" ? null : v)}>
+              <SelectTrigger className="h-9 w-48 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos"><span>Todos los tipos de solicitud</span></SelectItem>
+                <SelectItem value={SOLICITUDES_FILTRO_TIPO.REGULAR}><span>Solicitud normal</span></SelectItem>
+                <SelectItem value={SOLICITUDES_FILTRO_TIPO.RESERVA_EMPRESA}><span>Solicitudes internas</span></SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={tipo ?? "todos"} onValueChange={(v) => setTipo(v === "todos" ? null : v)}>
               <SelectTrigger className="h-9 w-40 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos"><span>Todos los tipos</span></SelectItem>
+                <SelectItem value="todos"><span>Todos los tipos de pago</span></SelectItem>
                 <SelectItem value={TIPOS_FACTURACION.MANUAL}><span>Manual</span></SelectItem>
                 <SelectItem value={TIPOS_FACTURACION.NIU_BIZZ} disabled={!NIUBIZ_HABILITADO}><span>Niubizz</span></SelectItem>
               </SelectContent>
             </Select>
-            {(search || tipo || requerimiento) && (
-              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setTipo(null); setRequerimiento(null); }}>
+            {(search || tipo || tipoSolicitud || requerimiento) && (
+              <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => { setSearch(""); setTipo(null); setTipoSolicitud(null); setRequerimiento(null); }}>
                 <X className="h-3.5 w-3.5" />
                 <span>Limpiar</span>
               </Button>
@@ -605,7 +617,7 @@ export default function FacturacionPage() {
                     ) : (
                       <TableHead className="text-xs hidden md:table-cell">Cuotas</TableHead>
                     )}
-                    <TableHead className="text-xs hidden sm:table-cell">Tipo</TableHead>
+                    <TableHead className="text-xs hidden sm:table-cell">Tipo de pago</TableHead>
                     <TableHead className="text-xs hidden lg:table-cell">Empresa</TableHead>
                     <TableHead className="text-xs hidden md:table-cell">Fecha de solicitud</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
@@ -640,7 +652,16 @@ export default function FacturacionPage() {
                             <TableRow key={cuota ? `${row.id}-${cuota.id}` : row.id} className={esConFactura ? "hover:!bg-transparent" : undefined}>
                               {index === 0 && (
                                 <>
-                                  <TableCell rowSpan={filas.length} className="align-top text-xs font-mono font-medium">{row.standCode}</TableCell>
+                                  <TableCell rowSpan={filas.length} className="align-top text-xs font-mono font-medium">
+                                    <div className="flex flex-col gap-1">
+                                      <span>{row.standCode}</span>
+                                      {row.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA && (
+                                        <Badge className={`pointer-events-none w-fit text-[9px] ${BADGE_STYLES.INFO}`}>
+                                          <span>Solicitud interna</span>
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </TableCell>
                                   <TableCell rowSpan={filas.length} className="align-top">
                                     <Badge className={`text-[10px] pointer-events-none ${row.estado === ESTADOS_FACTURACION.PAGADO ? BADGE_STYLES.SUCCESS : row.estado === ESTADOS_FACTURACION.PENDIENTE ? BADGE_STYLES.WARNING : BADGE_STYLES.NEUTRAL}`}>
                                       {row.estado === ESTADOS_FACTURACION.PAGADO ? "Completado" : row.estado === ESTADOS_FACTURACION.PENDIENTE ? "En proceso" : row.estado}

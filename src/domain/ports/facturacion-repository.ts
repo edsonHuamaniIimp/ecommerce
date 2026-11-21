@@ -11,7 +11,6 @@ export interface FacturacionRow {
   id: string;
   solicitudId: string;
   tipo: string;
-  tipoSolicitud: string | null;
   estado: string;
   montoTotal: number;
   moneda: string;
@@ -37,6 +36,8 @@ export interface FacturacionRow {
   /** Contrato y cuenta corriente del IIMP cuando la reserva ya se registro alli. */
   iimpContrato: string | null;
   iimpCuentaCorriente: string | null;
+  /** Tipo de solicitud: null = flujo regular; reserva_empresa = reserva administrativa. */
+  tipoSolicitud: string | null;
   createdAt: string;
   cuotas: Array<{
     id: string;
@@ -82,6 +83,8 @@ export interface FacturacionListParams {
   tipo?: string;
   /** Filtro por requerimiento de facturacion (REQUERIMIENTOS_FACTURACION). */
   requerimiento?: string;
+  /** Filtro por tipo de solicitud: regular | reserva_empresa (SOLICITUDES_FILTRO_TIPO). */
+  tipoSolicitud?: string;
 }
 
 export interface FacturacionListResult {

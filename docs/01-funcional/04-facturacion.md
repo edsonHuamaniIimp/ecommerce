@@ -162,7 +162,11 @@ El estado de la facturación se muestra como **"En proceso"** / **"Completado"**
 - **Requerimiento**: todos / sin solicitud de factura / solicitud enviada sin factura /
   con factura generada / sin factura / factura anulada (backend:
   `REQUERIMIENTOS_FACTURACION`).
-- Tipo: manual / Niubizz (`NIUBIZ_HABILITADO`).
+- **Tipo de solicitud**: todas / solicitud normal (flujo regular) / solicitudes internas
+  (reservas creadas desde `/dashboard/reservar-empresa`; internamente
+  `reserva_empresa`, `SOLICITUDES_FILTRO_TIPO`). Las filas internas muestran el badge
+  "Solicitud interna" en el stand.
+- **Tipo de pago**: manual / Niubizz (`NIUBIZ_HABILITADO`).
 
 ### 5.3 Columnas y progreso
 
