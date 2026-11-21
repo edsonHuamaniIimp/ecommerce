@@ -740,3 +740,158 @@ variable "backup_alert_email" {
   type        = string
   default     = ""
 }
+
+# Contract async: worker de contratos, cola y estado de jobs (Fase 1)
+variable "contract_worker_enabled" {
+  description = "Crear task definition/servicio del worker de contratos (false hasta publicar la imagen)"
+  type        = bool
+  default     = false
+}
+
+variable "contract_worker_image_tag" {
+  description = "Tag de la imagen del worker en ECR"
+  type        = string
+  default     = "bootstrap"
+}
+
+variable "contract_worker_ecr_repository_name" {
+  description = "Repositorio ECR del worker de contratos"
+  type        = string
+  default     = "iimp-contratos-stands-contract-worker"
+}
+
+variable "contract_worker_cpu" {
+  description = "CPU Fargate del worker (2048 = 2 vCPU)"
+  type        = string
+  default     = "2048"
+}
+
+variable "contract_worker_cpu_architecture" {
+  description = "Arquitectura de la imagen/tarea del worker: X86_64 o ARM64"
+  type        = string
+  default     = "X86_64"
+
+  validation {
+    condition     = contains(["X86_64", "ARM64"], var.contract_worker_cpu_architecture)
+    error_message = "contract_worker_cpu_architecture debe ser X86_64 o ARM64."
+  }
+}
+
+variable "contract_worker_memory" {
+  description = "Memoria Fargate del worker en MB"
+  type        = string
+  default     = "4096"
+}
+
+variable "contract_worker_base_capacity" {
+  description = "Tareas base on-demand del worker (0 = sin base fija)"
+  type        = number
+  default     = 0
+}
+
+variable "contract_worker_desired_count" {
+  description = "Tareas deseadas del worker al crear el servicio"
+  type        = number
+  default     = 0
+}
+
+variable "contract_worker_min_capacity" {
+  description = "Minimo de tareas del autoscaling del worker"
+  type        = number
+  default     = 0
+}
+
+variable "contract_worker_max_capacity" {
+  description = "Maximo de tareas del autoscaling del worker"
+  type        = number
+  default     = 20
+}
+
+variable "contract_worker_sqs_target_value" {
+  description = "Mensajes visibles por tarea objetivo para autoscaling"
+  type        = number
+  default     = 5
+}
+
+variable "contract_worker_enable_spot" {
+  description = "Usar FARGATE_SPOT para el overflow del worker"
+  type        = bool
+  default     = true
+}
+
+variable "contract_worker_spot_weight" {
+  description = "Peso de FARGATE_SPOT en el worker"
+  type        = number
+  default     = 3
+}
+
+variable "contract_worker_log_retention_days" {
+  description = "Retencion de logs CloudWatch del worker"
+  type        = number
+  default     = 30
+}
+
+variable "contract_worker_concurrency" {
+  description = "Mensajes/conversiones simultaneas por tarea"
+  type        = number
+  default     = 2
+}
+
+variable "contract_pdf_concurrency" {
+  description = "Conversiones LibreOffice simultaneas por tarea"
+  type        = number
+  default     = 1
+}
+
+variable "contract_queue_visibility_timeout" {
+  description = "Timeout de visibilidad SQS en segundos"
+  type        = number
+  default     = 900
+}
+
+variable "contract_queue_message_retention_seconds" {
+  description = "Retencion de mensajes SQS en segundos"
+  type        = number
+  default     = 345600
+}
+
+variable "contract_queue_max_receive_count" {
+  description = "Intentos antes de enviar a DLQ"
+  type        = number
+  default     = 3
+}
+
+variable "contract_s3_prefix" {
+  description = "Prefijo S3 para contratos generados"
+  type        = string
+  default     = "contratos/"
+}
+
+variable "contract_jobs_ttl_days" {
+  description = "Dias de retencion del estado de jobs en DynamoDB"
+  type        = number
+  default     = 90
+}
+
+variable "contract_async_ssm_parameter_name" {
+  description = "Nombre del parametro SSM de la bandera de activacion (vacio = ruta por entorno)"
+  type        = string
+  default     = ""
+}
+
+variable "contract_async_enabled" {
+  description = "Valor inicial de la bandera async (false = flujo sincrono)"
+  type        = bool
+  default     = false
+}
+
+variable "contract_async_percentage" {
+  description = "Porcentaje inicial de canary (0..100)"
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.contract_async_percentage >= 0 && var.contract_async_percentage <= 100
+    error_message = "contract_async_percentage debe estar entre 0 y 100."
+  }
+}

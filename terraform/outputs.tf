@@ -65,3 +65,38 @@ output "alarms_topic_arn" {
   description = "Topic SNS de alarmas (suscripcion por correo)"
   value       = module.observability.sns_topic_arn
 }
+
+output "contract_queue_url" {
+  description = "URL de la cola SQS de contratos"
+  value       = module.contract_async.queue_url
+}
+
+output "contract_dlq_url" {
+  description = "URL de la DLQ de contratos"
+  value       = module.contract_async.dlq_url
+}
+
+output "contract_jobs_table_name" {
+  description = "Tabla DynamoDB de estado de jobs de contratos"
+  value       = module.contract_async.jobs_table_name
+}
+
+output "contract_worker_ecr_repository_url" {
+  description = "Repositorio ECR de la imagen del worker"
+  value       = module.contract_async.worker_ecr_repository_url
+}
+
+output "contract_worker_cluster_name" {
+  description = "Cluster ECS del worker de contratos"
+  value       = module.contract_async.worker_cluster_name
+}
+
+output "contract_worker_service_name" {
+  description = "Servicio ECS del worker (null hasta habilitarlo)"
+  value       = module.contract_async.worker_service_name
+}
+
+output "contract_async_ssm_parameter_name" {
+  description = "Parametro SSM con la bandera de activacion async"
+  value       = module.contract_async.async_ssm_parameter_name
+}

@@ -339,3 +339,46 @@ module "backups" {
 
   common_tags = local.common_tags
 }
+
+# Contract async: cola + estado de jobs + worker (Fase 1)
+# Recursos nuevos, sin tocar el servicio web, Aurora ni el bucket.
+module "contract_async" {
+  source = "./modules/contract_async"
+
+  environment         = var.environment
+  vpc_id              = module.network.vpc_id
+  subnet_ids          = var.enable_nat_gateway ? module.network.private_subnet_ids : module.network.public_subnet_ids
+  assign_public_ip    = !var.enable_nat_gateway
+  bucket_name         = module.storage.bucket_name
+  bucket_arn          = module.storage.bucket_arn
+  database_secret_arn = module.secrets.secret_arns["database_url"]
+  alarm_topic_arn     = module.observability.sns_topic_arn
+
+  worker_enabled                  = var.contract_worker_enabled
+  worker_image_tag                = var.contract_worker_image_tag
+  worker_ecr_repository_name      = var.contract_worker_ecr_repository_name
+  worker_cpu                      = var.contract_worker_cpu
+  worker_cpu_architecture         = var.contract_worker_cpu_architecture
+  worker_memory                   = var.contract_worker_memory
+  worker_base_capacity            = var.contract_worker_base_capacity
+  worker_desired_count            = var.contract_worker_desired_count
+  worker_min_capacity             = var.contract_worker_min_capacity
+  worker_max_capacity             = var.contract_worker_max_capacity
+  worker_sqs_target_value         = var.contract_worker_sqs_target_value
+  worker_enable_spot              = var.contract_worker_enable_spot
+  worker_spot_weight              = var.contract_worker_spot_weight
+  worker_log_retention_days       = var.contract_worker_log_retention_days
+  worker_concurrency              = var.contract_worker_concurrency
+  pdf_concurrency                 = var.contract_pdf_concurrency
+  queue_visibility_timeout        = var.contract_queue_visibility_timeout
+  queue_message_retention_seconds = var.contract_queue_message_retention_seconds
+  queue_max_receive_count         = var.contract_queue_max_receive_count
+  s3_prefix                       = var.contract_s3_prefix
+  jobs_ttl_days                   = var.contract_jobs_ttl_days
+
+  async_ssm_parameter_name = var.contract_async_ssm_parameter_name != "" ? var.contract_async_ssm_parameter_name : "/contratos-stands/${var.environment}/contract_async"
+  async_enabled            = var.contract_async_enabled
+  async_percentage         = var.contract_async_percentage
+
+  common_tags = local.common_tags
+}
