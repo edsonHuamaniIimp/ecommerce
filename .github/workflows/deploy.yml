@@ -6,7 +6,12 @@ name: CI/CD — ContratosStands
 # - Deploy AUTOMATICO en cada push a main (ademas de workflow_dispatch).
 # - build-image corre en runner ARM NATIVO (ubuntu-24.04-arm, sin QEMU) => mucho mas rapido.
 # - Si la imagen de ese commit YA existe en ECR, NO se reconstruye (idempotente).
-# - build-image reusa capas (cache `type=gha`: reusa npm ci).
+# - build-image reusa capas con cache en ECR (tag `buildcache`): si package-lock no cambia,
+#   no reinstala deps ni LibreOffice y no re-sube esas capas. Un fallo al EXPORTAR el
+#   cache no rompe el build (`ignore-error=true`); si no hay cache, construye desde cero.
+# - build-db-backup se re-sube en CADA push A PROPOSITO: el lifecycle de ECR conserva solo
+#   las ultimas N imagenes (tagStatus=any); si dejara de subirse, `db-backup` podria expirar
+#   y romper el backup programado. No esta en la ruta critica (deploy-ecs no lo espera).
 # - deploy-ecs hace `aws ecs update-service --force-new-deployment` (imagen :latest).
 # - Terraform se usa solo para infraestructura, no para cada deploy de app.
 # - EC2 queda como legado (deshabilitado salvo vars.DEPLOY_EC2=1).
@@ -152,6 +157,10 @@ jobs:
           tags: |
             ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+          # Cache de capas en el mismo repo ECR (formato OCI que ECR acepta).
+          # mode=max cachea tambien los stages intermedios (deps, prod-deps, cli-deps, builder).
+          cache-from: type=registry,ref=${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:buildcache
+          cache-to: type=registry,ref=${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
 
   # ─── Imagen de backup (pg_dump) → ECR (tag fijo db-backup) ─────────────────
   # Usada por la tarea ECS programada (EventBridge) del módulo terraform "backups".
@@ -245,8 +254,9 @@ jobs:
           echo "Rollout en $CLUSTER / $SERVICE ..."
           aws ecs update-service --cluster "$CLUSTER" --service "$SERVICE" --force-new-deployment >/dev/null
           # El `wait services-stable` nativo expira a los 10 min y el pull de la imagen
-          # (node_modules completo) puede tardar mas. Se sondea rolloutState hasta 20 min.
-          for i in $(seq 1 40); do
+          # (node_modules completo) puede tardar mas. Se sondea rolloutState cada 10s
+          # (detecta el fin antes que con 30s) hasta 20 min (120 x 10s).
+          for i in $(seq 1 120); do
             STATE=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
               --query "services[0].deployments[0].rolloutState" --output text 2>/dev/null || echo "UNKNOWN")
             if [ "$STATE" = "COMPLETED" ]; then
@@ -259,8 +269,8 @@ jobs:
                 --query "services[0].deployments[0].rolloutStateReason" --output text
               exit 1
             fi
-            echo "[$i/40] rolloutState=$STATE — esperando 30s..."
-            sleep 30
+            echo "[$i/120] rolloutState=$STATE — esperando 10s..."
+            sleep 10
           done
           echo "❌  Timeout esperando rollout ECS (20 min)."
           exit 1
