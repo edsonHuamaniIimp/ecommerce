@@ -123,3 +123,6 @@ backups/
 
 # EXCEPCION: el modulo Terraform de backups es CODIGO, no data de backup
 !terraform/modules/backups/
+
+# Contexto importado de opencode (solo local; no entregar al proveedor)
+.contexto-opencode/

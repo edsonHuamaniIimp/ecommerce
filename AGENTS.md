@@ -82,3 +82,9 @@ Cargar solo al tocar BD, migraciones, queries o schema:
 4. **Si la tarea toca arquitectura** (nuevo endpoint, nuevo modelo, refactor), carga
    `api-design-patterns` o la skill de stack relevante.
 5. **Nunca cargues skills "por si acaso".**
+
+## Contexto histórico del proyecto (importado de opencode)
+
+Al iniciar una sesión, leer `C:\Proyectos\IIMP\ContratosStands\.contexto-opencode\00-INDEX-y-contexto-general.md` (stack, glosario, reglas de trabajo transversales, índice de sesiones). Luego abrir **solo** el doc de `C:\Proyectos\IIMP\ContratosStands\.contexto-opencode\sesiones\` que toque el tema actual; no cargar todos. Si el usuario menciona una sesión anterior o importada (p. ej. "la sesión de Stitch" o "de debida diligencia"), buscarla ahí.
+
+Usar **siempre la ruta absoluta**: la carpeta es local y está ignorada por git, así que no existe dentro de los worktrees (`.claude\worktrees\...`). No contiene claves.
