@@ -11,7 +11,8 @@ import { planosService } from "@/lib/client/api/services/planos-service";
 import { ESTADOS_STAND, BADGE_STYLES } from "@/lib/shared/constants";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { mapGessStandFromDTO, type GessStandDomain } from "@/lib/shared/mappers/gess-mapper";
-import { calcularPrevisualizacionSync, type PrevisualizacionSyncGess } from "@/lib/shared/utils/gess-sync";
+import { calcularPrevisualizacionSync, type CambioSyncGess, type PrevisualizacionSyncGess } from "@/lib/shared/utils/gess-sync";
+import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { esStandComercialVinculable } from "@/lib/shared/utils/precio-stand";
 
 type ApiRow = Record<string, unknown>;
@@ -112,6 +113,47 @@ function StandPicker({ opciones, seleccionadoLabel, onSelect }: {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function etiquetaEstadoSync(estado: string | null): string {
+  return estadoStandBadge(estado)?.texto ?? estado ?? "-";
+}
+
+function TablaCambiosSync({ titulo, cambios, formatear }: {
+  titulo: string;
+  cambios: CambioSyncGess[];
+  formatear?: (valor: string | null) => string;
+}) {
+  if (cambios.length === 0) return null;
+  const formatearValor = formatear ?? ((valor: string | null) => valor ?? "-");
+  return (
+    <div>
+      <p className="mb-1 font-medium">{titulo} ({cambios.length})</p>
+      <div className="max-h-48 overflow-y-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-[10px]"><span>Stand</span></TableHead>
+              <TableHead className="text-[10px]"><span>Antes</span></TableHead>
+              <TableHead className="text-[10px]"><span>Despues</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {cambios.slice(0, 20).map((cambio) => (
+              <TableRow key={`${cambio.standCode}-${cambio.antes}-${cambio.despues}`}>
+                <TableCell className="font-mono text-xs">{cambio.standCode}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatearValor(cambio.antes)}</TableCell>
+                <TableCell className="text-xs font-medium text-primary">{formatearValor(cambio.despues)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      {cambios.length > 20 && (
+        <p className="mt-1 text-[11px] text-muted-foreground">y {cambios.length - 20} stand(s) mas...</p>
+      )}
+    </div>
   );
 }
 
@@ -301,11 +343,15 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
     setSyncLoading(true);
     setApiError(null);
     try {
-      const apiList = await gessService.fetchFromApi(tipoEvento, codigoEvento);
+      const [apiList, solicitudesActivas] = await Promise.all([
+        gessService.fetchFromApi(tipoEvento, codigoEvento),
+        gessService.solicitudesActivas(eventoId),
+      ]);
       setApiRows(apiList);
       setApiSelected(new Set());
       const preview = calcularPrevisualizacionSync(
         dbRows.map((row) => ({
+          id: row.id,
           standApiId: row.standApiId,
           standCode: row.standCode,
           tipoStand: row.tipoStand,
@@ -320,7 +366,9 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
           precio: String(row.precio ?? ""),
           moneda: String(row.moneda ?? "USD"),
           empresa: String(row.company ?? row.empresa ?? row.razon_social ?? ""),
+          estado: String(row.estado ?? row.status ?? ""),
         })),
+        new Set(solicitudesActivas),
       );
       setSyncPreview(preview);
     } catch (err) {
@@ -623,8 +671,8 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
           {syncPreview && (
             <div className="space-y-3 text-xs">
               <p className="text-muted-foreground">
-                Compara la BD con el API y actualiza precios, tipo y empresa de los stands existentes.
-                <strong> No desvincula bloques, no borra stands ni modifica contratos ya generados.</strong>
+                Compara la BD con el API y actualiza precios, tipo, empresa y estado de los stands existentes.
+                <strong> Conserva pre-reservas y reservas con solicitud local vigente. No desvincula bloques, no borra stands ni modifica contratos ya generados.</strong>
               </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="rounded-lg border p-2 text-center">
@@ -644,7 +692,7 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                   <p className="text-sm font-semibold">{syncPreview.sinCambios}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <div className="rounded-lg border border-primary/30 bg-primary/5 p-2 text-center">
                   <p className="text-[10px] uppercase text-muted-foreground">Precios</p>
                   <p className="text-sm font-semibold text-primary">{syncPreview.precios.length}</p>
@@ -656,6 +704,10 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                 <div className="rounded-lg border p-2 text-center">
                   <p className="text-[10px] uppercase text-muted-foreground">Empresas</p>
                   <p className="text-sm font-semibold">{syncPreview.empresas.length}</p>
+                </div>
+                <div className="rounded-lg border border-warning/30 bg-warning/5 p-2 text-center">
+                  <p className="text-[10px] uppercase text-muted-foreground">Estados</p>
+                  <p className="text-sm font-semibold text-warning">{syncPreview.estados.length}</p>
                 </div>
                 <div className="rounded-lg border p-2 text-center">
                   <p className="text-[10px] uppercase text-muted-foreground">Nuevos en API</p>
@@ -669,33 +721,12 @@ export function GessMantenedor({ eventoId, tipoEvento, codigoEvento, plano: plan
                   </span>
                 </p>
               )}
-              {syncPreview.precios.length > 0 && (
-                <div>
-                  <p className="mb-1 font-medium">Precios a actualizar ({syncPreview.precios.length})</p>
-                  <div className="max-h-48 overflow-y-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="text-[10px]"><span>Stand</span></TableHead>
-                          <TableHead className="text-[10px]"><span>Antes</span></TableHead>
-                          <TableHead className="text-[10px]"><span>Despues</span></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {syncPreview.precios.slice(0, 20).map((cambio) => (
-                          <TableRow key={`${cambio.standCode}-${cambio.despues}`}>
-                            <TableCell className="font-mono text-xs">{cambio.standCode}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{cambio.antes ?? "-"}</TableCell>
-                            <TableCell className="text-xs font-medium text-primary">{cambio.despues ?? "-"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {syncPreview.precios.length > 20 && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">y {syncPreview.precios.length - 20} stand(s) mas...</p>
-                  )}
-                </div>
+              <TablaCambiosSync titulo="Precios a actualizar" cambios={syncPreview.precios} />
+              <TablaCambiosSync titulo="Estados a sincronizar" cambios={syncPreview.estados} formatear={etiquetaEstadoSync} />
+              {syncPreview.estados.length > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Las pre-reservas y las reservas con solicitud local vigente conservan su estado.
+                </p>
               )}
             </div>
           )}

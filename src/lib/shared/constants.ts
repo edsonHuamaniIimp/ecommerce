@@ -102,6 +102,13 @@ export const ESTADOS_STAND_LEGACY = {
   RESERVED: "reserved",
 } as const;
 
+/** Origen de una fila del historial de estados de stands. */
+export const GESS_ESTADO_HISTORIAL_ORIGENES = {
+  SYNC: "sync",
+} as const;
+
+export type GessEstadoHistorialOrigen = (typeof GESS_ESTADO_HISTORIAL_ORIGENES)[keyof typeof GESS_ESTADO_HISTORIAL_ORIGENES];
+
 /** item_id en maestra (tabla stand_estado) para cada estado */
 export const ESTADOS_STAND_MAESTRA_ID: Record<string, number> = {
   [ESTADOS_STAND.DISPONIBLE]: 1,

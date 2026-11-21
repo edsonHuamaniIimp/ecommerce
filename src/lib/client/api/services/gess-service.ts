@@ -36,6 +36,10 @@ export const gessService = {
   tipos(eventoId: string) {
     return internalApi.get<string[]>(`/api/gess/tipos?eventoId=${encodeURIComponent(eventoId)}`);
   },
+  /** IDs de stands con solicitud local vigente (previsualizacion del sync). */
+  solicitudesActivas(eventoId: string) {
+    return internalApi.get<string[]>(`/api/gess/solicitudes-activas?eventoId=${encodeURIComponent(eventoId)}`);
+  },
   /** Todos los registros (plano, vinculacion); recorre todas las paginas (per_page 1000). */
   async all(eventoId: string) {
     const perPage = 1000;

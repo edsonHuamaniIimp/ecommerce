@@ -32,6 +32,17 @@ export interface DatosReservaStand {
   logoUrl: string | null;
 }
 
+export interface GessStandEstadoHistorialInput {
+  eventoId: string;
+  gessStandId: string;
+  standCode: string;
+  estadoAnterior: string | null;
+  estadoNuevo: string | null;
+  origen: string;
+  syncBatchId?: string | null;
+  actorEmail?: string | null;
+}
+
 export interface IGessRepository {
   findAllPaginated(eventoId: string, params: GessPaginationParams): Promise<GessPaginatedResult>;
   /** Tipos de stand distintos del evento (para filtros). */
@@ -42,6 +53,10 @@ export interface IGessRepository {
   findByEvento(eventoId: string): Promise<GessStandEntity[]>;
   /** Datos de la empresa que reservo cada stand (mapa: id de gess_stand → datos). */
   datosEmpresaPorStands(standIds: string[]): Promise<Map<string, DatosReservaStand>>;
+  /** IDs de stands con una solicitud local vigente (pendiente o aprobada, no rechazada). */
+  standsConSolicitudActiva(standIds: string[]): Promise<Set<string>>;
+  /** Registra un cambio de estado de un stand para auditoria del sync. */
+  registrarHistorialEstado(data: GessStandEstadoHistorialInput): Promise<void>;
   create(data: Partial<GessStandEntity>): Promise<GessStandEntity>;
   update(id: string, data: Partial<GessStandEntity>): Promise<GessStandEntity>;
   /** Bloquea temporalmente stands disponibles. Todo o nada. */

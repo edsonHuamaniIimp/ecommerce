@@ -84,6 +84,13 @@ export const gessController = {
     return success(await services.gess.tipos(eventoId));
   },
 
+  /** IDs de stands con solicitud local vigente (previsualizacion del sync). */
+  async solicitudesActivas(request: Request): Promise<NextResponse> {
+    const eventoId = new URL(request.url).searchParams.get("eventoId");
+    if (!eventoId) return error(API_ERROR_CODES.VALIDATION, "eventoId es requerido", 400);
+    return success(await services.gess.standsConSolicitudActiva(eventoId));
+  },
+
   async actualizar(request: Request): Promise<NextResponse> {
     const noAutorizado = await autorizarEscrituraStands();
     if (noAutorizado) return noAutorizado;
@@ -134,7 +141,14 @@ export const gessController = {
     if (!body.eventoId) {
       return error(API_ERROR_CODES.VALIDATION, "eventoId es requerido", 400);
     }
-    return success(await services.gess.sync(body.eventoId, body.tipoEvento ?? 0, body.codigoEvento ?? 0, body.seleccionadas));
+    const session = await getSession();
+    return success(await services.gess.sync(
+      body.eventoId,
+      body.tipoEvento ?? 0,
+      body.codigoEvento ?? 0,
+      body.seleccionadas,
+      session?.email ?? null,
+    ));
   },
 
   async mockup(request: Request): Promise<NextResponse> {

@@ -30,6 +30,52 @@ describe("calcularPrevisualizacionSync", () => {
     expect(preview.vinculados).toBe(0);
   });
 
+  it("detecta cambios de estado entre la BD y el API", () => {
+    const preview = calcularPrevisualizacionSync(
+      [{ standApiId: "A1", standCode: "103", medidas: "1000.00 USD", estado: ESTADOS_STAND.RESERVADO }],
+      [{ id: "A1", precio: "1000.00", moneda: "USD", estado: "LIBRE" }],
+    );
+
+    expect(preview.estados).toEqual([
+      { standCode: "103", antes: ESTADOS_STAND.RESERVADO, despues: ESTADOS_STAND.DISPONIBLE },
+    ]);
+    expect(preview.sinCambios).toBe(0);
+  });
+
+  it("no muestra como cambio un estado protegido por solicitud local", () => {
+    const preview = calcularPrevisualizacionSync(
+      [{ id: "g1", standApiId: "A1", standCode: "103", medidas: "1000.00 USD", estado: ESTADOS_STAND.RESERVADO }],
+      [{ id: "A1", precio: "1000.00", moneda: "USD", estado: "LIBRE" }],
+      new Set(["g1"]),
+    );
+
+    expect(preview.estados).toEqual([]);
+    expect(preview.sinCambios).toBe(1);
+  });
+
+  it("muestra la restauracion a reservado si la BD quedo disponible con solicitud local", () => {
+    const preview = calcularPrevisualizacionSync(
+      [{ id: "g1", standApiId: "A1", standCode: "103", medidas: "1000.00 USD", estado: ESTADOS_STAND.DISPONIBLE }],
+      [{ id: "A1", precio: "1000.00", moneda: "USD", estado: "LIBRE" }],
+      new Set(["g1"]),
+    );
+
+    expect(preview.estados).toEqual([
+      { standCode: "103", antes: ESTADOS_STAND.DISPONIBLE, despues: ESTADOS_STAND.RESERVADO },
+    ]);
+  });
+
+  it("no muestra como cambio un stand pre-reservado", () => {
+    const preview = calcularPrevisualizacionSync(
+      [{ id: "g1", standApiId: "A1", standCode: "101", medidas: "1000.00 USD", estado: ESTADOS_STAND.PRE_RESERVADO }],
+      [{ id: "A1", precio: "1000.00", moneda: "USD", estado: "LIBRE" }],
+      new Set(),
+    );
+
+    expect(preview.estados).toEqual([]);
+    expect(preview.sinCambios).toBe(1);
+  });
+
   it("no cuenta la empresa de una pre-reserva local", () => {
     const preview = calcularPrevisualizacionSync(
       [{ standApiId: "A1", standCode: "101", medidas: "1000.00 USD", empresa: "LOCAL", estado: ESTADOS_STAND.PRE_RESERVADO }],

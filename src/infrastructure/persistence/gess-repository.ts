@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/server/db";
-import type { IGessRepository, GessPaginationParams, GessPaginatedResult, DatosReservaStand } from "@/domain/ports/gess-repository";
+import type { IGessRepository, GessPaginationParams, GessPaginatedResult, DatosReservaStand, GessStandEstadoHistorialInput } from "@/domain/ports/gess-repository";
 import type { GessStandEntity } from "@/domain/models/entities";
-import { ESTADOS_STAND } from "@/lib/shared/constants";
+import { ESTADOS_SOLICITUD, ESTADOS_STAND } from "@/lib/shared/constants";
 
 export class GessPrismaRepository implements IGessRepository {
   async findAllPaginated(eventoId: string, params: GessPaginationParams): Promise<GessPaginatedResult> {
@@ -134,6 +134,43 @@ export class GessPrismaRepository implements IGessRepository {
       }
     }
     return resultado;
+  }
+
+  async standsConSolicitudActiva(standIds: string[]): Promise<Set<string>> {
+    const ids = [...new Set(standIds.filter(Boolean))];
+    const resultado = new Set<string>();
+    if (ids.length === 0) return resultado;
+
+    const solicitudes = await prisma.solicitud.findMany({
+      where: {
+        flgActivo: true,
+        AND: [
+          { OR: [{ estado: null }, { estado: { not: ESTADOS_SOLICITUD.RECHAZADO } }] },
+          { OR: [{ gessStandId: { in: ids } }, { stands: { some: { gessStandId: { in: ids } } } }] },
+        ],
+      },
+      select: { gessStandId: true, stands: { select: { gessStandId: true } } },
+    });
+    for (const solicitud of solicitudes) {
+      if (solicitud.gessStandId) resultado.add(solicitud.gessStandId);
+      for (const stand of solicitud.stands) resultado.add(stand.gessStandId);
+    }
+    return resultado;
+  }
+
+  async registrarHistorialEstado(data: GessStandEstadoHistorialInput): Promise<void> {
+    await prisma.gessStandEstadoHistorial.create({
+      data: {
+        eventoId: data.eventoId,
+        gessStandId: data.gessStandId,
+        standCode: data.standCode,
+        estadoAnterior: data.estadoAnterior,
+        estadoNuevo: data.estadoNuevo,
+        origen: data.origen,
+        syncBatchId: data.syncBatchId ?? null,
+        actorEmail: data.actorEmail ?? null,
+      },
+    });
   }
 
   async create(data: Partial<GessStandEntity>) {

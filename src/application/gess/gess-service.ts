@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { IGessRepository } from "@/domain/ports/gess-repository";
 import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
@@ -5,7 +6,7 @@ import type { ITipoStandImagenRepository } from "@/domain/ports/tipo-stand-image
 import type { StandEventPublisher } from "@/domain/ports/stand-events";
 import type { GessStandEntity } from "@/domain/models/entities";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, ESTADOS_STAND } from "@/lib/shared/constants";
+import { API_ERROR_CODES, ESTADOS_STAND, GESS_ESTADO_HISTORIAL_ORIGENES } from "@/lib/shared/constants";
 import { esStandComercialVinculable, precioTextoDesdeTipo } from "@/lib/shared/utils/precio-stand";
 import { normalizarPabellon } from "@/lib/shared/utils/pabellon";
 import { claveTipoStand, normalizarTipoStand } from "@/lib/shared/utils/tipo-stand";
@@ -121,6 +122,13 @@ export class GessApplicationService {
   /** Tipos de stand distintos del evento (para filtros de bandeja). */
   async tipos(eventoId: string): Promise<string[]> {
     return this.repo.tiposDistintos(eventoId);
+  }
+
+  /** IDs locales de stands con solicitud vigente (para previsualizar el sync). */
+  async standsConSolicitudActiva(eventoId: string): Promise<string[]> {
+    const locales = await this.repo.findByEvento(eventoId);
+    const activos = await this.repo.standsConSolicitudActiva(locales.map((local) => local.id));
+    return [...activos];
   }
 
   async findByBloque(bloqueId: string) {
@@ -298,10 +306,23 @@ export class GessApplicationService {
     return encontrados;
   }
 
-  async sync(eventoId: string, tipoEvento: number, codigoEvento: number, seleccionadas?: Record<string, unknown>[]) {
+  async sync(
+    eventoId: string,
+    tipoEvento: number,
+    codigoEvento: number,
+    seleccionadas?: Record<string, unknown>[],
+    actorEmail?: string | null,
+  ) {
     const rows = seleccionadas && seleccionadas.length > 0
       ? seleccionadas
       : await this.api.fetchStands(tipoEvento, codigoEvento);
+    const syncBatchId = randomUUID();
+
+    /* Se precargan las solicitudes locales del evento para no consultar una por
+     * una durante el sync. El estado local de una solicitud vigente tiene prioridad. */
+    const locales = await this.repo.findByEvento(eventoId);
+    const localesPorApiId = new Map(locales.map((local) => [local.standApiId, local]));
+    const standsConSolicitudLocal = await this.repo.standsConSolicitudActiva(locales.map((local) => local.id));
 
     let creados = 0;
     let actualizados = 0;
@@ -330,23 +351,34 @@ export class GessApplicationService {
       const pabellonApi = normalizarPabellon(String(r.pabellon ?? "")) ?? "";
       const coordenadas = `${String(r.x ?? r.pos_x ?? "")},${String(r.y ?? r.pos_y ?? "")}`;
 
-      const exists = await this.repo.findByStandApiId(eventoId, uid);
+      const exists = localesPorApiId.get(uid) ?? await this.repo.findByStandApiId(eventoId, uid);
 
       /*
        * Re-importacion: la BD deduplica por (eventoId, standApiId), asi que se actualiza
-       * el mismo registro. Se protegen los datos locales: si el stand ya esta en un estado
-       * gestionado por el portal (en_evaluacion/reservado) y el API aun lo reporta LIBRE,
-       * se conserva el estado local; y no se pisa la empresa si el API no la trae.
+       * el mismo registro. La solicitud local manda: si existe, el stand queda reservado
+       * aunque el API lo reporte LIBRE. Sin solicitud local, una pre-reserva o evaluacion
+       * se conserva y un `reservado` importado puede liberarse si el API ya esta LIBRE.
        */
+      const reservaLocalActiva = exists ? standsConSolicitudLocal.has(exists.id) : false;
+      const estadoFinal =
+        reservaLocalActiva && estado === ESTADOS_STAND.DISPONIBLE
+          ? ESTADOS_STAND.RESERVADO
+          : estado;
       const estadoProtegido =
         estado === ESTADOS_STAND.DISPONIBLE
-        && (exists?.estado === ESTADOS_STAND.EN_EVALUACION || exists?.estado === ESTADOS_STAND.RESERVADO || exists?.estado === ESTADOS_STAND.PRE_RESERVADO);
+        && (
+          exists?.estado === ESTADOS_STAND.EN_EVALUACION
+          || exists?.estado === ESTADOS_STAND.PRE_RESERVADO
+          || (exists?.estado === ESTADOS_STAND.RESERVADO && reservaLocalActiva)
+        );
+      const estadoAnterior = exists?.estado ?? null;
+      const estadoAplicado = estadoProtegido ? estadoAnterior : estadoFinal;
 
       const empresaApi = String(r.company ?? r.empresa ?? r.razon_social ?? "").trim();
       const data: Record<string, unknown> = {
         eventoId, standApiId: uid, standCode: uid,
         tipoStand: tipo || null, medidas: medidas || null,
-        ...(estadoProtegido ? {} : { estado }),
+        ...(estadoProtegido ? {} : { estado: estadoAplicado }),
         pabellon: pabellonApi || (r.x !== undefined ? coordenadas : null),
         rawData: row,
       };
@@ -356,12 +388,27 @@ export class GessApplicationService {
       } else if (empresaApi) data.empresa = empresaApi;
       else if (!exists) data.empresa = null;
 
+      let standGessId = exists?.id ?? null;
       if (exists) {
         await this.repo.update(exists.id, data as never);
         actualizados++;
       } else {
-        await this.repo.create(data as never);
+        const creado = await this.repo.create(data as never);
+        standGessId = creado?.id ?? null;
         creados++;
+      }
+
+      if (standGessId && estadoAplicado !== estadoAnterior) {
+        await this.repo.registrarHistorialEstado({
+          eventoId,
+          gessStandId: standGessId,
+          standCode: uid,
+          estadoAnterior,
+          estadoNuevo: estadoAplicado,
+          origen: GESS_ESTADO_HISTORIAL_ORIGENES.SYNC,
+          syncBatchId,
+          actorEmail: actorEmail ?? null,
+        });
       }
     }
 

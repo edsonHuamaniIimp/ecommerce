@@ -487,6 +487,7 @@ model GessStand {
   solicitudes         Solicitud[]
   solicitudStands     SolicitudStand[]           @relation("SolicitudStandGess")
   montajistaHistorial StandMontajistaHistorial[]
+  estadoHistorial     GessStandEstadoHistorial[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -501,6 +502,32 @@ model GessStand {
   @@index([holdId])
   @@index([holdExpiresAt])
   @@map("gess_stand")
+}
+
+/// Historial de cambios de estado producidos por una sincronizacion de stands.
+model GessStandEstadoHistorial {
+  id             String   @id @default(uuid())
+  /// Evento dueno del stand al momento del cambio.
+  eventoId       String   @map("evento_id")
+  gessStandId    String   @map("gess_stand_id")
+  /// Codigo comercial del stand, conservado como snapshot.
+  standCode      String   @map("stand_code") @db.VarChar(50)
+  estadoAnterior String?  @map("estado_anterior") @db.VarChar(50)
+  estadoNuevo    String?  @map("estado_nuevo") @db.VarChar(50)
+  /// Proceso que produjo el cambio (por ahora `sync`).
+  origen         String   @db.VarChar(30)
+  /// Identificador comun para todos los cambios de una misma sincronizacion.
+  syncBatchId    String?  @map("sync_batch_id") @db.VarChar(36)
+  actorEmail     String?  @map("actor_email") @db.VarChar(200)
+
+  gessStand GessStand @relation(fields: [gessStandId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([eventoId, createdAt])
+  @@index([gessStandId, createdAt])
+  @@index([syncBatchId])
+  @@map("gess_stand_estado_historial")
 }
 
 /// Imagen referencial por tipo de stand: una imagen por tipo, aplicada a todos los

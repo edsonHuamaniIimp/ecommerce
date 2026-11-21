@@ -281,6 +281,26 @@ Restricción sugerida: evitar doble reserva activa del mismo `standId` por event
 
 Unique: `[eventoId, standApiId]`. Índices: `eventoId`, `bloqueId`.
 
+### 4.12.1 `gess_stand_estado_historial` (Auditoría de estados del sync)
+
+Registra cada cambio real de estado producido al sincronizar stands con el API.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| eventoId | string | No | Evento del stand. |
+| gessStandId | FK | No | → gess_stand. |
+| standCode | string(50) | No | Código comercial al momento del cambio. |
+| estadoAnterior | string(50) | Sí | Estado antes del sync. |
+| estadoNuevo | string(50) | Sí | Estado aplicado por el sync. |
+| origen | string(30) | No | Proceso origen; actualmente `sync`. |
+| syncBatchId | string(36) | Sí | Agrupa los cambios de una misma sincronización. |
+| actorEmail | string(200) | Sí | Usuario que ejecutó el sync, si había sesión. |
+| createdAt | datetime | No | Timestamp del cambio. |
+
+Índices: `eventoId + createdAt`, `gessStandId + createdAt`, `syncBatchId`.
+El historial es solo INSERT; la FK a `gess_stand` usa `ON DELETE RESTRICT` para no perder la auditoría.
+
 ### 4.13 `role` (Roles del sistema)
 
 | Campo | Tipo | Nulo | Descripción |

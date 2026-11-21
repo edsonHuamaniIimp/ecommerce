@@ -1,8 +1,14 @@
 import { ESTADOS_STAND } from "@/lib/shared/constants";
 import { precioTextoDesdeTipo } from "./precio-stand";
 
+const ESTADOS_API_LISTSTAND = {
+  LIBRE: "libre",
+  RESERVADO: "reservado",
+} as const;
+
 /** Stand local (subconjunto de gess_stand) para comparar contra el API. */
 export interface GessSyncBdRow {
+  id?: string;
   standApiId: string;
   standCode: string;
   tipoStand?: string | null;
@@ -19,6 +25,7 @@ export interface GessSyncApiRow {
   precio?: string;
   moneda?: string;
   empresa?: string;
+  estado?: string;
 }
 
 /** Cambio detectado en un dato comercial de un stand. */
@@ -35,6 +42,7 @@ export interface PrevisualizacionSyncGess {
   precios: CambioSyncGess[];
   tipos: CambioSyncGess[];
   empresas: CambioSyncGess[];
+  estados: CambioSyncGess[];
   sinCambios: number;
   soloBd: number;
   nuevosApi: number;
@@ -53,6 +61,28 @@ export function medidasEsperadasDesdeApi(row: { tipo?: string; precio?: string; 
   return precioTextoDesdeTipo(tipo);
 }
 
+function estadoCanonicoDesdeApi(estado: string | undefined): string | null {
+  const valor = String(estado ?? "").trim().toLowerCase();
+  if (valor === ESTADOS_API_LISTSTAND.LIBRE) return ESTADOS_STAND.DISPONIBLE;
+  if (valor === ESTADOS_API_LISTSTAND.RESERVADO) return ESTADOS_STAND.RESERVADO;
+  return null;
+}
+
+/** Estado que dejara el sync, aplicando las mismas reglas de prioridad local. */
+function estadoResultanteSync(
+  estadoApi: string | null,
+  estadoLocal: string | null,
+  reservaLocalActiva: boolean,
+): string | null {
+  if (estadoApi === null) return null;
+  if (estadoApi === ESTADOS_STAND.RESERVADO) return ESTADOS_STAND.RESERVADO;
+  if (estadoLocal === ESTADOS_STAND.PRE_RESERVADO || estadoLocal === ESTADOS_STAND.EN_EVALUACION) {
+    return estadoLocal;
+  }
+  if (reservaLocalActiva) return ESTADOS_STAND.RESERVADO;
+  return ESTADOS_STAND.DISPONIBLE;
+}
+
 /**
  * Compara la BD local contra el API para previsualizar que cambiara el sync
  * completo (sin `seleccionadas`). No muta nada: solo calcula diferencias.
@@ -61,11 +91,13 @@ export function medidasEsperadasDesdeApi(row: { tipo?: string; precio?: string; 
  *  - precio -> `medidas` (precio API o catalogo por tipo).
  *  - tipo -> `tipoStand`.
  *  - empresa del API solo si no hay pre-reserva local y el API la informa.
+ *  - estado -> `estado` (el backend conserva pre-reservas y solicitudes locales).
  *  - Las filas del API que no estan en BD se crean; las de BD sin API no se borran.
  */
 export function calcularPrevisualizacionSync(
   dbRows: GessSyncBdRow[],
   apiRows: GessSyncApiRow[],
+  solicitudesActivas?: ReadonlySet<string>,
 ): PrevisualizacionSyncGess {
   const dbPorId = new Map<string, GessSyncBdRow>();
   for (const row of dbRows) {
@@ -79,6 +111,7 @@ export function calcularPrevisualizacionSync(
   const precios: CambioSyncGess[] = [];
   const tipos: CambioSyncGess[] = [];
   const empresas: CambioSyncGess[] = [];
+  const estados: CambioSyncGess[] = [];
   let sinCambios = 0;
 
   for (const [id, db] of dbPorId) {
@@ -108,6 +141,15 @@ export function calcularPrevisualizacionSync(
       cambio = true;
     }
 
+    const estadoApi = estadoCanonicoDesdeApi(api.estado);
+    const estadoActual = String(db.estado ?? "").trim() || null;
+    const reservaLocalActiva = Boolean(db.id && solicitudesActivas?.has(db.id));
+    const estadoFinal = estadoResultanteSync(estadoApi, estadoActual, reservaLocalActiva);
+    if (estadoFinal !== null && estadoFinal !== estadoActual) {
+      estados.push({ standCode: db.standCode, antes: estadoActual, despues: estadoFinal });
+      cambio = true;
+    }
+
     if (!cambio) sinCambios += 1;
   }
 
@@ -124,6 +166,7 @@ export function calcularPrevisualizacionSync(
     precios,
     tipos,
     empresas,
+    estados,
     sinCambios,
     soloBd,
     nuevosApi,

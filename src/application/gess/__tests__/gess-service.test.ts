@@ -5,6 +5,7 @@ import type { IPlanogessClient } from "@/domain/ports/planogess-client";
 import type { IPlanoRepository } from "@/domain/ports/plano-repository";
 import type { ITipoStandImagenRepository } from "@/domain/ports/tipo-stand-imagen-repository";
 import type { GessStandEntity } from "@/domain/models/entities";
+import { GESS_ESTADO_HISTORIAL_ORIGENES } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
@@ -35,8 +36,10 @@ function mockRepo(): IGessRepository {
     findByBloque: vi.fn(),
     findByStandApiId: vi.fn(),
     findById: vi.fn(),
-    findByEvento: vi.fn(),
+    findByEvento: vi.fn().mockResolvedValue([]),
     datosEmpresaPorStands: vi.fn(),
+    standsConSolicitudActiva: vi.fn().mockResolvedValue(new Set()),
+    registrarHistorialEstado: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     crearHold: vi.fn(),
@@ -243,6 +246,75 @@ describe("GessApplicationService.sync (API real liststand)", () => {
     expect(data).not.toHaveProperty("empresa");
     expect(data).toEqual(expect.objectContaining({ medidas: "16000.00 USD", pabellon: "PABELLÓN 1" }));
     expect(repo.create).not.toHaveBeenCalled();
+  });
+
+  it("libera un reservado local sin solicitud activa si el API lo reporta libre", async () => {
+    const repo = mockRepo();
+    const local = stand({ id: "g9", standApiId: "103", estado: "reservado" });
+    vi.mocked(repo.findByEvento).mockResolvedValue([local]);
+    vi.mocked(repo.standsConSolicitudActiva).mockResolvedValue(new Set());
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "103", pabellon: "PABELLON 1", tipo: "PREFERENCIAL", area: "16.00", precio: "9240.00", estado: "LIBRE", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    await svc.sync("ev1", 2, 19);
+
+    expect(repo.standsConSolicitudActiva).toHaveBeenCalledWith(["g9"]);
+    expect(repo.update).toHaveBeenCalledWith("g9", expect.objectContaining({ estado: "disponible" }));
+    expect(repo.registrarHistorialEstado).toHaveBeenCalledWith(expect.objectContaining({
+      eventoId: "ev1",
+      gessStandId: "g9",
+      standCode: "103",
+      estadoAnterior: "reservado",
+      estadoNuevo: "disponible",
+      origen: GESS_ESTADO_HISTORIAL_ORIGENES.SYNC,
+      syncBatchId: expect.any(String),
+      actorEmail: null,
+    }));
+  });
+
+  it("conserva un reservado local con solicitud activa si el API lo reporta libre", async () => {
+    const repo = mockRepo();
+    const local = stand({ id: "g9", standApiId: "104", estado: "reservado" });
+    vi.mocked(repo.findByEvento).mockResolvedValue([local]);
+    vi.mocked(repo.standsConSolicitudActiva).mockResolvedValue(new Set(["g9"]));
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "104", pabellon: "PABELLON 1", tipo: "PREFERENCIAL", area: "16.00", precio: "9240.00", estado: "LIBRE", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    await svc.sync("ev1", 2, 19);
+
+    expect(repo.standsConSolicitudActiva).toHaveBeenCalledWith(["g9"]);
+    const data = vi.mocked(repo.update).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(data.estado).toBeUndefined();
+    expect(repo.registrarHistorialEstado).not.toHaveBeenCalled();
+  });
+
+  it("restaura reservado local con solicitud activa aunque la BD este disponible", async () => {
+    const repo = mockRepo();
+    const local = stand({ id: "g9", standApiId: "103", estado: "disponible" });
+    vi.mocked(repo.findByEvento).mockResolvedValue([local]);
+    vi.mocked(repo.standsConSolicitudActiva).mockResolvedValue(new Set(["g9"]));
+    const apiListstand = {
+      fetchStands: vi.fn().mockResolvedValue([
+        { stand: "103", pabellon: "PABELLON 1", tipo: "PREFERENCIAL", area: "16.00", precio: "9240.00", estado: "LIBRE", moneda: "USD" },
+      ]),
+    } as unknown as IPlanogessClient;
+    const svc = new GessApplicationService(repo, apiListstand, planoRepo, catalogoMock());
+
+    await svc.sync("ev1", 2, 19);
+
+    expect(repo.update).toHaveBeenCalledWith("g9", expect.objectContaining({ estado: "reservado" }));
+    expect(repo.registrarHistorialEstado).toHaveBeenCalledWith(expect.objectContaining({
+      estadoAnterior: "disponible",
+      estadoNuevo: "reservado",
+    }));
   });
 
   it("aplica RESERVADO del API aunque el local siga en evaluacion", async () => {
