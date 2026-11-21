@@ -23,6 +23,7 @@ import {
   SGC_EVENT_TYPES,
   SGC_LIFECYCLE_STATUSES,
   SGC_STAGES,
+  TIPOS_SOLICITUD,
 } from "@/lib/shared/constants";
 const CONFIG: SgcIntegracionConfig = {
   enabled: true,
@@ -216,6 +217,33 @@ describe("SgcWebhookApplicationService.procesar", () => {
       expect.objectContaining({ to: "cliente@minera.pe", plantilla: "revision-resultado", idioma: "en" }),
     );
   });
+  it("no deberia notificar al cliente cuando el SGC aprueba una reserva_empresa", async () => {
+    vi.mocked(enviarEmailPlantilla).mockClear();
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({
+        tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+        id: "sol-1",
+        standCode: "BLOQUE-01",
+        empresa: "Operador Internacional",
+        email: "cliente@operador.pe",
+        userId: "user-1",
+        estado: "aprobado",
+        revisiones: [{ area: "asociado", estado: "aprobado", comentario: null }],
+      }),
+      findNombreUsuario: vi.fn().mockResolvedValue("Jorge Quispe"),
+      marcarOrdenPago: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const auth = { findPerfilByEmail: vi.fn().mockResolvedValue({ idioma: "es" }) } as unknown as IAuthRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes, auth);
+
+    await svc.procesar(
+      payload({ eventType: SGC_EVENT_TYPES.WORKFLOW_APPROVED, data: { finalization: "active" } }),
+    );
+
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
+  });
   it("deberia notificar al cliente cuando el SGC devuelve el tramite con observaciones", async () => {
     vi.mocked(enviarEmailPlantilla).mockClear();
     const repo = webhookRepoMock();
@@ -253,6 +281,43 @@ describe("SgcWebhookApplicationService.procesar", () => {
     expect(vi.mocked(enviarEmailPlantilla)).toHaveBeenCalledWith(
       expect.objectContaining({ to: "cliente@minera.pe", plantilla: "documentos-observados" }),
     );
+  });
+  it("no deberia notificar al cliente cuando el SGC devuelve una reserva_empresa", async () => {
+    vi.mocked(enviarEmailPlantilla).mockClear();
+    const repo = webhookRepoMock();
+    const sgcRepo = sgcRepoMock();
+    const solicitudes = {
+      detalle: vi.fn().mockResolvedValue({
+        tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+        id: "sol-1",
+        standCode: "BLOQUE-01",
+        email: "cliente@operador.pe",
+        userId: "user-1",
+      }),
+      crearAlertaReserva: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ISolicitudesRepository;
+    const svc = build(repo, sgcRepo, CONFIG, solicitudes);
+
+    await svc.procesar(
+      payload({
+        eventType: SGC_EVENT_TYPES.WORKFLOW_RETURNED,
+        data: {
+          requiresDocumentChange: true,
+          reason: "Adjuntar Vigencia de Poder actualizada.",
+          observations: [{
+            documentId: "doc-9",
+            category: "annex",
+            title: "Vigencia de Poder",
+            message: "Adjuntar vigencia actualizada (maximo 3 meses).",
+            severity: "blocking",
+            status: "open",
+          }],
+        },
+      }),
+    );
+
+    expect(vi.mocked(solicitudes.crearAlertaReserva)).toHaveBeenCalled();
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
   });
   it("deberia generar la orden de pago automaticamente cuando el SGC aprueba (activo)", async () => {
     const repo = webhookRepoMock();

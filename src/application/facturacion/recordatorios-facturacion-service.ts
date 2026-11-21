@@ -3,6 +3,7 @@ import { DomainError } from "@/lib/server/router";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { numeroSolicitudIImp } from "@/application/facturacion-iimp/numero-solicitud";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { TIPOS_ARCHIVO_IIMP_LABELS, tiposRequeridosPorRequisitos } from "@/lib/shared/utils/requisitos-facturacion";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IFacturacionRepository, RecordatorioCandidatoRow } from "@/domain/ports/facturacion-repository";
@@ -25,6 +26,7 @@ function aDTO(row: RecordatorioCandidatoRow, faltantes: string[] = []): Recordat
   return {
     facturacionId: row.facturacionId,
     solicitudId: row.solicitudId,
+    tipoSolicitud: row.tipoSolicitud,
     empresa: row.empresa,
     email: row.email,
     standCode: row.standCode,
@@ -55,7 +57,8 @@ export class RecordatoriosFacturacionApplicationService {
   ) {}
 
   async listarCandidatos(): Promise<RecordatoriosResponseDTO> {
-    const rows = (await this.repo.listarCandidatosRecordatorio()).filter((row) => row.cuotasPendientes > 0);
+    const rows = (await this.repo.listarCandidatosRecordatorio())
+      .filter((row) => row.cuotasPendientes > 0 && permiteCorreosSolicitud(row.tipoSolicitud));
 
     const sinSolicitud = rows.filter((row) => !cuentaDeclarada(row)).map((row) => aDTO(row));
     const declaradas = rows
@@ -117,7 +120,7 @@ export class RecordatoriosFacturacionApplicationService {
     for (const [indice, facturacionId] of ids.entries()) {
       if (indice > 0) await new Promise<void>((resolve) => setTimeout(resolve, ESPERA_ENTRE_CORREOS_MS));
       const candidato = porId.get(facturacionId);
-      if (!candidato) {
+      if (!candidato || !permiteCorreosSolicitud(candidato.tipoSolicitud)) {
         fallidos += 1;
         detalle.push({ facturacionId, ok: false, error: "La empresa ya no cumple el criterio del recordatorio" });
         continue;

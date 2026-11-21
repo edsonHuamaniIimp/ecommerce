@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { RecordatoriosFacturacionApplicationService } from "../recordatorios-facturacion-service";
 import { enviarEmailPlantilla } from "@/lib/server/email";
-import { RECORDATORIOS_FACTURACION } from "@/lib/shared/constants";
+import { RECORDATORIOS_FACTURACION, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IFacturacionRepository, RecordatorioCandidatoRow } from "@/domain/ports/facturacion-repository";
 import type { IReservaIimpClient } from "@/domain/ports/reserva-iimp-client";
@@ -25,6 +25,7 @@ function candidato(overrides: Partial<RecordatorioCandidatoRow> = {}): Recordato
   return {
     facturacionId: "f1",
     solicitudId: "s1",
+    tipoSolicitud: null,
     standCode: "44",
     empresa: "ACME S.A.C.",
     email: "pagos@acme.pe",
@@ -98,6 +99,23 @@ describe("RecordatoriosFacturacionApplicationService", () => {
       expect.objectContaining({ facturacionId: "f2", faltantes: ["HES"] }),
     ]);
     expect(resultado.noVerificados).toBe(1);
+  });
+
+  it("excluye reservas_empresa de candidatos y no envia correo", async () => {
+    const { svc } = crearSvc([
+      candidato({ tipoSolicitud: TIPOS_SOLICITUD.RESERVA_EMPRESA }),
+    ]);
+
+    const listado = await svc.listarCandidatos();
+    expect(listado.sinSolicitud).toHaveLength(0);
+
+    const resultado = await svc.enviar(
+      { tipo: RECORDATORIOS_FACTURACION.SIN_SOLICITUD, facturacionIds: ["f1"] },
+      "facturacion@iimp.org.pe",
+    );
+
+    expect(resultado.enviados).toBe(0);
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
   });
 
   it("envia el recordatorio de solicitud y registra el historial", async () => {

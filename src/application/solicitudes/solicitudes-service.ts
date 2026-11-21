@@ -9,6 +9,7 @@ import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { nombreArchivoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { puedeClienteSubirDocumentos, puedeClienteSubirAnexosSgc, enVentanaAnexosReserva, enVentanaDocumentosSgc, esperandoContratoCorregidoSgc, hayContratoAdminNuevoParaFirmar, hayFirmadoPosteriorAlContratoCorregido, estadoCorreccionSgc, contratoFirmadoSubidoPorAsociado, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo } from "@/lib/shared/utils/solicitud-documentos";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { SgcApiError } from "@/domain/models/sgc";
 import { sgcEnRevisionLegal } from "@/lib/shared/utils/sgc-estado";
 import { areasRevisionLocal } from "@/lib/shared/utils/revision-areas";
@@ -212,6 +213,7 @@ export class SolicitudesApplicationService {
 
     const detalle = await this.detalle(params.solicitudId);
     if (!detalle) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    if (!permiteCorreosSolicitud(detalle.tipo)) return;
 
     const faltaRevision = areasRevisionLocal(detalle.revisiones, { sgcEnabled: isSgcEnabled() }).some(
       (area) =>
@@ -367,7 +369,7 @@ export class SolicitudesApplicationService {
           url: `/dashboard/mis-solicitudes?solicitud=${data.solicitudId}`,
         }).catch(() => {});
       }
-      if (detalle.email) {
+      if (detalle.email && permiteCorreosSolicitud(detalle.tipo)) {
         await enviarEmailPlantilla({
           to: detalle.email,
           plantilla: "documentos-observados",

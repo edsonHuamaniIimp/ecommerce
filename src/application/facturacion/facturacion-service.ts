@@ -7,6 +7,7 @@ import { DomainError } from "@/lib/server/router";
 import { API_ERROR_CODES, ESTADOS_CUOTA, PERMISSIONS, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { numeroSolicitudIImp } from "@/application/facturacion-iimp/numero-solicitud";
 
 /** Tipos validos del comprobante fiscal (ver TIPOS_COMPROBANTE). */
@@ -216,7 +217,7 @@ export class FacturacionApplicationService {
       throw new DomainError("Solo se puede adjuntar el comprobante de una cuota pagada", API_ERROR_CODES.CONFLICT, 409);
     }
     await this.repo.adjuntarComprobanteFiscal(cuotaId, data, createdBy);
-    if (fact.correoSolicitante) {
+    if (fact.correoSolicitante && permiteCorreosSolicitud(fact.tipoSolicitud)) {
       try {
         const idioma = await resolverIdiomaDestinatario(this.authRepo, fact.correoSolicitante);
         await enviarEmailPlantilla({

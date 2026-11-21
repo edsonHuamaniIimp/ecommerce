@@ -514,6 +514,7 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
       contratoService as never,
     );
 
+    vi.mocked(enviarEmailPlantilla).mockClear();
     const res = await svc.crearAdministrativa({
       eventoId: "evt-1",
       empresaRuc: "20123456789",
@@ -555,6 +556,7 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
     expect(solicitudesRepo.marcarOrdenPago).toHaveBeenCalledWith("sol-1");
     expect(res.estado).toBe("pendiente");
     expect(res.estadoPago).toBe(ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO);
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
   });
 
   it("aplica descuento fijo exacto y lo guarda en el snapshot", async () => {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AUTORES_SISTEMA, ESTADOS_PAGO_EXTERNO } from "@/lib/shared/constants";
+import { AUTORES_SISTEMA, ESTADOS_PAGO_EXTERNO, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import { NotificacionFacturaApplicationService } from "../notificacion-factura-service";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
@@ -43,6 +43,7 @@ const FACTURACION = {
   id: "f1",
   solicitudId: "sol-1",
   tipo: "manual",
+  tipoSolicitud: null,
   estado: "pendiente",
   montoTotal: 200,
   moneda: "US$",
@@ -224,6 +225,18 @@ describe("NotificacionFacturaApplicationService", () => {
         }),
       }),
     );
+  });
+
+  it("no avisa al cliente cuando la solicitud es reserva_empresa", async () => {
+    const m = mocks();
+    vi.mocked(m.facturacion.detalle).mockResolvedValue({
+      ...FACTURACION,
+      tipoSolicitud: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+    });
+
+    await servicio(m).registrar({ ...BASE, fechaEmision: "2026-11-05" });
+
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
   });
 
   it("no repite el aviso si el documento y la fecha ya estaban registrados", async () => {

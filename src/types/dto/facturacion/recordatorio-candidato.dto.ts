@@ -2,6 +2,7 @@
 export interface RecordatorioCandidatoDTO {
   facturacionId: string;
   solicitudId: string;
+  tipoSolicitud: string | null;
   empresa: string | null;
   email: string | null;
   standCode: string;

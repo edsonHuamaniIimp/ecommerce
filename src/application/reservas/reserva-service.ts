@@ -19,6 +19,7 @@ import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/ut
 import { validarEmpresaReservaAdministrativa } from "@/lib/shared/utils/reserva-admin-readiness";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { DomainError } from "@/lib/server/router";
@@ -691,7 +692,7 @@ export class ReservaApplicationService {
       }
     }
 
-    if (contactEmail) {
+    if (contactEmail && permiteCorreosSolicitud(request.tipo)) {
       const idiomaCliente = await resolverIdiomaDestinatario(this.authRepo, contactEmail);
       enviarEmailPlantilla({
         to: contactEmail,

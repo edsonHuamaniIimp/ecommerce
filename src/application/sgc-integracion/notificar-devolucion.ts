@@ -2,6 +2,7 @@ import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { ALERTA_TIPOS } from "@/lib/shared/constants";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { getAppUrl } from "@/lib/server/app-url";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 
 /**
@@ -31,7 +32,7 @@ export async function notificarDevolucionSgc(
         })
         .catch(() => {});
     }
-    if (detalle.email) {
+    if (detalle.email && permiteCorreosSolicitud(detalle.tipo)) {
       await enviarEmailPlantilla({
         to: detalle.email,
         plantilla: "documentos-observados",

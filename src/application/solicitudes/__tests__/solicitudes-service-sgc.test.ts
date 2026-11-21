@@ -5,8 +5,9 @@ import type { ISgcRepository } from "@/domain/ports/sgc-repository";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
 import { SgcIntegracionApplicationService } from "@/application/sgc-integracion/sgc-integracion-service";
 import type { RevisionEntity, SolicitudRow } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_LIFECYCLE_STATUSES, SGC_STAGES, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, PERMISSIONS, ESTADOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, TIPOS_DOCUMENTO_SOLICITUD, ALERTA_TIPOS, ROLES, ANEXOS_KEYS, SGC_LIFECYCLE_STATUSES, SGC_STAGES, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, PERMISSIONS, ESTADOS_DOCUMENTO_SOLICITUD, MODOS_NOTIFICACION } from "@/lib/shared/constants";
 import { sha256Hex } from "@/lib/shared/utils/sgc";
+import { enviarEmailPlantilla } from "@/lib/server/email";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {},
@@ -16,6 +17,10 @@ vi.stubEnv("SGC_ENABLED", "1");
 vi.mock("@/lib/server/email", () => ({
   sendEmail: vi.fn().mockResolvedValue(true),
   enviarEmailPlantilla: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock("@/lib/server/auth", () => ({
+  hasDBPermission: vi.fn(async () => true),
 }));
 
 function revision(
@@ -865,5 +870,72 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
     expect(sgc.crearExpedienteDesdeSolicitud).toHaveBeenCalledWith("sol-1");
     expect(sgc.enviarExpedienteAlSgc).toHaveBeenCalledWith("sol-1", "asociado@iimp.org.pe");
     expect(repo.marcarOrdenPago).not.toHaveBeenCalled();
+  });
+});
+
+describe("SolicitudesApplicationService - correos reserva_empresa", () => {
+  it("no envia correo al observar una reserva_empresa", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.OBSERVADO);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand({
+      tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      estadoSolicitud: ESTADOS_SOLICITUD.OBSERVADO,
+      email: "cliente@empresa.pe",
+      userId: "user-1",
+      docsAdjuntos: [{
+        id: "doc-1",
+        url: "/uploads/doc-1.pdf",
+        nombre: "doc-1.pdf",
+        userId: "user-1",
+        uploadedBy: "cliente@empresa.pe",
+        categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+        requisito: ANEXOS_KEYS.FICHA_RUC,
+        estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+        createdAt: new Date("2026-11-20T10:00:00.000Z"),
+      }],
+    }));
+    repo.observarDocumentos = vi.fn().mockResolvedValue(1);
+    repo.crearAlertaReserva = vi.fn().mockResolvedValue(undefined);
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+    vi.mocked(enviarEmailPlantilla).mockClear();
+
+    await svc.revisar({
+      solicitudId: "sol-1",
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.OBSERVADO,
+      comentario: "Corrige la ficha RUC",
+      documentosObservados: ["doc-1"],
+      reviewerEmail: "asociado@iimp.org.pe",
+    });
+
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
+  });
+
+  it("no envia correo manual para reserva_empresa", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(detalleMultistand({
+      tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      email: "cliente@empresa.pe",
+      userId: "user-1",
+    }));
+    const svc = new SolicitudesApplicationService(repo);
+    vi.mocked(enviarEmailPlantilla).mockClear();
+
+    await svc.notificarCliente(
+      {
+        solicitudId: "sol-1",
+        to: "cliente@empresa.pe",
+        modo: MODOS_NOTIFICACION.PERSONALIZADO,
+        idioma: "es",
+      },
+      {
+        sub: "admin-1",
+        email: "admin@iimp.org.pe",
+        name: "Admin",
+        roles: ["admin"],
+        permissions: [PERMISSIONS.ADMIN_FULL],
+      } as never,
+    );
+
+    expect(enviarEmailPlantilla).not.toHaveBeenCalled();
   });
 });

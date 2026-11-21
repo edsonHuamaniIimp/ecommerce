@@ -45,6 +45,7 @@ interface FacturacionRaw {
     createdAt: Date;
   }>;
   solicitud: {
+    tipo: string | null;
     email: string | null;
     userId: string | null;
     /** Plan de cuotas definido por el cliente al reservar (null = no aplica). */
@@ -59,6 +60,7 @@ interface FacturacionRaw {
 }
 
 const SOLICITUD_SELECT = {
+  tipo: true,
   email: true,
   userId: true,
   planCuotas: true,
@@ -97,6 +99,7 @@ function toRow(r: FacturacionRaw, empresasPorUsuario: ReadonlyMap<string, string
     id: r.id,
     solicitudId: r.solicitudId,
     tipo: r.tipo,
+    tipoSolicitud: r.solicitud.tipo,
     estado: r.estado,
     montoTotal: Number(r.montoTotal),
     moneda: r.moneda,
@@ -489,6 +492,7 @@ export class FacturacionPrismaRepository implements IFacturacionRepository {
       return {
         facturacionId: row.id,
         solicitudId: row.solicitudId,
+        tipoSolicitud: row.tipoSolicitud,
         standCode: row.standCode,
         empresa: row.empresaFacturacion,
         email: snapshotEmail ?? row.correoSolicitante,

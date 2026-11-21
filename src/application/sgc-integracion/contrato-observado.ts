@@ -8,6 +8,7 @@ import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { ESTADOS_DOCUMENTO_SOLICITUD, ROLES, SGC_OBSERVACION_ESTADOS, TIPOS_DOCUMENTO_SOLICITUD } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { esObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
 
@@ -138,6 +139,8 @@ export async function notificarContratoObservadoSgc(params: {
       },
     })
     .catch(() => undefined);
+
+  if (!permiteCorreosSolicitud(detalle.tipo)) return;
 
   let destinatarios: string[] = [];
   if (params.configuracion) {

@@ -12,6 +12,7 @@ import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { IFacturacionRepository } from "@/domain/ports/facturacion-repository";
@@ -76,7 +77,11 @@ export class NotificacionFacturaApplicationService {
      * documento es nuevo o cambio su fecha de emision (evita correos repetidos
      * en reintentos del SIE); nunca en anulaciones/rechazos.
      */
-    if (estadoPago !== ESTADOS_PAGO_EXTERNO.ANULADA && facturacion.correoSolicitante) {
+    if (
+      estadoPago !== ESTADOS_PAGO_EXTERNO.ANULADA &&
+      facturacion.correoSolicitante &&
+      permiteCorreosSolicitud(facturacion.tipoSolicitud)
+    ) {
       const esNuevaFactura =
         documento !== cuota.documentoSie ||
         (fechaEmision !== null && fechaEmision !== cuota.documentoSieFechaEmision);

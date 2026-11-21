@@ -7,7 +7,7 @@ import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-reposito
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IReservaIimpClient } from "@/domain/ports/reserva-iimp-client";
 import type { EmpresaEntity } from "@/domain/models/empresa";
-import { PERMISSIONS } from "@/lib/shared/constants";
+import { PERMISSIONS, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
@@ -82,7 +82,7 @@ function mockRepo(): IFacturacionRepository {
 }
 
 const sampleRow: FacturacionRow = {
-  id: "f1", solicitudId: "s1",   tipo: "manual", estado: "pendiente",
+  id: "f1", solicitudId: "s1",   tipo: "manual", tipoSolicitud: null, estado: "pendiente",
   montoTotal: 3000,   moneda: "US$", modoPago: "cuotas", planCliente: false, standCode: "44", correoSolicitante: "test@test.com", empresaFacturacion: null, requisitos: null, iimpContrato: null, iimpCuentaCorriente: null, createdAt: "2024-06-01T00:00:00Z",
   cuotas: [
     { id: "c1", numero: 1, monto: 1000, fechaVencimiento: "2024-07-01T00:00:00Z", estado: "pagado", comprobante: null, comprobanteFiscal: null, iimpDocumento: null, documentoSie: null, documentoSieAnulado: false, documentoSieJustificacion: null, documentoSieFechaEmision: null },
@@ -306,6 +306,20 @@ describe("FacturacionApplicationService — unit tests rigurosos", () => {
       expect(enviarEmailPlantilla).toHaveBeenCalledWith(
         expect.objectContaining({ to: "test@test.com", plantilla: "comprobante-pago" }),
       );
+    });
+
+    it("no envia comprobante-pago para una reserva_empresa", async () => {
+      const repo = mockRepo();
+      vi.mocked(repo.facturacionDeCuota).mockResolvedValue({
+        ...sampleRow,
+        tipoSolicitud: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      });
+      const svc = crearSvc(repo);
+      vi.mocked(enviarEmailPlantilla).mockClear();
+
+      await svc.adjuntarComprobanteFiscal("c1", DATOS, "facturacion@iimp.org.pe");
+
+      expect(enviarEmailPlantilla).not.toHaveBeenCalled();
     });
 
     it("rechaza adjuntar en una cuota pendiente", async () => {

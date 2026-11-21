@@ -11,6 +11,7 @@ export interface FacturacionRow {
   id: string;
   solicitudId: string;
   tipo: string;
+  tipoSolicitud: string | null;
   estado: string;
   montoTotal: number;
   moneda: string;
@@ -119,6 +120,7 @@ export interface DatosComprobanteFiscal {
 export interface RecordatorioCandidatoRow {
   facturacionId: string;
   solicitudId: string;
+  tipoSolicitud: string | null;
   standCode: string;
   empresa: string | null;
   /** Correo de facturacion del snapshot; si falta, el correo del usuario solicitante. */

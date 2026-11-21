@@ -8,6 +8,7 @@ import type { SgcStage } from "@/lib/shared/constants";
 import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
+import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
 import { normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
 import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
@@ -206,7 +207,7 @@ export class SgcWebhookApplicationService {
     if (!this.solicitudes || !this.auth) return;
     try {
       const detalle = await this.solicitudes.detalle(solicitudId);
-      if (!detalle?.email) return;
+      if (!detalle?.email || !permiteCorreosSolicitud(detalle.tipo)) return;
       const idioma = await resolverIdiomaDestinatario(this.auth, detalle.email);
       const nombre = detalle.userId ? (await this.solicitudes.findNombreUsuario(detalle.userId)) ?? "Estimad@" : "Estimad@";
       await enviarEmailPlantilla({

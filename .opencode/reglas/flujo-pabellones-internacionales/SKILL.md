@@ -203,4 +203,14 @@ plantillas/contrato-p38-operador-tags.docx
 - [ ] Verificar bandeja P38: `Revisión` y `Facturación`.
 - [ ] Verificar que una solicitud regular no muestre esos títulos.
 - [ ] Verificar filtro por tipo de solicitud.
+- [ ] Verificar que no se envie ningun correo para `reserva_empresa`.
 - [ ] Ejecutar `tsc`, ESLint y tests.
+
+## 13. Correos
+
+- Las solicitudes `tipo = reserva_empresa` **no envian correos** al cliente ni a receptores internos.
+- La supresion aplica a creacion, observacion del Asociado, observaciones/devoluciones/aprobaciones del SGC,
+  contrato observado, facturacion, comprobantes y recordatorios.
+- Usar `permiteCorreosSolicitud(tipoSolicitud)` antes de cualquier `enviarEmailPlantilla`.
+- No suprimir alertas in-app ni efectos de negocio.
+- Los correos de cuenta, seguridad y Debida Diligencia quedan fuera de esta regla.
