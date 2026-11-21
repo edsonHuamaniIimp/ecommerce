@@ -88,3 +88,19 @@ Cargar solo al tocar BD, migraciones, queries o schema:
 Al iniciar una sesión, leer `C:\Proyectos\IIMP\ContratosStands\.contexto-opencode\00-INDEX-y-contexto-general.md` (stack, glosario, reglas de trabajo transversales, índice de sesiones). Luego abrir **solo** el doc de `C:\Proyectos\IIMP\ContratosStands\.contexto-opencode\sesiones\` que toque el tema actual; no cargar todos. Si el usuario menciona una sesión anterior o importada (p. ej. "la sesión de Stitch" o "de debida diligencia"), buscarla ahí.
 
 Usar **siempre la ruta absoluta**: la carpeta es local y está ignorada por git, así que no existe dentro de los worktrees (`.claude\worktrees\...`). No contiene claves.
+
+## Ramas y entorno de trabajo
+
+Las ramas oficiales son **`qa` y `main`** (locales). Trabajar siempre sobre `qa`, directamente en el checkout `C:\Proyectos\IIMP\ContratosStands`, salvo que el usuario pida otra rama. No crear worktrees ni ramas nuevas por iniciativa propia. Commit/push solo con autorización explícita; `qa` y `main` se pushean por separado.
+
+## Reglas del proyecto para cualquier herramienta (Claude, opencode, otras)
+
+Las reglas viven en `.opencode/reglas/<nombre>/SKILL.md` y los skills de stack en `.opencode/skills/`. Claude Code no los descubre solo: leerlos con `Read` en el momento en que la tarea toque su área (no todos "por si acaso"). Ver la lista y descripciones arriba.
+
+Reglas transversales que aplican SIEMPRE (resumen de `.contexto-opencode`, índice, sección "Reglas de trabajo vigentes"):
+- 0 errores de `tsc --noEmit` y `eslint .`; tests con `vitest run`.
+- Constants-first, utils centralizados, sin `confirm()/alert()`, componentes del UI Kit, capas hexagonales respetadas.
+- PowerShell: nunca `Set-Content -Encoding UTF8` (agrega BOM); usar herramientas de edición o `[IO.File]::WriteAllText(..., UTF8Encoding($false))`.
+- Prisma: nunca `migrate dev` en local; migraciones a mano + `migrate resolve --applied`; no renombrar migraciones aplicadas.
+- El usuario corre `npm run dev`: no levantar ni matar el servidor. No usar `agent-browser`.
+- No tocar prod, AWS ni `terraform apply` sin autorización. No exponer credenciales.
