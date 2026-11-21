@@ -35,6 +35,32 @@ import type {
 
 const LARGO_MIN_RAZON_SOCIAL = 2;
 
+function partesNombrePersona(nombre: string | null | undefined): {
+  nombres: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string | null;
+} | null {
+  const limpio = String(nombre ?? "").trim().replace(/\s+/g, " ");
+  if (!limpio) return null;
+  if (limpio.includes(",")) {
+    const [apellidos, nombres] = limpio.split(",", 2).map((parte) => parte.trim());
+    const partesApellido = (apellidos ?? "").split(" ").filter(Boolean);
+    if (!nombres || partesApellido.length === 0) return null;
+    return {
+      nombres,
+      apellidoPaterno: partesApellido[0]!,
+      apellidoMaterno: partesApellido.slice(1).join(" ") || null,
+    };
+  }
+  const partes = limpio.split(" ").filter(Boolean);
+  if (partes.length < 2) return null;
+  return {
+    nombres: partes[0]!,
+    apellidoPaterno: partes[1]!,
+    apellidoMaterno: partes.slice(2).join(" ") || null,
+  };
+}
+
 /** Datos de la empresa a registrar en servicio-persona (si no existe en la fuente). */
 export interface RegistrarEmpresaFuenteInput {
   nombre: string;
@@ -241,6 +267,7 @@ export class EmpresaApplicationService {
   private async asegurarRepresentanteEnFuente(
     tipoDocumento: string,
     documento: string,
+    nombreCompleto: string | null,
     email: string | null,
     telefono: string | null,
     direccion: string | null,
@@ -259,7 +286,20 @@ export class EmpresaApplicationService {
       }
 
       if (tipoDocumento !== TIPOS_DOCUMENTO_PERSONA.DNI) {
-        return existente?.sie_code ?? null;
+        if (existente) return existente.sie_code ?? null;
+        const partes = partesNombrePersona(nombreCompleto);
+        if (!partes) return null;
+        const creada = await this.personaClient.crearPersona({
+          apellido_paterno: partes.apellidoPaterno,
+          apellido_materno: partes.apellidoMaterno,
+          nombres: partes.nombres,
+          id_tipo_documento: tipoDocumento,
+          documento,
+          direccion,
+          correo: email,
+          celular: telefono,
+        });
+        return creada.sie_code ?? null;
       }
 
       const datos = await this.consultaDocumento.consultarDni(documento).catch(() => null);
@@ -699,6 +739,7 @@ export class EmpresaApplicationService {
       representanteSieCode = await this.asegurarRepresentanteEnFuente(
         tipoRepresentante,
         documentoRepresentante,
+        limpiar(input.representanteLegalNombre),
         limpiar(input.representanteCorreo) ?? limpiar(input.emailContacto) ?? limpiar(input.emailFacturacion),
         limpiar(input.representanteCelular) ?? limpiar(input.telefono),
         limpiar(input.representanteDireccion) ?? limpiar(input.direccionFiscal),
@@ -899,6 +940,7 @@ export class EmpresaApplicationService {
     const sieCode = await this.asegurarRepresentanteEnFuente(
       tipoDocumento,
       documento,
+      limpiar(empresa.representanteLegalNombre),
       limpiar(empresa.representanteCorreo) ?? limpiar(empresa.emailContacto) ?? limpiar(empresa.emailFacturacion),
       limpiar(empresa.representanteCelular) ?? limpiar(empresa.telefono),
       limpiar(empresa.representanteDireccion) ?? limpiar(empresa.direccionFiscal),
@@ -913,9 +955,16 @@ export class EmpresaApplicationService {
         502,
       );
     }
-    const actualizada = await this.repo.update(id, { representanteSieCode: sieCode });
+    let actualizada = await this.repo.update(id, { representanteSieCode: sieCode });
     /* Alinea la cuenta vinculada (si no tenia persona en la fuente) para el sync del perfil. */
     await this.authRepo.actualizarSieCodeDeEmpresa(id, sieCode).catch(() => {});
+    if (!actualizada.representanteUserId) {
+      const email = limpiar(empresa.representanteCorreo)?.toLowerCase() ?? null;
+      const porEmail = email ? await this.authRepo.findByEmail(email).catch(() => []) : [];
+      const porRuc = empresa.ruc ? await this.authRepo.findByRuc(empresa.ruc).catch(() => []) : [];
+      const cuenta = [...porEmail, ...porRuc].find((c) => !c.empresaId || c.empresaId === id);
+      if (cuenta) actualizada = await this.repo.update(id, { representanteUserId: cuenta.userId });
+    }
     return actualizada;
   }
 
@@ -1325,6 +1374,7 @@ export class EmpresaApplicationService {
       ? await this.asegurarRepresentanteEnFuente(
           tipoRepresentante,
           documentoRepresentante,
+          limpiar(empresa.representanteLegalNombre),
           null,
           limpiar(empresa.representanteCelular),
           null,

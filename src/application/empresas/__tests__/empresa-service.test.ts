@@ -1226,6 +1226,35 @@ describe("EmpresaApplicationService.sincronizarRepresentante", () => {
     expect(consulta.consultarDni).not.toHaveBeenCalled();
   });
 
+  it("crea un carné inexistente en servicio-persona y vincula la cuenta", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({
+      ...empresaRep,
+      representanteLegalNombre: "Corinne Schirmer",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+      representanteLegalDni: "49101193",
+      representanteCorreo: "Correo@correo.com",
+      representanteUserId: null,
+    });
+    const personas = fakePersonaClient();
+    const auth = fakeAuthRepo({
+      cuentaRuc: { id: "ur-1", userId: "11111111-1111-4111-8111-111111111111", email: "acceso-20601234567@acceso.iimp" },
+    });
+    const service = crearServicio(repo, auth, fakeRoleRepo(), personas, fakeEmpresaClient(), fakeConsultaDocumento());
+
+    const empresa = await service.sincronizarRepresentante(creada.id);
+
+    expect(empresa.representanteSieCode).toBe("P0000012345");
+    expect(empresa.representanteUserId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(personas.crearPersona).toHaveBeenCalledWith(expect.objectContaining({
+      id_tipo_documento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+      documento: "49101193",
+      nombres: "Corinne",
+      apellido_paterno: "Schirmer",
+      correo: "Correo@correo.com",
+    }));
+  });
+
   it("rechaza vincular un documento que existe con otro tipo", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({
