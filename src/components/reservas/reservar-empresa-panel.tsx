@@ -57,6 +57,7 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import { convertirNeto, formatearMonto, tipoCambioValido } from "@/lib/shared/utils/moneda";
 import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { normalizarPabellon } from "@/lib/shared/utils/pabellon";
+import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 import { validarEmpresaReservaAdministrativa } from "@/lib/shared/utils/reserva-admin-readiness";
 import { estadoStandBadge } from "@/lib/shared/utils/estado-stand";
 import { normalizarTipoStand } from "@/lib/shared/utils/tipo-stand";
@@ -124,6 +125,11 @@ function badgeEstadoReservaAdmin(estado: string | null | undefined) {
   return estadoStandBadge(estado);
 }
 
+function etiquetaPreReservaStand(stand: GessStandDTO): string | null {
+  const etiqueta = (stand.preReservaRazonSocial ?? stand.preReservaTitulo ?? stand.empresa ?? "").trim();
+  return etiqueta || null;
+}
+
 function empresaAccesoDesdeDTO(empresa: EmpresaDTO): EmpresaAccesoDTO {
   return {
     empresaId: empresa.id,
@@ -151,6 +157,7 @@ export function ReservarEmpresaPanel() {
   const [cargandoStands, setCargandoStands] = useState(true);
   const [search, setSearch] = useState("");
   const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
+  const [empresaPreReserva, setEmpresaPreReserva] = useState<string>(UI_SENTINEL.TODOS);
   const [tipo, setTipo] = useState<string>(UI_SENTINEL.TODOS);
   const [estadoFiltro, setEstadoFiltro] = useState<string>(ESTADOS_STAND.PRE_RESERVADO);
   const [page, setPage] = useState(1);
@@ -291,19 +298,41 @@ export function ReservarEmpresaPanel() {
     ).sort(),
     [stands],
   );
+  const empresasPreReserva = useMemo(() => {
+    const etiquetas = new Map<string, string>();
+    for (const stand of stands) {
+      if (stand.estado !== ESTADOS_STAND.PRE_RESERVADO) continue;
+      if (pabellon !== UI_SENTINEL.TODOS && normalizarPabellon(stand.pabellon) !== pabellon) continue;
+      const etiqueta = etiquetaPreReservaStand(stand);
+      if (!etiqueta) continue;
+      const clave = normalizarTexto(etiqueta);
+      if (clave && !etiquetas.has(clave)) etiquetas.set(clave, etiqueta);
+    }
+    return Array.from(etiquetas.values()).sort((a, b) => a.localeCompare(b, "es"));
+  }, [pabellon, stands]);
+  const empresaPreReservaActiva =
+    empresaPreReserva === UI_SENTINEL.TODOS || empresasPreReserva.includes(empresaPreReserva)
+      ? empresaPreReserva
+      : UI_SENTINEL.TODOS;
   const filtrados = useMemo(() => {
     const term = search.trim().toLowerCase();
+    const empresaFiltro = normalizarTexto(empresaPreReservaActiva);
     return stands.filter((stand) => {
       const pabellonStand = normalizarPabellon(stand.pabellon);
       if (estadoFiltro !== UI_SENTINEL.TODOS && stand.estado !== estadoFiltro) return false;
       if (pabellon !== UI_SENTINEL.TODOS && pabellonStand !== pabellon) return false;
       if (tipo !== UI_SENTINEL.TODOS && normalizarTipoStand(stand.tipoStand) !== tipo) return false;
+      if (empresaPreReservaActiva !== UI_SENTINEL.TODOS) {
+        if (stand.estado !== ESTADOS_STAND.PRE_RESERVADO) return false;
+        const etiqueta = etiquetaPreReservaStand(stand);
+        if (!etiqueta || normalizarTexto(etiqueta) !== empresaFiltro) return false;
+      }
       if (!term) return true;
       return [stand.standCode, normalizarTipoStand(stand.tipoStand), pabellonStand]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
     });
-  }, [estadoFiltro, pabellon, search, stands, tipo]);
+  }, [empresaPreReservaActiva, estadoFiltro, pabellon, search, stands, tipo]);
   const disponibles = stands.filter((stand) => stand.estado === ESTADOS_STAND.DISPONIBLE).length;
   const preReservados = stands.filter((stand) => stand.estado === ESTADOS_STAND.PRE_RESERVADO).length;
   const totalPages = Math.max(1, Math.ceil(filtrados.length / perPage));
@@ -315,6 +344,7 @@ export function ReservarEmpresaPanel() {
   const hayFiltros =
     search.trim().length > 0 ||
     pabellon !== UI_SENTINEL.TODOS ||
+    empresaPreReservaActiva !== UI_SENTINEL.TODOS ||
     tipo !== UI_SENTINEL.TODOS ||
     estadoFiltro !== ESTADOS_STAND.PRE_RESERVADO;
 
@@ -476,9 +506,13 @@ export function ReservarEmpresaPanel() {
     });
   };
 
-  const cambiarFiltro = (cambios: Partial<{ search: string; pabellon: string; tipo: string; estado: string }>) => {
+  const cambiarFiltro = (cambios: Partial<{ search: string; pabellon: string; empresaPreReserva: string; tipo: string; estado: string }>) => {
     if (cambios.search !== undefined) setSearch(cambios.search);
-    if (cambios.pabellon !== undefined) setPabellon(cambios.pabellon);
+    if (cambios.pabellon !== undefined) {
+      setPabellon(cambios.pabellon);
+      setEmpresaPreReserva(UI_SENTINEL.TODOS);
+    }
+    if (cambios.empresaPreReserva !== undefined) setEmpresaPreReserva(cambios.empresaPreReserva);
     if (cambios.tipo !== undefined) setTipo(cambios.tipo);
     if (cambios.estado !== undefined) setEstadoFiltro(cambios.estado);
     setPage(1);
@@ -487,6 +521,7 @@ export function ReservarEmpresaPanel() {
   const limpiarFiltros = () => {
     setSearch("");
     setPabellon(UI_SENTINEL.TODOS);
+    setEmpresaPreReserva(UI_SENTINEL.TODOS);
     setTipo(UI_SENTINEL.TODOS);
     setEstadoFiltro(ESTADOS_STAND.PRE_RESERVADO);
     setPage(1);
@@ -679,7 +714,8 @@ export function ReservarEmpresaPanel() {
             <Skeleton className="mt-2 h-3 w-72" />
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto]">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_150px_150px_150px_auto]">
+              <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
@@ -780,7 +816,7 @@ export function ReservarEmpresaPanel() {
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto]">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_150px_150px_150px_auto]">
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground"><span>Buscar</span></Label>
                 <div className="relative">
@@ -792,6 +828,24 @@ export function ReservarEmpresaPanel() {
                     className="h-8 pl-8 text-xs"
                   />
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground"><span>Empresa / titulo</span></Label>
+                <Select
+                  value={empresaPreReservaActiva}
+                  onValueChange={(value) => cambiarFiltro({ empresaPreReserva: value })}
+                  disabled={empresasPreReserva.length === 0}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder={empresasPreReserva.length === 0 ? "Sin pre-reservas" : "Todas las empresas"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UI_SENTINEL.TODOS}><span>Todas las empresas</span></SelectItem>
+                    {empresasPreReserva.map((item) => (
+                      <SelectItem key={item} value={item}><span>{item}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground"><span>Pabellon</span></Label>
@@ -862,6 +916,7 @@ export function ReservarEmpresaPanel() {
                       {visibles.map((stand) => {
                         const estado = badgeEstadoReservaAdmin(stand.estado);
                         const seleccionable = esStandSeleccionableAdmin(stand);
+                        const etiquetaPreReserva = etiquetaPreReservaStand(stand);
                         return (
                           <TableRow
                             key={stand.id}
@@ -883,8 +938,8 @@ export function ReservarEmpresaPanel() {
                             <TableCell>
                               {estado ? <Badge className={`pointer-events-none text-[9px] ${estado.clase}`}><span>{estado.texto}</span></Badge> : "-"}
                               {stand.estado === ESTADOS_STAND.PRE_RESERVADO && (
-                                <span className="mt-0.5 block max-w-[180px] truncate text-[10px] text-muted-foreground" title={stand.preReservaRazonSocial ?? stand.preReservaTitulo ?? undefined}>
-                                  {stand.preReservaRazonSocial ?? stand.preReservaTitulo ?? "Sin empresa"}
+                                <span className="mt-0.5 block max-w-[180px] truncate text-[10px] text-muted-foreground" title={etiquetaPreReserva ?? undefined}>
+                                  {etiquetaPreReserva ?? "Sin empresa"}
                                 </span>
                               )}
                             </TableCell>
