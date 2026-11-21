@@ -13,6 +13,14 @@ import { etiquetaTipoDocumentoEmpresa, normalizarDocumentoEmpresa, resolverTipoD
 import type { EmpresaDTO, EmpresaFuenteDTO } from "@/types/dto/empresas";
 import { PaisSelect } from "@/components/shared/pais-select";
 import { RepresentanteLegalModal } from "./representante-legal-modal";
+import { RepresentantesAdicionalesEditor } from "@/components/empresa/representantes-adicionales-editor";
+import {
+  erroresRepresentantesAdicionales,
+  representanteAdicionalDesdeDTO,
+  representanteAdicionalPayload,
+  type RepresentanteAdicionalErrores,
+  type RepresentanteAdicionalForm,
+} from "@/lib/shared/utils/representantes-adicionales";
 
 interface Props {
   /** Empresa a editar; null = alta. */
@@ -115,6 +123,10 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const [mostrarFormulario, setMostrarFormulario] = useState(empresa !== null);
   /* Representante legal: modal adicional (dato del contrato). */
   const [repModalOpen, setRepModalOpen] = useState(false);
+  const [representantesAdicionales, setRepresentantesAdicionales] = useState<RepresentanteAdicionalForm[]>(
+    () => (empresa?.representantesAdicionales ?? []).map(representanteAdicionalDesdeDTO),
+  );
+  const [erroresAdicionales, setErroresAdicionales] = useState<RepresentanteAdicionalErrores[]>([]);
   const logoRef = useRef<HTMLInputElement>(null);
   const esEdicion = empresa !== null;
   /* Documento de empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
@@ -321,8 +333,15 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
     if (form.emailFacturacion.trim() && !REGEX_EMAIL.test(form.emailFacturacion.trim())) {
       nuevos.emailFacturacion = "Correo invalido";
     }
+    const erroresReps = erroresRepresentantesAdicionales(representantesAdicionales);
+    const hayErroresReps = erroresReps.some((error) => Object.keys(error).length > 0);
+    if (hayErroresReps) {
+      setErroresAdicionales(erroresReps);
+    } else {
+      setErroresAdicionales([]);
+    }
     setErrores(nuevos);
-    return Object.keys(nuevos).length === 0;
+    return Object.keys(nuevos).length === 0 && !hayErroresReps;
   };
 
   const handleSubmit = async () => {
@@ -369,6 +388,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
         representanteFotoUrl: form.representanteFotoUrl || null,
         tipoComprobante: form.tipoComprobante,
         sitioWeb: form.sitioWeb.trim() || null,
+        representantesAdicionales: representantesAdicionales.map(representanteAdicionalPayload),
       };
       if (esEdicion && empresa) {
         await empresasService.actualizar({ id: empresa.id, ...payload });
@@ -585,6 +605,14 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             />
           </div>
           {controlRepresentante}
+          <RepresentantesAdicionalesEditor
+            value={representantesAdicionales}
+            onChange={(valor) => {
+              setRepresentantesAdicionales(valor);
+              setErroresAdicionales([]);
+            }}
+            errores={erroresAdicionales}
+          />
           <div>
             <Label className="text-xs">Logo de la empresa</Label>
             <div className="mt-1 flex items-center gap-3">

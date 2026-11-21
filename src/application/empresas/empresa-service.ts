@@ -807,6 +807,10 @@ export class EmpresaApplicationService {
         .updatePerfil(correo, { idEmpresa: sieCode, nombreEmpresa: razonSocial, empresaId: empresa.id })
         .catch(() => {});
     }
+    if (input.representantesAdicionales !== undefined) {
+      await this.repo.replaceRepresentantesAdicionales(empresa.id, input.representantesAdicionales);
+      return this.obtener(empresa.id);
+    }
     return empresa;
   }
 
@@ -892,7 +896,7 @@ export class EmpresaApplicationService {
       cambios.representanteSieCode = null;
     }
 
-    const actualizada = await this.repo.update(id, cambios);
+    let actualizada = await this.repo.update(id, cambios);
 
     /*
      * Si cambia el correo del representante, la cuenta vinculada debe seguirlo.
@@ -904,8 +908,13 @@ export class EmpresaApplicationService {
       const cuentas = correo ? await this.authRepo.findByEmail(correo).catch(() => []) : [];
       const cuenta = cuentas.find((c) => !c.empresaId || c.empresaId === id) ?? null;
       if (cuenta?.userId !== actualizada.representanteUserId) {
-        return this.repo.update(id, { representanteUserId: cuenta?.userId ?? null });
+        actualizada = await this.repo.update(id, { representanteUserId: cuenta?.userId ?? null });
       }
+    }
+
+    if (input.representantesAdicionales !== undefined) {
+      await this.repo.replaceRepresentantesAdicionales(id, input.representantesAdicionales);
+      actualizada = (await this.obtener(id)) ?? actualizada;
     }
 
     return actualizada;

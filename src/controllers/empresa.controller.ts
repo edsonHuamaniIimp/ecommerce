@@ -20,6 +20,7 @@ import {
   registrarCuentaEmpresaSchema,
 } from "@/validators/empresas.validator";
 import { TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
+import { mismoConjuntoRepresentantes } from "@/lib/shared/utils/representantes-adicionales";
 import type { CrearEmpresaRequestDTO } from "@/types/dto/empresas";
 
 const PER_PAGE_DEFAULT = 10;
@@ -100,8 +101,18 @@ export const empresaController = {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues.map((i) => i.message).join("; "), 400);
     }
     const { id, ...cambios } = parsed.data;
+    const antes = await services.empresas.obtener(id);
     const empresa = await services.empresas.actualizar(id, cambios);
-    return success(mapEmpresaToDTO(empresa));
+    const cambiaronRepresentantes =
+      cambios.representantesAdicionales !== undefined &&
+      !mismoConjuntoRepresentantes(
+        antes.representantesAdicionales ?? [],
+        empresa.representantesAdicionales ?? [],
+      );
+    const contratosRegenerados = cambiaronRepresentantes
+      ? await services.contrato.regenerarPorCambioRepresentantes(id).catch(() => 0)
+      : 0;
+    return success({ ...mapEmpresaToDTO(empresa), contratosRegenerados });
   },
 
   /** Configura el cronograma personalizado de cuotas (Modalidad 4) o lo elimina. */

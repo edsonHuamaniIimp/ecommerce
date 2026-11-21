@@ -88,6 +88,7 @@ const empresaBaseSchema = z.object({
   representanteFotoUrl: z.string().max(2048).optional().nullable(),
   tipoComprobante: z.enum([TIPOS_COMPROBANTE.FACTURA, TIPOS_COMPROBANTE.BOLETA]).optional().nullable(),
   sitioWeb: z.string().trim().max(200).optional().nullable(),
+  representantesAdicionales: z.array(representanteAdicionalSchema).max(MAX_REPRESENTANTES_ADICIONALES, `Maximo ${MAX_REPRESENTANTES_ADICIONALES} representantes adicionales`).optional(),
 });
 
 /** Documento valido segun su tipo (autodetectado si no viene explicito). */

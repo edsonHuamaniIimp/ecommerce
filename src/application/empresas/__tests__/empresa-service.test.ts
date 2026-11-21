@@ -515,6 +515,29 @@ describe("EmpresaApplicationService.actualizar", () => {
     expect(empresa.pais).toBe("CL");
   });
 
+  it("guarda representantes adicionales al actualizar la empresa", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });
+    const service = crearServicio(repo);
+
+    const empresa = await service.actualizar(creada.id, {
+      representantesAdicionales: [{
+        nombre: "Corinne Schirmer",
+        tipoDocumento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA,
+        documento: "49101193",
+        correo: "Correo@correo.com",
+        celular: "+51 987 654 321",
+        direccion: "Av. Arequipa 1250, Lince",
+      }],
+    });
+
+    expect(empresa.representantesAdicionales).toHaveLength(1);
+    expect(empresa.representantesAdicionales?.[0]).toMatchObject({
+      nombre: "Corinne Schirmer",
+      documento: "49101193",
+    });
+  });
+
   it("actualiza el vinculo del representante al cambiar su correo", async () => {
     const repo = new FakeEmpresaRepo();
     const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C." });

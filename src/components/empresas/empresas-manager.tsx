@@ -85,6 +85,21 @@ export function EmpresasManager() {
    * Abre el detalle con la fila actual y completa representantes adicionales,
    * correo de notificaciones y demas datos que no viajan en el listado.
    */
+  const abrirFormulario = async (empresa: EmpresaDTO | null) => {
+    if (!empresa) {
+      setEditando(null);
+      setFormOpen(true);
+      return;
+    }
+    try {
+      const detalle = await empresasService.detalle(empresa.id);
+      setEditando(detalle);
+      setFormOpen(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo cargar la empresa para editar");
+    }
+  };
+
   const abrirDetalle = async (empresa: EmpresaDTO) => {
     const seq = ++detalleSeqRef.current;
     setDetalleEmpresa(empresa);
@@ -476,7 +491,7 @@ export function EmpresasManager() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 w-7 p-0"
-                                onClick={() => { setEditando(empresa); setFormOpen(true); }}
+                                onClick={() => { void abrirFormulario(empresa); }}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
