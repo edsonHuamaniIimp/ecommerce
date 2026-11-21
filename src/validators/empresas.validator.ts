@@ -99,10 +99,22 @@ function documentoEmpresaValido(v: { ruc?: string; tipoDocumento?: string | null
 }
 
 /** Alta de empresa (backoffice). */
-export const crearEmpresaSchema = empresaBaseSchema.refine(documentoEmpresaValido, {
-  message: "Documento de empresa invalido (RUC de 11 digitos o RUT alfanumerico hasta 20)",
-  path: ["ruc"],
-});
+export const crearEmpresaSchema = empresaBaseSchema
+  .refine((v) => Boolean(v.tipoDocumento), {
+    message: "Selecciona el tipo de documento (RUC o RUT)",
+    path: ["tipoDocumento"],
+  })
+  .refine(documentoEmpresaValido, {
+    message: "Documento de empresa invalido (RUC de 11 digitos o RUT alfanumerico hasta 20)",
+    path: ["ruc"],
+  })
+  .refine(
+    (v) => Boolean(v.emailContacto?.trim() || v.emailFacturacion?.trim() || v.representanteCorreo?.trim()),
+    {
+      message: "Ingresa al menos un correo de contacto, facturacion o representante",
+      path: ["emailFacturacion"],
+    },
+  );
 
 /** Edicion parcial (solo campos enviados); si llega el documento, se valida igual. */
 export const actualizarEmpresaSchema = empresaBaseSchema

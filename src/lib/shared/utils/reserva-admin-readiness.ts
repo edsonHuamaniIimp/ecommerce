@@ -1,15 +1,17 @@
 import {
   MONEDAS,
   REGEX_DNI,
-  REGEX_RUC,
   TIPOS_COMPROBANTE,
   type TipoComprobante,
 } from "@/lib/shared/constants";
+import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "./documento-empresa";
 
 /** Datos minimos de la empresa que alimentan el contrato y la facturacion. */
 export interface EmpresaReservaAdminFuente {
   razonSocial?: string | null;
   ruc?: string | null;
+  tipoDocumento?: string | null;
+  pais?: string | null;
   direccionFiscal?: string | null;
   representanteUserId?: string | null;
   representanteLegalNombre?: string | null;
@@ -47,7 +49,10 @@ export function validarEmpresaReservaAdministrativa(
   const faltantesRepresentante: string[] = [];
   const faltantesGenerales: string[] = [];
   const faltantesPago: string[] = [];
-  const ruc = texto(empresa.ruc).replace(/\D/g, "");
+  const documento = normalizarDocumentoEmpresa(empresa.ruc);
+  const tipoDocumento = documento
+    ? resolverTipoDocumentoEmpresa(empresa.tipoDocumento, documento)
+    : null;
   const dni = texto(empresa.representanteLegalDni).replace(/\D/g, "");
   const email =
     texto(empresa.representanteCorreo) ||
@@ -55,7 +60,7 @@ export function validarEmpresaReservaAdministrativa(
     texto(empresa.emailContacto);
 
   if (!texto(empresa.razonSocial)) faltantesEmpresa.push("razón social");
-  if (!REGEX_RUC.test(ruc)) faltantesEmpresa.push("RUC de 11 dígitos");
+  if (!tipoDocumento || validarDocumentoEmpresa(tipoDocumento, documento)) faltantesEmpresa.push("RUC de 11 dígitos");
   if (!texto(empresa.direccionFiscal)) faltantesEmpresa.push("dirección fiscal");
   if (!email) faltantesEmpresa.push("correo de facturación");
   if (!texto(empresa.representanteUserId)) faltantesRepresentante.push("cuenta vinculada");

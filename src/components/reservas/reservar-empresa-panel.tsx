@@ -130,6 +130,8 @@ function empresaAccesoDesdeDTO(empresa: EmpresaDTO): EmpresaAccesoDTO {
     idEmpresa: empresa.sieCode ?? "",
     nombreEmpresa: empresa.razonSocial,
     ruc: empresa.ruc,
+    tipoDocumentoEmpresa: empresa.tipoDocumento,
+    pais: empresa.pais,
     tipoComprobante: empresa.tipoComprobante,
     representanteUserId: empresa.representanteUserId ?? null,
     representanteLegalNombre: empresa.representanteLegalNombre,
@@ -335,7 +337,7 @@ export function ReservarEmpresaPanel() {
   const representanteVinculado = Boolean(empresa?.representanteUserId);
   const readiness = empresa
     ? validarEmpresaReservaAdministrativa(
-        { ...empresa, razonSocial: empresa.nombreEmpresa },
+        { ...empresa, tipoDocumento: empresa.tipoDocumentoEmpresa, razonSocial: empresa.nombreEmpresa },
         tipoComprobante,
         moneda,
       )

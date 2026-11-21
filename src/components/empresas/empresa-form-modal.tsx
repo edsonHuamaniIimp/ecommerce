@@ -23,6 +23,7 @@ interface Props {
 
 interface FormState {
   ruc: string;
+  tipoDocumento: string;
   razonSocial: string;
   pais: string;
   logoUrl: string;
@@ -46,6 +47,7 @@ interface FormState {
 function formDesdeEmpresa(empresa: EmpresaDTO | null): FormState {
   return {
     ruc: empresa?.ruc ?? "",
+    tipoDocumento: empresa?.tipoDocumento ?? "",
     razonSocial: empresa?.razonSocial ?? "",
     pais: empresa?.pais ?? "PE",
     logoUrl: empresa?.logoUrl ?? "",
@@ -117,7 +119,9 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   const esEdicion = empresa !== null;
   /* Documento de empresa: RUC (11 digitos) o RUT/no domiciliado (alfanumerico hasta 20). */
   const documentoEmpresa = normalizarDocumentoEmpresa(form.ruc);
-  const tipoDocumentoEmpresa = documentoEmpresa ? resolverTipoDocumentoEmpresa(null, documentoEmpresa) : null;
+  const tipoDocumentoEmpresa = documentoEmpresa
+    ? resolverTipoDocumentoEmpresa(form.tipoDocumento || null, documentoEmpresa)
+    : null;
   const documentoEmpresaValido =
     tipoDocumentoEmpresa !== null && validarDocumentoEmpresa(tipoDocumentoEmpresa, documentoEmpresa) === null;
 
@@ -139,7 +143,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
     setForm((prev) => ({ ...prev, [campo]: valor }));
     setErrores((prev) => ({ ...prev, [campo]: undefined }));
     setErrorGeneral(null);
-    if (campo === "ruc" || campo === "razonSocial") {
+    if (campo === "ruc" || campo === "razonSocial" || campo === "tipoDocumento") {
       setConsultado(false);
       setDuplicadaLocal(null);
       setEncontradaFuente(null);
@@ -160,6 +164,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
       ...prev,
       /* El documento hallado (RUC o RUT) se copia para poder enriquecer con SUNAT. */
       ruc: prev.ruc.trim() || (docFuenteValido ? docFuente : prev.ruc),
+      tipoDocumento: prev.tipoDocumento || tipoFuente || "",
       razonSocial: prev.razonSocial.trim() || fuente.nombre,
       direccionFiscal: prev.direccionFiscal.trim() || (fuente.direccion ?? ""),
       telefono: prev.telefono.trim() || (fuente.telefono ?? ""),
@@ -297,11 +302,18 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
 
   const validar = (): boolean => {
     const nuevos: Partial<Record<keyof FormState, string>> = {};
+    if (!form.tipoDocumento) nuevos.tipoDocumento = "Selecciona si es RUC o RUT";
     if (!form.razonSocial.trim()) nuevos.razonSocial = "La razon social es obligatoria";
     if (!documentoEmpresaValido) {
       nuevos.ruc = tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC
         ? "El RUC debe tener 11 digitos"
-        : "Ingresa un RUC (11 digitos) o RUT/documento extranjero (hasta 20)";
+        : "Ingresa un RUT/documento extranjero valido (hasta 20 caracteres)";
+    }
+    const correos = [form.emailContacto, form.emailFacturacion, form.representanteCorreo]
+      .map((correo) => correo.trim())
+      .filter(Boolean);
+    if (correos.length === 0) {
+      nuevos.emailFacturacion = "Ingresa al menos un correo de contacto, facturacion o representante";
     }
     if (form.emailContacto.trim() && !REGEX_EMAIL.test(form.emailContacto.trim())) {
       nuevos.emailContacto = "Correo invalido";
@@ -429,7 +441,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             {esEdicion ? "Editar empresa" : "Nueva empresa"}
           </DialogTitle>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            La razon social, RUC, direccion y representante legal alimentan el contrato: la empresa debera
+            La razon social, documento (RUC/RUT), direccion y representante legal alimentan el contrato: la empresa debera
             validarlos en su primer acceso al portal.
           </p>
         </DialogHeader>
@@ -468,6 +480,19 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             </div>
           ) : (
             <>
+          <div>
+            <Label className="text-xs">Tipo de documento <span className="text-destructive">*</span></Label>
+            <Select value={form.tipoDocumento || undefined} onValueChange={(value) => setCampo("tipoDocumento", value)}>
+              <SelectTrigger className={`mt-1 h-9 text-sm ${errores.tipoDocumento ? "border-destructive" : ""}`}>
+                <SelectValue placeholder="Selecciona RUC o RUT" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={TIPOS_DOCUMENTO_EMPRESA.RUC}>RUC (Peru, 11 digitos)</SelectItem>
+                <SelectItem value={TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO}>RUT / No domiciliado</SelectItem>
+              </SelectContent>
+            </Select>
+            {errores.tipoDocumento && <p className="mt-1 text-[11px] text-destructive">{errores.tipoDocumento}</p>}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Razon social" requerido valor={form.razonSocial} onChange={(v) => setCampo("razonSocial", v)} error={errores.razonSocial} placeholder="Minera Cordillera S.A.C." />
             <div>
@@ -543,6 +568,9 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
             <CampoForm label="Correo de contacto" tipo="email" valor={form.emailContacto} onChange={(v) => setCampo("emailContacto", v)} error={errores.emailContacto} placeholder="contacto@empresa.pe" />
             <CampoForm label="Correo de facturacion" tipo="email" valor={form.emailFacturacion} onChange={(v) => setCampo("emailFacturacion", v)} error={errores.emailFacturacion} placeholder="facturacion@empresa.pe" />
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            Registra al menos un correo: contacto, facturacion o el correo del representante legal.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <CampoForm label="Telefono" valor={form.telefono} onChange={(v) => setCampo("telefono", v)} placeholder="+51 987 654 321" />
             <CampoForm label="Sitio web" valor={form.sitioWeb} onChange={(v) => setCampo("sitioWeb", v)} placeholder="www.empresa.pe" />

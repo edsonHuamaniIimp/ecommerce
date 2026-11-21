@@ -3,13 +3,23 @@ import { TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/c
 import { actualizarEmpresaSchema, configurarCuotasEmpresaSchema, crearEmpresaSchema, validarDatosEmpresaSchema } from "../empresas.validator";
 
 describe("crearEmpresaSchema (documento RUC o RUT)", () => {
-  it("acepta un RUC de 11 digitos (autodetectado)", () => {
-    const r = crearEmpresaSchema.safeParse({ ruc: "20601234567", razonSocial: "Minera Demo S.A.C." });
+  it("acepta un RUC de 11 digitos con tipo explicito y correo", () => {
+    const r = crearEmpresaSchema.safeParse({
+      ruc: "20601234567",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      emailContacto: "contacto@minera.pe",
+      razonSocial: "Minera Demo S.A.C.",
+    });
     expect(r.success).toBe(true);
   });
 
-  it("acepta un RUT alfanumerico autodetectado", () => {
-    const r = crearEmpresaSchema.safeParse({ ruc: "FR48305461063", razonSocial: "RBL REI SAS" });
+  it("acepta un RUT alfanumerico con tipo explicito y correo", () => {
+    const r = crearEmpresaSchema.safeParse({
+      ruc: "FR48305461063",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+      emailFacturacion: "facturacion@rblrei.fr",
+      razonSocial: "RBL REI SAS",
+    });
     expect(r.success).toBe(true);
   });
 
@@ -17,6 +27,7 @@ describe("crearEmpresaSchema (documento RUC o RUT)", () => {
     const r = crearEmpresaSchema.safeParse({
       ruc: "903200006",
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+      emailContacto: "contacto@cem.cl",
       razonSocial: "Compania Electro Metalurgica S.A.",
     });
     expect(r.success).toBe(true);
@@ -26,13 +37,32 @@ describe("crearEmpresaSchema (documento RUC o RUT)", () => {
     const r = crearEmpresaSchema.safeParse({
       ruc: "2060123456",
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      emailContacto: "contacto@minera.pe",
       razonSocial: "Minera Demo S.A.C.",
     });
     expect(r.success).toBe(false);
   });
 
+  it("exige el tipo de documento y al menos un correo", () => {
+    expect(crearEmpresaSchema.safeParse({
+      ruc: "20601234567",
+      emailContacto: "contacto@minera.pe",
+      razonSocial: "Minera Demo S.A.C.",
+    }).success).toBe(false);
+    expect(crearEmpresaSchema.safeParse({
+      ruc: "20601234567",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      razonSocial: "Minera Demo S.A.C.",
+    }).success).toBe(false);
+  });
+
   it("rechaza un documento vacio", () => {
-    const r = crearEmpresaSchema.safeParse({ ruc: "", razonSocial: "Minera Demo S.A.C." });
+    const r = crearEmpresaSchema.safeParse({
+      ruc: "",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      emailContacto: "contacto@minera.pe",
+      razonSocial: "Minera Demo S.A.C.",
+    });
     expect(r.success).toBe(false);
   });
 });
@@ -52,6 +82,7 @@ describe("actualizarEmpresaSchema (parcial)", () => {
 describe("validarDatosEmpresaSchema", () => {
   const base = {
     ruc: "20601234567",
+    tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
     pais: "PE",
     razonSocial: "Minera Demo S.A.C.",
     inicioOperaciones: "2020-01-15",

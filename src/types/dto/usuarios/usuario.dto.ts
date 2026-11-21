@@ -29,8 +29,12 @@ export interface EmpresaAccesoDTO {
   empresaId?: string | null;
   idEmpresa: string;
   nombreEmpresa: string;
-  /** RUC opcional: si existe una empresa local con ese RUC se vincula tambien la FK. */
+  /** Documento de la empresa: RUC o RUT/no domiciliado. */
   ruc?: string | null;
+  /** Tipo de documento de la empresa (TIPOS_DOCUMENTO_EMPRESA). */
+  tipoDocumentoEmpresa?: string | null;
+  /** Pais ISO 3166-1 alpha-2. */
+  pais?: string | null;
   /** Comprobante por defecto de la ficha local (factura/boleta). */
   tipoComprobante?: string | null;
   /** Cuenta local del representante legal; obligatoria para reserva administrativa. */

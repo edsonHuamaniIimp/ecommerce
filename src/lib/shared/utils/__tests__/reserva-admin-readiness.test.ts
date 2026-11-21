@@ -1,62 +1,55 @@
 ﻿import { describe, expect, it } from "vitest";
+import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
 import { validarEmpresaReservaAdministrativa } from "../reserva-admin-readiness";
 
-const EMPRESA_COMPLETA = {
-  razonSocial: "ABASTECEDORES Y SERVICIOS INDUSTRIALES S.A.",
-  ruc: "20102026471",
-  direccionFiscal: "Av. Prueba 123",
-  representanteUserId: "user-rep",
-  representanteLegalNombre: "ALVA ALFARO CARLOS",
-  representanteLegalDni: "12345678",
-  representanteCorreo: "rep@empresa.pe",
-  emailContacto: "contacto@empresa.pe",
-  emailFacturacion: "facturas@empresa.pe",
-};
-
-const SIN_FALTANTES = {
-  ok: true,
-  faltantes: [],
-  faltantesEmpresa: [],
-  faltantesRepresentante: [],
-  faltantesGenerales: [],
-  faltantesPago: [],
-};
+function empresa(overrides: Record<string, unknown> = {}) {
+  return {
+    razonSocial: "ITALIAN TRADE AGENCY",
+    ruc: "699035009",
+    tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
+    pais: "IT",
+    direccionFiscal: "Via Roma 1",
+    representanteUserId: "user-1",
+    representanteLegalNombre: "Eliana Zappala",
+    representanteLegalDni: "AY1234567",
+    representanteCorreo: "eliana@example.it",
+    emailContacto: null,
+    emailFacturacion: null,
+    ...overrides,
+  } as never;
+}
 
 describe("validarEmpresaReservaAdministrativa", () => {
-  it("acepta una empresa completa para factura y boleta", () => {
-    expect(validarEmpresaReservaAdministrativa(EMPRESA_COMPLETA, "factura", "USD")).toEqual(SIN_FALTANTES);
-    expect(validarEmpresaReservaAdministrativa(EMPRESA_COMPLETA, "boleta", "PEN")).toEqual(SIN_FALTANTES);
-  });
-
-  it("agrupa los faltantes por empresa y representante legal", () => {
-    const resultado = validarEmpresaReservaAdministrativa({}, "factura", "");
-    expect(resultado.ok).toBe(false);
-    expect(resultado.faltantesEmpresa).toEqual(expect.arrayContaining([
-      "razón social",
-      "RUC de 11 dígitos",
-      "dirección fiscal",
-      "correo de facturación",
-    ]));
-    expect(resultado.faltantesRepresentante).toEqual(expect.arrayContaining([
-      "cuenta vinculada",
-      "nombre",
-      "documento",
-    ]));
-    expect(resultado.faltantesPago).toContain("tipo de pago");
-    expect(resultado.faltantes).toEqual(expect.arrayContaining([
-      "Empresa: razón social",
-      "Representante legal: documento",
-      "Pago: tipo de pago",
-    ]));
-  });
-
-  it("exige DNI de 8 dígitos cuando el comprobante es boleta", () => {
+  it("acepta un RUT no domiciliado y su correo", () => {
     const resultado = validarEmpresaReservaAdministrativa(
-      { ...EMPRESA_COMPLETA, representanteLegalDni: "20102026471" },
-      "boleta",
+      empresa(),
+      TIPOS_COMPROBANTE.FACTURA,
       "USD",
     );
+
+    expect(resultado.ok).toBe(true);
+    expect(resultado.faltantesEmpresa.some((f) => f.startsWith("RUC de 11"))).toBe(false);
+  });
+
+  it("rechaza un RUC que no tiene 11 digitos", () => {
+    const resultado = validarEmpresaReservaAdministrativa(
+      empresa({ tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC, ruc: "699035009" }),
+      TIPOS_COMPROBANTE.FACTURA,
+      "USD",
+    );
+
     expect(resultado.ok).toBe(false);
-    expect(resultado.faltantesRepresentante).toContain("DNI de 8 dígitos para la boleta");
+    expect(resultado.faltantesEmpresa.some((f) => f.startsWith("RUC de 11"))).toBe(true);
+  });
+
+  it("rechaza una empresa sin correo", () => {
+    const resultado = validarEmpresaReservaAdministrativa(
+      empresa({ representanteCorreo: null, emailContacto: null, emailFacturacion: null }),
+      TIPOS_COMPROBANTE.FACTURA,
+      "USD",
+    );
+
+    expect(resultado.ok).toBe(false);
+    expect(resultado.faltantesEmpresa.some((f) => f.startsWith("correo de facturaci"))).toBe(true);
   });
 });

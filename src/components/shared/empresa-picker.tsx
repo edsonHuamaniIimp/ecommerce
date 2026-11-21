@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { entidadesService, type EmpresaEntidadDTO } from "@/lib/client/api/services/entidades-service";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import type { EmpresaAccesoDTO } from "@/types/dto/usuarios/usuario.dto";
+import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 
 /** Origen de la busqueda de empresa: local (backoffice) o catalogo SIE (API de entidades). */
 export type FuenteEmpresa = "local" | "sie";
@@ -19,6 +20,8 @@ interface OpcionEmpresa {
   idEmpresa: string;
   nombreEmpresa: string;
   ruc: string | null;
+  tipoDocumento: string | null;
+  pais: string | null;
   tipoComprobante: string | null;
   representanteUserId: string | null;
   representanteLegalNombre: string | null;
@@ -63,10 +66,12 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       key: `local-${e.id}`,
       empresaId: e.id,
       titulo: e.razonSocial,
-      sub: `RUC ${e.ruc}${e.sieCode ? ` · ${e.sieCode}` : " · sin codigo SIE"}`,
+      sub: `${etiquetaTipoDocumentoEmpresa(e.tipoDocumento, e.ruc)} ${e.ruc}${e.sieCode ? ` � ${e.sieCode}` : " � sin codigo SIE"}`,
       idEmpresa: e.sieCode ?? "",
       nombreEmpresa: e.razonSocial,
       ruc: e.ruc,
+      tipoDocumento: e.tipoDocumento ?? null,
+      pais: e.pais ?? null,
       tipoComprobante: e.tipoComprobante ?? null,
       representanteUserId: e.representanteUserId ?? null,
       representanteLegalNombre: e.representanteLegalNombre ?? null,
@@ -89,6 +94,8 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       idEmpresa: e.idEmpresa,
       nombreEmpresa: e.razonSocial,
       ruc: e.documento || null,
+      tipoDocumento: null,
+      pais: null,
       tipoComprobante: null,
       representanteUserId: null,
       representanteLegalNombre: null,
@@ -124,6 +131,8 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       idEmpresa: empresa.idEmpresa,
       nombreEmpresa: empresa.nombreEmpresa,
       ruc: empresa.ruc,
+      tipoDocumentoEmpresa: empresa.tipoDocumento,
+      pais: empresa.pais,
       tipoComprobante: empresa.tipoComprobante,
       representanteUserId: empresa.representanteUserId,
       representanteLegalNombre: empresa.representanteLegalNombre,
@@ -144,7 +153,7 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
           <div className="min-w-0">
             <p className="truncate text-xs font-medium">{seleccion.nombreEmpresa}</p>
             <p className="font-mono text-[10px] text-muted-foreground">
-              {seleccion.idEmpresa}{seleccion.ruc ? ` · RUC ${seleccion.ruc}` : ""}
+              {seleccion.idEmpresa}{seleccion.ruc ? ` · ${etiquetaTipoDocumentoEmpresa(seleccion.tipoDocumentoEmpresa, seleccion.ruc)} ${seleccion.ruc}` : ""}
             </p>
           </div>
           <Button
