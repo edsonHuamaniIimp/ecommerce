@@ -78,6 +78,10 @@ export const uploadDocumentoSchema = z.object({
   firmaDigital: z.boolean().optional(),
   /** El Asociado sube un contrato firmado en nombre del cliente (flujo alterno). */
   subirFirmaAsociado: z.boolean().optional(),
+  /** Declaracion del Asociado: el PDF subido ya lleva la firma del cliente. */
+  firmadoCliente: z.boolean().optional(),
+  /** Declaracion del Asociado: el PDF subido ya lleva la firma de Gerencia del IIMP. */
+  firmadoGerencia: z.boolean().optional(),
   /** El Asociado sube la version corregida del contrato para una observacion SGC. */
   subirContratoAsociado: z.boolean().optional(),
   /** El Asociado adjunta un documento anexo a la solicitud. */

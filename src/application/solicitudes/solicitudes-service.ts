@@ -478,6 +478,26 @@ export class SolicitudesApplicationService {
     }
   }
 
+  /**
+   * Contrato cargado por el Asociado con firma del cliente y de Gerencia: queda
+   * aprobado por el Asociado y por el SGC sin enviarse al SGC. La Facturacion
+   * (`estadoPago`) se habilita sin reiniciar pagos ya confirmados.
+   */
+  private async aprobarPorContratoFirmadoCompleto(detalle: SolicitudRow, autor: string): Promise<void> {
+    await this.encolarRevisionReservaEmpresa(detalle);
+    await this.repo.crearOActualizarRevision({
+      solicitudId: detalle.id,
+      area: REVISION_AREAS.ASOCIADO,
+      estado: RESULTADOS_APROBACION.APROBADO,
+      comentario: "Contrato cargado firmado por el cliente y por Gerencia; no requiere envio al SGC.",
+      reviewerEmail: autor,
+    });
+    const aprobadoSgc = await this.sgcIntegracion?.aprobarPorContratoFirmadoCompleto(detalle.id, autor);
+    if (!aprobadoSgc && !detalle.tieneFacturacion) {
+      await this.repo.marcarOrdenPago(detalle.id);
+    }
+  }
+
   /** Antes de generar la orden de pago, exige el contrato firmado vigente de esta solicitud. */
   private validarContratoFirmadoReservaEmpresa(detalle: SolicitudRow): void {
     const documentos = detalle.docsAdjuntos ?? [];
@@ -733,6 +753,10 @@ export class SolicitudesApplicationService {
     firmaDigital?: boolean;
     /** El Asociado carga el contrato firmado en nombre del cliente (flujo alterno). */
     subirFirmaAsociado?: boolean;
+    /** Declaracion del Asociado: el PDF ya lleva la firma del cliente. */
+    firmadoCliente?: boolean;
+    /** Declaracion del Asociado: el PDF ya lleva la firma de Gerencia del IIMP. */
+    firmadoGerencia?: boolean;
     /** El Asociado carga la version corregida del contrato tras una observacion SGC. */
     subirContratoAsociado?: boolean;
     /** El Asociado adjunta un documento anexo a la solicitud. */
@@ -749,6 +773,9 @@ export class SolicitudesApplicationService {
     const isAdmin = params.userPermissions.includes(PERMISSIONS.ADMIN_FULL) || params.userPermissions.includes(PERMISSIONS.SOLICITUDES_UPLOAD);
     const isAsociado = params.userPermissions.includes(PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO);
     const esCargaFirmaAsociado = params.subirFirmaAsociado === true;
+    /* Firmado por el cliente Y por Gerencia: el contrato ya esta completo y no se envia al SGC. */
+    const firmadoPorAmbos =
+      esCargaFirmaAsociado && params.firmadoCliente === true && params.firmadoGerencia === true;
     const esCargaContratoAsociado = params.subirContratoAsociado === true;
     const esCargaAnexoAsociado = params.subirAnexoAsociado === true;
     const detalle = !isAdmin || esCargaFirmaAsociado || esCargaContratoAsociado || esCargaAnexoAsociado
@@ -833,7 +860,14 @@ export class SolicitudesApplicationService {
           409,
         );
       }
-      if (!isSgcEnabled()) {
+      if (!params.firmadoCliente && !params.firmadoGerencia) {
+        throw new DomainError(
+          "Indica quien firmo el contrato: el cliente, Gerencia o ambos",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      if (!isSgcEnabled() && !firmadoPorAmbos) {
         throw new DomainError(
           "El flujo alterno requiere el SGC habilitado para continuar la revision",
           API_ERROR_CODES.CONFLICT,
@@ -1091,6 +1125,9 @@ export class SolicitudesApplicationService {
           detalle.estadoSolicitud === ESTADOS_SOLICITUD.PENDIENTE_PAGO)
       ) {
         await this.encolarRevisionReservaEmpresa(detalle);
+      }
+      if (firmadoPorAmbos && detalle) {
+        await this.aprobarPorContratoFirmadoCompleto(detalle, params.userEmail);
       }
       try {
         if (detalle) {

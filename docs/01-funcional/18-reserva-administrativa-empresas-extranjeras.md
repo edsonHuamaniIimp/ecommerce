@@ -1,65 +1,106 @@
 # Reserva administrativa para empresas y operadores internacionales
 
-**Estado:** implementación local / pendiente de commit y despliegue
+**Estado:** vigente (actualizado 22/11/2026 según el código; sustituye la versión inicial)
 **Pantalla:** `/dashboard/reservar-empresa`
 **Tipo de solicitud:** `reserva_empresa`
-**Ámbito:** empresas nacionales y operadores internacionales
+**Ámbito:** operadores internacionales que administran un pabellón y asignan stands a empresas de su país
+**Regla de trabajo equivalente:** `.opencode/reglas/flujo-pabellones-internacionales/SKILL.md`
 
 ## 1. Objetivo
 
-Documentar el flujo especial de reserva administrativa creado por el IIMP para empresas y operadores internacionales, incluyendo:
+Documentar el flujo especial de solicitudes de pabellones internacionales:
 
-- Creación de la reserva por un administrador.
-- Generación automática del contrato.
-- Firma digital del cliente.
-- Revisión del Asociado.
-- Pase directo a facturación, sin SGC.
-- Descuentos generales o por stand.
-- Reglas monetarias y snapshot para contrato/facturación.
-- Uso de la nueva plantilla de contrato de Operador Internacional.
+- Creación de la solicitud por un usuario interno.
+- Generación automática del contrato P38 de Operador Internacional.
+- Firma del contrato por el cliente o carga del PDF firmado por el Asociado.
+- Revisión del Asociado y luego del SGC, con trazabilidad separada.
+- Facturación independiente del flujo de revisión (`estadoPago`).
+- Descuentos generales o por stand y reglas monetarias.
 
-## 2. Diferencia con el flujo regular
+## 2. Dos dimensiones de estado
 
-| Flujo regular | Reserva administrativa |
+El flujo regular maneja un único estado. Este flujo separa **revisión** de **pago** para no perder la trazabilidad de la revisión del Asociado y del SGC.
+
+| Campo | Valores | Qué controla |
+|---|---|---|
+| `estadoSolicitud` | `pendiente`, `en_proceso`, `observado`, `aprobado`, `rechazado`, `pendiente_pago`, `pagado` | Revisión del Asociado y del SGC |
+| `estadoPago` | `pendiente_pago`, `pagado` | Facturación y cobranza |
+
+Reglas:
+
+- La solicitud nace con `estadoSolicitud = pendiente` y `estadoPago = pendiente_pago`.
+- La Facturación pendiente se crea al registrar la solicitud.
+- El flujo puede estar `aprobado` y el pago en `pendiente_pago`.
+- `pagado` es terminal: ni una observación ni una subsanación del SGC lo reinicia.
+- Una observación del SGC no cambia `estadoPago`.
+- La bandeja muestra dos bloques, **Revisión** y **Facturación**. Si ambos estados son `pendiente_pago`, muestra solo **Facturación**.
+- Las solicitudes que no son de pabellón internacional conservan el badge único.
+
+## 3. Diferencias con el flujo regular
+
+| Flujo regular | Pabellón internacional |
 |---|---|
-| Cliente inicia la solicitud | Administrador crea la solicitud |
-| Contrato generado en el flujo | Contrato generado automáticamente al crear |
-| Revisión de áreas | Revisión solo del Asociado |
-| Pasa por SGC cuando está habilitado | **No pasa por SGC** |
-| Orden de pago tras aprobaciones | El Asociado aprueba y se genera la orden de pago |
-| Debida Diligencia puede bloquear | **No bloquea** la reserva administrativa |
+| Cliente inicia la solicitud | Usuario interno crea la solicitud |
+| Un único estado | `estadoSolicitud` + `estadoPago` |
+| Revisión por Asociado, Logística, Comunicación y Legal | Revisión local solo del **Asociado**; Legal delegada al SGC |
+| El cliente solo firma digitalmente | El cliente firma digitalmente **o** el Asociado sube el PDF firmado |
+| Debida Diligencia puede bloquear | No bloquea esta pantalla |
+| Facturación tras aprobación | Facturación pendiente desde la creación |
+| Envía correos | **No envía correos** (`permiteCorreosSolicitud`) |
 
-## 3. Flujo completo
+## 4. Flujo completo
 
 ```text
-1. Admin crea la reserva administrativa.
-2. El sistema genera el contrato automáticamente.
-3. La solicitud queda pendiente de firma del cliente.
-4. El cliente firma digitalmente el contrato.
-5. La solicitud pasa a revisión del Asociado.
-6. El Asociado puede aprobar, observar o rechazar.
-7. Si aprueba, el sistema genera automáticamente la orden de pago.
-8. La solicitud pasa a facturación.
+1. El usuario interno crea la solicitud en /dashboard/reservar-empresa.
+2. El sistema genera el contrato P38.
+3. La solicitud llega a la bandeja: estadoSolicitud = pendiente, estadoPago = pendiente_pago.
+4. Firma del contrato, por dos caminos:
+   a) El cliente firma digitalmente desde su portal.
+   b) El Asociado sube el PDF firmado (modal de firmantes, ver 4.1).
+5. Revisión del Asociado: aprobar, observar o rechazar.
+6. Si aprueba, se envía al SGC con el flujo regular.
+7. El SGC tiene su propia revisión; si observa, se subsana y se reenvía.
+8. Si el SGC aprueba, la solicitud queda aprobada y la Facturación sigue su curso.
 ```
 
-### Reglas del flujo
+### 4.1 Carga del contrato firmado por el Asociado
 
-- El Asociado no puede aprobar, observar ni rechazar si el cliente aún no firmó.
-- La reserva administrativa **no crea revisiones de Logística, Comunicación, Legal ni SGC**.
-- La aprobación del Asociado ejecuta `marcarOrdenPago` para estas solicitudes.
-- La Debida Diligencia no muestra bloqueo ni deshabilita acciones en esta pantalla.
-- El contrato se regenera cuando se modifican cuotas, fechas, descuentos o importes.
+Al pulsar el botón **Subir contrato firmado** se abre un modal: *"Estás subiendo el contrato firmado"*, con dos checks:
 
-## 4. Permisos
+- **Firmado por el cliente**
+- **Firmado por Gerencia**
 
-- `reservas:empresa`: acceso a la pantalla de reserva administrativa.
-- `ADMIN_FULL`: acceso completo y bypass administrativo.
-- `write:reservas`: se conserva para clientes en el flujo regular.
+Hay que marcar al menos uno. Luego se elige el PDF. Resultado según los checks:
+
+| Checks | Resultado |
+|---|---|
+| Cliente + Gerencia | **No se envía al SGC.** El contrato ya está completo: la solicitud queda aprobada por el Asociado y por el SGC, y la Facturación sigue habilitada. |
+| Solo cliente (o solo Gerencia) | Flujo regular: pasa a revisión del Asociado y, al aprobar, se envía al SGC. |
+| Ninguno | Se rechaza: debe indicarse quién firmó. |
+
+Detalles del caso Cliente + Gerencia:
+
+- Se crea o actualiza la revisión del Asociado en `aprobado`, con comentario automático y el correo del Asociado como autor.
+- Se deja la correlación local del SGC como aprobada (Vigente, `bypassAprobado`) **sin llamar al SGC**; así la bandeja y la trazabilidad muestran el paso Legal completo.
+- Se habilita la orden de pago de forma idempotente: no duplica la Facturación ni reabre un pago `pagado`.
+- Si el SGC está deshabilitado en el servidor, solo se aprueba la revisión del Asociado y se habilita la orden de pago (el botón de carga del Asociado solo aparece con el SGC habilitado).
+
+En todos los casos la carga queda auditada: `uploadedBy` = Asociado, `userId` = cliente, origen `subido_asociado`, y el SHA-256 no puede repetirse en otra solicitud. La auditoría registra `firmadoCliente` y `firmadoGerencia`.
+
+### 4.2 Subsanación de observaciones del SGC
+
+- Ruta: `/dashboard/solicitudes/[id]/subsanar-sgc`.
+- Permite ver las observaciones, cargar el contrato corregido y el contrato firmado, y reenviar al SGC.
+- No modifica `estadoPago`.
+
+## 5. Permisos
+
+- `reservas:empresa`: acceso a la pantalla de creación.
+- `ADMIN_FULL`: acceso completo y bypass administrativo del SGC.
+- `solicitudes:review:asociado`: revisión del Asociado y carga de contrato firmado y anexos.
 - Los clientes no acceden a `/dashboard/reservar-empresa`.
 
-## 5. Descuentos
-
-### 5.1 Modos permitidos
+## 6. Descuentos
 
 La solicitud admite **un solo modo de descuento**:
 
@@ -68,206 +109,51 @@ La solicitud admite **un solo modo de descuento**:
 3. Porcentaje distinto por cada stand.
 4. Monto fijo distinto por cada stand.
 
-No se permite combinar descuento global con descuento por stand.
+No se permite combinar global con por stand.
 
-### 5.2 Reglas de validación
+Validaciones: porcentaje de 0 a 100 con máximo 2 decimales; monto fijo mayor o igual a 0; el descuento por stand no supera su precio neto; sin duplicados ni stands ajenos; el total no puede quedar en cero.
 
-- Porcentaje: `0` a `100`, máximo 2 decimales.
-- Monto fijo: mayor o igual a `0`, máximo 2 decimales.
-- El descuento por stand no puede superar el precio neto de ese stand.
-- No se permiten descuentos negativos, duplicados o referencias a stands ajenos.
-- El descuento no puede dejar el total del contrato en cero.
-- Las cuotas deben sumar exactamente `100%`.
-- Las fechas deben ser válidas y estar en orden.
-- La última cuota absorbe el centavo de redondeo.
-
-### 5.3 Cálculo
+### 6.1 Cálculo
 
 ```text
-Precio neto por stand = precio comercial convertido a la moneda del contrato
-Descuento por stand   = porcentaje o monto fijo aplicado a ese stand
-Neto del stand        = precio neto - descuento del stand
-Neto total            = suma de los netos de todos los stands
-IGV                   = 18% sobre el neto total
-Total                 = neto total + IGV
-Cuotas                = porcentajes sobre el total; última absorbe redondeo
+Neto del stand  = precio comercial convertido a la moneda - descuento del stand
+Neto total      = suma de los netos de los stands
+IGV             = 18% sobre el neto total
+Total           = neto total + IGV
+Cuotas          = de 1 a 9; suman exactamente 100%; la última absorbe el redondeo
 ```
 
-### 5.4 Snapshot persistido
+El backend recalcula siempre desde el precio comercial y no confía en los importes del navegador. El plan se guarda en `solicitud.planCuotas` (`descuentoTipo`, `descuentosPorStand`, `cuotas`, `moneda`, `tipoCambio`, totales).
 
-El plan se guarda en `solicitud.planCuotas`:
+## 7. UI de creación
 
-```json
-{
-  "modalidad": "personalizado",
-  "cuotas": [],
-  "moneda": "USD",
-  "tipoCambio": 1,
-  "descuentoTipo": "por_stand",
-  "descuentoValor": 0,
-  "descuentoPorcentaje": 0,
-  "descuentoMonto": 0,
-  "netoLista": 0,
-  "netoDescontado": 0,
-  "igv": 0,
-  "total": 0,
-  "descuentosPorStand": [
-    {
-      "standId": "uuid",
-      "standCode": "P38-01",
-      "precio": 0,
-      "tipo": "porcentaje",
-      "valor": 3,
-      "porcentaje": 3,
-      "descuentoMonto": 0,
-      "neto": 0
-    }
-  ]
-}
-```
+Modal de tres pasos con altura estable y scroll interno:
 
-El backend recalcula siempre los montos desde el precio comercial del stand. No confía en los importes enviados por el navegador.
+1. **Configuración:** empresa, representante legal, tipo de facturación y moneda (USD o PEN).
+2. **Descuento:** un solo selector; por stand, buscador por código o tipo.
+3. **Cuotas y plazos:** fechas, porcentajes, montos y resumen de neto, descuento, IGV y total.
 
-## 6. UI de la reserva administrativa
+Solo se pueden solicitar stands pre-reservados (`/dashboard/pre-reservas`); la bandeja los muestra como pre-reservados y permite seleccionarlos.
 
-El formulario se organiza en tres pasos:
+## 8. Contrato de Operador Internacional
 
-### Paso 1 — Configuración
+- Plantilla: `plantillas/contrato-p38-operador-tags.docx`, elegida por tipo de solicitud (`reserva_empresa` → `PLANTILLAS_CONTRATO_RESERVA_EMPRESA`).
+- Cuotas dinámicas de 1 a 9; moneda y cuentas bancarias dinámicas (USD/PEN).
+- **Anexo 3-A eliminado**; no se reintroduce.
+- El representante usa el orden de prioridad: representante legal de la empresa, representante explícito del contrato, y solo como respaldo el contacto de facturación.
+- Se contrasta con el contrato estándar en el documento [19](19-diferencias-contrato-estandar-vs-pabellones-internacionales.md).
 
-- Empresa.
-- Representante legal.
-- Tipo de facturación.
-- Tipo de pago/moneda.
+## 9. Anexos del Asociado
 
-### Paso 2 — Descuento
+El Asociado puede adjuntar documentos anexos desde la revisión (`subirAnexoAsociado`): solo `reserva_empresa`, el documento pertenece al cliente, se audita al Asociado y no se reemplazan anexos existentes.
 
-- Un solo selector de tipo de descuento.
-- Cuatro opciones presentadas como radio buttons:
-  - Porcentaje sobre el total del contrato.
-  - Monto fijo sobre el total del contrato.
-  - Porcentaje por cada stand.
-  - Monto fijo por cada stand.
-- Si se elige por stand:
-  - Buscador por código o tipo.
-  - Scroll independiente.
-  - Precio neto, descuento y neto por fila.
+## 10. Correos
 
-### Paso 3 — Cuotas y plazos
+Las solicitudes `reserva_empresa` no envían correos (creación, observaciones del Asociado o del SGC, contrato observado, facturación, comprobantes y recordatorios). Las alertas in-app se conservan. Los correos de cuenta, seguridad y Debida Diligencia quedan fuera de esta regla.
 
-- Fechas de vencimiento.
-- Porcentajes.
-- Montos calculados.
-- Resumen de neto, descuento, IGV y total.
+## 11. Pendientes
 
-El modal mantiene altura estable y el contenido central tiene scroll propio.
-
-## 7. Contrato de Operador Internacional
-
-### 7.1 Plantilla
-
-La nueva plantilla oficial se encuentra en:
-
-```text
-plantillas/contrato-p38-operador-tags.docx
-```
-
-Archivo **untracked actualmente**; debe agregarse al commit para que exista en el despliegue.
-
-La selección se realiza por tipo de solicitud:
-
-```text
-reserva_empresa → PLANTILLAS_CONTRATO_RESERVA_EMPRESA
-flujo regular   → PLANTILLAS_CONTRATO
-```
-
-### 7.2 Parámetros enviados al generador
-
-Además de los campos existentes del contrato, para `reserva_empresa` se envían:
-
-```text
-pais_operador
-area_total
-metraje_total
-cantidad_modulos
-pabellones_modulos
-tipos_modulos
-cuota_1_monto
-cuota_2_monto
-cuota_3_monto
-fecha_cuota_1
-fecha_cuota_2
-fecha_cuota_3
-```
-
-El generador también recibe `tipoSolicitud` y `pais` para seleccionar la plantilla y completar cláusulas del operador.
-
-### 7.3 Tags cubiertos por la plantilla
-
-La plantilla usa, entre otros:
-
-```text
-razon_social
-ruc
-domicilio_fiscal
-representante_legal
-dni_representante
-partida_electronica
-pais_operador
-modulos[]
-planos[]
-cuotas_contrato[]
-moneda
-valor_venta
-igv
-precio_venta
-cuota_1_monto
-cuota_2_monto
-cuota_3_monto
-fecha_cuota_1
-fecha_cuota_2
-fecha_cuota_3
-```
-
-La revisión de la plantilla no detectó tags huérfanos respecto al generador actual.
-
-## 8. API y DTOs
-
-La reserva administrativa envía:
-
-```text
-eventoId
-empresaRuc
-standIds
-moneda
-tipoComprobante
-cuotas
-descuentoTipo
-descuentoValor
-descuentosPorStand: [
-  { standId, tipo: "porcentaje" | "monto", valor }
-]
-```
-
-Validaciones principales:
-
-- `reservaAdminSchema`
-- `ReservaAdminRequestDTO`
-- `ReservaApplicationService.crearAdministrativa`
-- `ContratoApplicationService.generar`
-
-## 9. Verificación
-
-- `tsc`: OK.
-- ESLint: OK.
-- Tests de reservas: 27.
-- Tests de contrato: incluye generación con plantilla `reserva_empresa`.
-- Suite completa tiene un timeout conocido y no relacionado en `export-tabla.test.ts`.
-
-## 10. Pendientes
-
-1. Agregar y commitear `plantillas/contrato-p38-operador-tags.docx`.
-2. Validar visualmente la nueva plantilla con datos reales de un operador.
-3. Confirmar que la plantilla incluya correctamente el detalle por stand si el negocio lo exige.
-4. Validar el flujo de firma digital y la generación de la orden de pago en QA.
-5. Revisar la visualización del descuento por stand en el contrato final.
-6. Definir la gestión de cambios posteriores a firma/facturación.
+1. Decidir si la carga del contrato firmado por ambos debe estar disponible con el SGC deshabilitado.
+2. Validar visualmente la plantilla con datos reales de un operador.
+3. Definir la gestión de cambios posteriores a la firma o a la facturación.
+4. Confirmar en QA el caso Cliente + Gerencia de punta a punta.

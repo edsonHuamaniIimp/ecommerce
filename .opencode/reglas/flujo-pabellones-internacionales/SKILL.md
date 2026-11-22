@@ -85,6 +85,12 @@ Existen dos caminos válidos:
 1. El cliente firma digitalmente desde su portal.
 2. El Asociado sube el PDF firmado en nombre del cliente.
 
+Al pulsar "Subir contrato firmado" el Asociado ve un modal con dos checks: **Firmado por el cliente** y **Firmado por Gerencia** (al menos uno; el backend rechaza si no se indica ninguno).
+
+- Cliente + Gerencia: **no se envía al SGC**. Se aprueba la revisión del Asociado, se deja el SGC aprobado localmente (`aprobarPorContratoFirmadoCompleto`, sin llamar al SGC) y se habilita la Facturación sin duplicarla ni reabrir un pago `pagado`.
+- Una sola firma: flujo regular (Asociado y luego SGC).
+- Flags: `firmadoCliente` y `firmadoGerencia` en `uploadDocumento`; se auditan.
+
 Para la carga del Asociado:
 
 - Usar `subirFirmaAsociado`.

@@ -110,6 +110,34 @@ export class SgcIntegracionApplicationService {
     return true;
   }
 
+  /**
+   * Contrato ya firmado por el cliente y por Gerencia (cargado por el Asociado):
+   * no se envia al SGC. Deja la correlacion local como aprobada (Vigente) para
+   * conservar la trazabilidad de la revision Legal y genera la orden de pago.
+   * No usa el cliente HTTP del SGC.
+   */
+  async aprobarPorContratoFirmadoCompleto(solicitudId: string, autor: string): Promise<boolean> {
+    if (!this.config.enabled) return false;
+    let expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
+    if (!expediente) {
+      const detalle = await this.solicitudRepo.detalle(solicitudId);
+      if (!detalle) return false;
+      const areaCode = this.config.areaCode;
+      const contractTypeCode =
+        SGC_CONTRACT_TYPE_BY_SOLICITUD[detalle.tipo ?? ""] ?? this.config.contractTypeCode;
+      const input = mapSolicitudToExpediente(detalle, { areaCode, contractTypeCode });
+      expediente = await this.crearRegistroConCodigoUnico(solicitudId, input.code, areaCode, contractTypeCode);
+    }
+    await this.repo.actualizarExpediente(expediente.id, {
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.ACTIVE,
+      bypassAprobado: true,
+      lastSyncedAt: new Date(),
+    });
+    console.warn("[sgc] Contrato firmado por cliente y Gerencia: aprobado sin envio al SGC", { solicitudId, autor });
+    await habilitarOrdenPagoAutomatica(this.solicitudRepo, solicitudId);
+    return true;
+  }
+
   /** Correlacion local del expediente (para exponer errores de envio en la UI). */
   async obtenerRegistroLocal(solicitudId: string): Promise<SgcExpedienteEntity | null> {
     return this.repo.findExpedientePorSolicitud(solicitudId);

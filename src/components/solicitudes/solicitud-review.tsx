@@ -225,7 +225,7 @@ export function SolicitudReview({
       title: "Registrar contrato firmado por el cliente",
       description:
         `Vas a registrar "${nombre}" como equivalente al contrato firmado por el cliente. ` +
-        `Quedara auditado que lo subio ${usuario}. Al aprobar, la solicitud pasara al SGC y no directamente a facturacion.`,
+        `Quedara auditado que lo subio ${usuario}.`,
       confirmLabel: "Subir contrato firmado",
       cancelLabel: "Cancelar",
     });
@@ -1046,7 +1046,7 @@ export function SolicitudReview({
             <p className="text-xs font-semibold text-foreground">Firma del cliente</p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
               Si el cliente entregó el contrato firmado en PDF, puedes registrarlo aquí en su nombre.
-              Quedará auditado con tu usuario. Al aprobar, la solicitud pasará al SGC y luego a facturación.
+              Quedará auditado con tu usuario. Si indicas que lo firmaron el cliente y Gerencia, queda aprobado por el Asociado y el SGC sin enviarse al SGC; con una sola firma sigue el flujo regular (Asociado y luego SGC).
             </p>
             {contratoFirmadoVigente && (
               <p className="mt-1 text-[11px] font-medium text-warning">
@@ -1064,6 +1064,7 @@ export function SolicitudReview({
               vacioTexto="Aun no hay un contrato firmado registrado."
               varios={false}
               subirFirmaAsociado
+              declararFirmantes
               confirmarSubida={confirmarSubidaFirmaAsociado}
               onAttached={() => onSaved(row)}
             />

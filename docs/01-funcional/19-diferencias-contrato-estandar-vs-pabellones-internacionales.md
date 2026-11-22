@@ -1,6 +1,7 @@
 # Diferencias entre el contrato estándar y el contrato de Pabellones Internacionales
 
-**Fecha:** 17/11/2026  
+**Fecha:** 17/11/2026 · **Actualizado:** 22/11/2026  
+**Vigencia:** el análisis de cláusulas sigue vigente. Desde el 17/11 la plantilla Pabellones Internacionales cambió: **Anexo 3-A eliminado**, **cuotas dinámicas de 1 a 9**, **moneda y cuentas dinámicas USD/PEN**, y el representante se toma del **representante legal de la empresa**. Donde el texto histórico diga lo contrario, está marcado como *(superado)*. El flujo de la solicitud está en el documento [18](18-reserva-administrativa-empresas-extranjeras.md).  
 **Alcance:** comparación documental y funcional de contenido, anexos, firmas y placeholders. No es un dictamen legal.  
 **Plantilla A — Estándar:** `plantillas/contrato-perumin38-tags.docx`  
 **Plantilla B — Pabellones Internacionales:** `plantillas/contrato-p38-operador-tags.docx`  
@@ -24,10 +25,10 @@ Las diferencias principales son:
 | Cesión a terceros | Prohibida sin autorización del IIMP | Autorizada a favor de los EXHIBIDORES del pabellón |
 | Relación IIMP–exhibidores | Directa con el exhibidor | El IIMP no contrata con los exhibidores; el operador responde |
 | Anexo 1 | Tabla detallada por módulo, con frente y fondo | Tabla resumen por pabellón, sin frente/fondo |
-| Anexo 2 | 4 modalidades de pago y cronograma dinámico | 3 cuotas fijas 33% / 33% / 34% |
+| Anexo 2 | 4 modalidades de pago y cronograma dinámico | Cuotas dinámicas de 1 a 9, moneda y cuentas USD/PEN dinámicas *(antes: 3 cuotas fijas 33/33/34, superado)* |
 | Descuento | No aparece descuento de operador en el Anexo 2 | Incluye “descuentos aplicables por ser operadores” |
 | Devolución / desistimiento | Desistimiento con penalidades 10/50/80/100% | No hay desistimiento libre; devolución limitada de módulos 20% + 15% |
-| Declaraciones | Un Anexo 3 del exhibidor | Anexo 3 del operador + Anexo 3-A del exhibidor |
+| Declaraciones | Un Anexo 3 del exhibidor | Anexo 3 del operador. El Anexo 3-A del exhibidor **fue eliminado** de la plantilla y no se reintroduce |
 | Firmas | Loop de firmas, representantes adicionales y fecha | Tabla fija de 2 columnas; sin loop de representantes adicionales |
 | Idioma | ES y EN | Solo ES |
 
@@ -152,6 +153,10 @@ La estándar tiene una cláusula `QUINTA` específica con correos. Pabellones In
 
 ### 3.7 Firma y fecha
 
+**Quién firma en el flujo:** en pabellones internacionales el cliente firma digitalmente **o** el Asociado sube el PDF firmado indicando si lo firmaron el cliente, Gerencia o ambos. Con ambas firmas el contrato no se envía al SGC (ver [18](18-reserva-administrativa-empresas-extranjeras.md), sección 4.1).
+
+**Representante:** el contrato toma primero el representante legal de la empresa, luego el representante explícito del contrato y, solo como respaldo, el contacto de facturación.
+
 **Estándar:** bloque `Lima, {firmante_fecha}` y loop `{#firmas_tabla}` con imagen, línea, cargo y nombre para IIMP y hasta dos firmas de exhibidor por fila. Permite representantes adicionales.
 
 **Pabellones Internacionales:** tabla fija de dos columnas:
@@ -251,6 +256,8 @@ Detalle:
 
 ### 6.2 Modalidades y cuotas
 
+> **Superado:** la plantilla Pabellones Internacionales ya no usa 3 cuotas fijas. Imprime las cuotas dinámicas de 1 a 9 del plan de la solicitud, con moneda y cuentas bancarias según USD o PEN. Lo que sigue describe el estado del 17/11.
+
 **Estándar:**
 
 - Modalidad 1: 100% contra factura, dentro de 30 días calendario.
@@ -271,6 +278,8 @@ Detalle:
 - El backend puede manejar hasta 9 cuotas, pero la plantilla Pabellones Internacionales solo imprime tres. Si se configura un plan distinto, la plantilla no lo refleja completo.
 
 ### 6.3 Moneda, cuentas y detracción
+
+> **Superado:** la plantilla Pabellones Internacionales ya soporta moneda y cuentas dinámicas USD/PEN (tags de moneda, cuenta corriente, interbancaria, detracción y tipo de cuenta). El texto siguiente es histórico.
 
 **Estándar:**
 
@@ -330,9 +339,11 @@ En Pabellones Internacionales las referencias de devolución remiten al **numera
   - `Fecha: __________________________`
 - No usa tags de firma en ese bloque.
 
-### 7.2 Anexo 3-A
+### 7.2 Anexo 3-A *(eliminado)*
 
-**Solo existe en Pabellones Internacionales.**
+> **Superado:** el Anexo 3-A fue eliminado de `plantillas/contrato-p38-operador-tags.docx` junto con las variables `anexo3a_*`. La descripción siguiente es histórica; no reintroducirlo.
+
+**Existía solo en Pabellones Internacionales.**
 
 - Título: **“DECLARACIÓN DE CUMPLIMIENTO DEL EXHIBIDOR”**.
 - Está pensado para que el operador lo entregue a cada exhibidor del pabellón.
@@ -468,7 +479,7 @@ La plantilla Pabellones Internacionales no debe tratarse como una simple variant
 
 La recomendación es mantener ambas plantillas separadas y no reutilizar la estándar para operadores internacionales. Si el área necesita que ambos contratos tengan la misma experiencia de firma y autocompletado, los cambios deben hacerse en la plantilla Pabellones Internacionales y en sus tags, sin alterar la plantilla estándar.
 
-**Pendientes recomendados:**
+**Pendientes recomendados** (los puntos 2 y 3 quedaron resueltos: cuotas y moneda dinámicas, y Anexo 3-A eliminado):
 
 1. Revisión legal de las observaciones de redacción de la sección 10.
 2. Decidir si Pabellones Internacionales debe soportar cuotas distintas de 33/33/34 y moneda distinta de USD.

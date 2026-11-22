@@ -619,6 +619,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
       userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
       tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
       subirFirmaAsociado: true,
+      firmadoCliente: true,
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalledWith(
@@ -666,6 +667,57 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
     expect(repo.marcarDocumentosReemplazados).not.toHaveBeenCalled();
   });
 
+  const cargaFirmada = (extra: Record<string, boolean>) => ({
+    solicitudId: "sol-1",
+    url: "/uploads/contrato-firmado.pdf",
+    nombre: "contrato-firmado.pdf",
+    userSub: "asociado-1",
+    userEmail: "asociado@iimp.org.pe",
+    userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
+    tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    subirFirmaAsociado: true,
+    ...extra,
+  });
+
+  it("firmado por cliente y Gerencia: aprueba Asociado y SGC sin enviar al SGC", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const sgc = sgcMock();
+    const aprobar = vi.spyOn(sgc, "aprobarPorContratoFirmadoCompleto").mockResolvedValue(true);
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.uploadDocumento(cargaFirmada({ firmadoCliente: true, firmadoGerencia: true }));
+
+    expect(repo.crearOActualizarRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO }),
+    );
+    expect(aprobar).toHaveBeenCalledWith("sol-1", "asociado@iimp.org.pe");
+    expect(sgc.enviarExpedienteAlSgc).not.toHaveBeenCalled();
+    expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
+  });
+
+  it("firmado solo por el cliente: queda pendiente de revision del Asociado", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const sgc = sgcMock();
+    const aprobar = vi.spyOn(sgc, "aprobarPorContratoFirmadoCompleto");
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.uploadDocumento(cargaFirmada({ firmadoCliente: true }));
+
+    expect(repo.crearOActualizarRevision).not.toHaveBeenCalled();
+    expect(aprobar).not.toHaveBeenCalled();
+  });
+
+  it("exige indicar quien firmo el contrato", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
+    const svc = new SolicitudesApplicationService(repo, sgcMock());
+
+    await expect(svc.uploadDocumento(cargaFirmada({}))).rejects.toThrow(/quien firmo/);
+    expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
+  });
+
   it("rechaza la carga en nombre del cliente si no es Asociado", async () => {
     const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
     repo.detalle = vi.fn().mockResolvedValue(baseDetalle());
@@ -681,6 +733,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
         userPermissions: [],
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         subirFirmaAsociado: true,
+        firmadoCliente: true,
       }),
     ).rejects.toThrow(/Solo el Asociado/);
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
@@ -701,6 +754,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
         userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         subirFirmaAsociado: true,
+        firmadoCliente: true,
       }),
     ).rejects.toThrow(/PDF/);
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
@@ -724,6 +778,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
         userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         subirFirmaAsociado: true,
+        firmadoCliente: true,
       }),
     ).rejects.toThrow(/firma inicial|ventana de firma|observado/);
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
@@ -759,6 +814,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
         userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
         tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
         subirFirmaAsociado: true,
+        firmadoCliente: true,
       }),
     ).rejects.toThrow(/firma inicial|observado/);
     expect(repo.crearDocumentoAdjunto).not.toHaveBeenCalled();
@@ -794,6 +850,7 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
       userPermissions: [PERMISSIONS.SOLICITUDES_REVIEW_ASOCIADO],
       tipo: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
       subirFirmaAsociado: true,
+      firmadoCliente: true,
     });
 
     expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();

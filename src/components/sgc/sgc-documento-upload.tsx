@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Button } from "@nrivera-iimp/ui-kit-iimp";
+import { Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Label } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
@@ -27,6 +27,7 @@ export function SgcDocumentoUpload({
   onAttached,
   confirmarSubida,
   subirFirmaAsociado = false,
+  declararFirmantes = false,
   subirContratoAsociado = false,
   subirAnexoAsociado = false,
 }: {
@@ -49,6 +50,8 @@ export function SgcDocumentoUpload({
   confirmarSubida?: (archivos: File[]) => Promise<boolean>;
   /** Marca la carga como contrato firmado subido por el Asociado. */
   subirFirmaAsociado?: boolean;
+  /** Antes de elegir el archivo, pregunta quien firmo (cliente / Gerencia). Solo con `subirFirmaAsociado`. */
+  declararFirmantes?: boolean;
   /** Marca la carga como contrato corregido subido por el Asociado. */
   subirContratoAsociado?: boolean;
   /** Marca la carga como anexo subido por el Asociado. */
@@ -56,6 +59,27 @@ export function SgcDocumentoUpload({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [subiendo, setSubiendo] = useState(false);
+  const [declaracionAbierta, setDeclaracionAbierta] = useState(false);
+  const [firmadoCliente, setFirmadoCliente] = useState(false);
+  const [firmadoGerencia, setFirmadoGerencia] = useState(false);
+  const firmantesRef = useRef({ firmadoCliente: false, firmadoGerencia: false });
+  const firmadoPorAmbos = firmadoCliente && firmadoGerencia;
+
+  function confirmarDeclaracion() {
+    firmantesRef.current = { firmadoCliente, firmadoGerencia };
+    setDeclaracionAbierta(false);
+    inputRef.current?.click();
+  }
+
+  function alHacerClick() {
+    if (subirFirmaAsociado && declararFirmantes) {
+      setFirmadoCliente(false);
+      setFirmadoGerencia(false);
+      setDeclaracionAbierta(true);
+      return;
+    }
+    inputRef.current?.click();
+  }
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -83,6 +107,7 @@ export function SgcDocumentoUpload({
           nombre: file.name,
           tipo,
           subirFirmaAsociado,
+          ...(subirFirmaAsociado && declararFirmantes ? firmantesRef.current : {}),
           subirContratoAsociado,
           subirAnexoAsociado,
         });
@@ -150,7 +175,7 @@ export function SgcDocumentoUpload({
         variant="outline"
         className={`mt-2 w-full ${vacio ? "border-dashed border-amber-300 text-amber-700" : ""}`}
         disabled={subiendo}
-        onClick={() => inputRef.current?.click()}
+        onClick={alHacerClick}
       >
         {subiendo ? (
           <Loader2 className="mr-2 h-3 w-3 animate-spin" />
@@ -159,6 +184,34 @@ export function SgcDocumentoUpload({
         )}
         {vacio ? ctaVacio : ctaConArchivos}
       </Button>
+
+      <Dialog open={declaracionAbierta} onOpenChange={setDeclaracionAbierta}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Estás subiendo el contrato firmado</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Indica quién firmó el documento que vas a subir.</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox id={`firmado-cliente-${solicitudId}`} checked={firmadoCliente} onCheckedChange={(v) => setFirmadoCliente(v === true)} />
+              <Label htmlFor={`firmado-cliente-${solicitudId}`}>Firmado por el cliente</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id={`firmado-gerencia-${solicitudId}`} checked={firmadoGerencia} onCheckedChange={(v) => setFirmadoGerencia(v === true)} />
+              <Label htmlFor={`firmado-gerencia-${solicitudId}`}>Firmado por Gerencia</Label>
+            </div>
+          </div>
+          <p className="rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-muted-foreground">
+            {firmadoPorAmbos
+              ? "Con ambas firmas no se envía al SGC: la solicitud queda aprobada por el Asociado y el SGC, y pasa a facturación."
+              : "Con una sola firma, la solicitud sigue el flujo regular: revisión del Asociado y luego envío al SGC."}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeclaracionAbierta(false)}>Cancelar</Button>
+            <Button disabled={!firmadoCliente && !firmadoGerencia} onClick={confirmarDeclaracion}>Continuar y elegir archivo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
