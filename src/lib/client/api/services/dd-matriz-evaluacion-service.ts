@@ -1,7 +1,10 @@
 import "client-only";
 
 import { internalApi } from "./internal-api";
+import type { DdDocumentoTipo, DdMatrizResultadoFinal } from "@/lib/shared/constants";
 import type {
+  DdMatrizAutomatizacionDTO,
+  DdVinculoObservadoRequestDTO,
   DdMatrizEvaluacionAdjuntoEliminarRequestDTO,
   DdMatrizEvaluacionAdjuntoResponseDTO,
   DdMatrizEvaluacionDetalleDTO,
@@ -60,12 +63,45 @@ export const ddMatrizEvaluacionService = {
     return internalApi.post<DdMatrizEvaluacionDetalleDTO>(`${BASE}/guardar`, body);
   },
 
+  /**
+   * Registra el resultado final del expediente (fila de la empresa) desde el modal de revision:
+   * el mismo flujo en la Matriz, el detalle de vinculo y el Centro documental.
+   */
+  async registrarResultadoFinal(
+    expedienteId: string,
+    resultado: DdMatrizResultadoFinal,
+    comentario?: string,
+    cierre?: {
+      clienteComentario?: string | null;
+      documentosObservados?: DdDocumentoTipo[];
+      vinculosObservados?: DdVinculoObservadoRequestDTO[];
+    },
+  ): Promise<void> {
+    const { id } = await this.abrir(expedienteId);
+    await this.guardar({
+      id,
+      resultadoFinal: resultado,
+      finalComentario: comentario?.trim() || null,
+      clienteComentario: cierre?.clienteComentario ?? null,
+      documentosObservados: cierre?.documentosObservados ?? [],
+      vinculosObservados: cierre?.vinculosObservados ?? [],
+    });
+  },
+
   agregarVinculo(body: DdMatrizEvaluacionVinculoRequestDTO) {
     return internalApi.post<DdMatrizEvaluacionDetalleDTO>(`${BASE}/vinculo`, body);
   },
 
   eliminarVinculo(id: string) {
     return internalApi.post<{ ok: boolean }>(`${BASE}/vinculo/eliminar`, { id });
+  },
+
+  automatizarTodo(vinculoId: string) {
+    return internalApi.post<DdMatrizAutomatizacionDTO>(`${BASE}/automatizar-todo`, { vinculoId });
+  },
+
+  estadoAutomatizacion(jobId: string) {
+    return internalApi.get<DdMatrizAutomatizacionDTO>(`${BASE}/automatizacion?jobId=${encodeURIComponent(jobId)}`);
   },
 
   automatizarEvidencia(vinculoId: string, codigo: string) {

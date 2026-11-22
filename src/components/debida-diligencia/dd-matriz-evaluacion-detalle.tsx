@@ -32,6 +32,8 @@ import {
   DdMatrizAmbitoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
+import { DdVinculoSwitcher } from "./dd-vinculo-switcher";
+import { ddEvidenciaDetalles } from "@/lib/shared/utils/dd-evidencia-detalles";
 import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { PaisSelect } from "@/components/shared/pais-select";
@@ -221,7 +223,7 @@ function Adjuntos({ vinculoId, adjuntos, categorias, puedeEditar, onCambio }: Ad
               </a>
               <span className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground">
                 <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[a.categoria as DdMatrizAdjuntoCategoria] ?? a.categoria} � {formatearTamano(a.tamano)}</span>
-                <DdEvidenciaPreviewButton url={a.url} nombre={a.nombre} mimeType={a.mimeType} />
+                <DdEvidenciaPreviewButton url={a.url} nombre={a.nombre} mimeType={a.mimeType} detalles={ddEvidenciaDetalles.deAdjunto(a)} />
                 {puedeEditar ? (
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="Quitar adjunto" onClick={() => { void quitar(a); }}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -540,9 +542,10 @@ export function DdMatrizEvaluacionDetalle({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <DdVinculoSwitcher expedienteId={detalle.expediente.expedienteId} actualId={detalle.id} />
             {onVolverRevision ? (
-              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onVolverRevision}>
-                <FileText className="h-3.5 w-3.5" /><span>Volver a revisión</span>
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Volver a revisión" onClick={onVolverRevision}>
+                <FileText className="h-3.5 w-3.5" /><span>Revisión</span>
               </Button>
             ) : null}
             <DdMatrizResultadoFinalBadge valor={detalle.resultadoFinal} />

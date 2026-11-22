@@ -10,6 +10,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Progress,
   Skeleton,
 } from "@nrivera-iimp/ui-kit-iimp";
 import {
@@ -17,14 +18,15 @@ import {
   ArrowLeft,
   Building2,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Clock3,
   FileText,
   FileDown,
   Globe2,
+  ListChecks,
   Paperclip,
   Scale,
-  ShieldCheck,
   Users,
 } from "lucide-react";
 import {
@@ -55,8 +57,11 @@ import {
   DD_MATRIZ_LISTA_OTROS,
 } from "@/lib/shared/constants";
 import {
+  casosReputacionConObservacion,
+  detalleTieneObservacion,
   evidenciasInforme,
   observacionesInforme,
+  vinculosConObservaciones,
   resumenInforme,
 } from "@/lib/shared/utils/dd-informe";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -156,6 +161,8 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const [vinculos, setVinculos] = useState<DdMatrizEvaluacionDetalleDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [soloObservados, setSoloObservados] = useState(false);
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let activo = true;
@@ -233,6 +240,10 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const resumen = useMemo(() => resumenInforme(vinculos), [vinculos]);
   const observaciones = useMemo(() => observacionesInforme(vinculos), [vinculos]);
   const anexos = useMemo(() => evidenciasInforme(vinculos), [vinculos]);
+  /* El PDF solo incluye los vinculos con observaciones (la vista en pantalla muestra todos). */
+  const vinculosPdf = useMemo(() => vinculosConObservaciones(vinculos), [vinculos]);
+  const anexosPdf = useMemo(() => evidenciasInforme(vinculosPdf), [vinculosPdf]);
+  const vinculosVista = soloObservados ? vinculosPdf : vinculos;
 
   if (loading) {
     return (
@@ -276,6 +287,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const casosReputacion = [...reputacion].sort(
     (a, b) => a.createdAt.localeCompare(b.createdAt) || a.nombreARevisar.localeCompare(b.nombreARevisar),
   );
+  const casosReputacionPdf = casosReputacionConObservacion(casosReputacion, vinculos);
   const tieneLegal = Boolean(expediente?.decisionLegal || expediente?.motivoLegal);
   const listasEvaluables = vinculos
     .flatMap((vinculo) => vinculo.listas)
@@ -346,317 +358,311 @@ export function DdInformeDetalle({ expedienteId }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          <Card>
-            <CardContent className="space-y-4 p-5 sm:p-7">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-8 w-auto" />
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
-                    <ShieldCheck className="h-4 w-4" />
-                    <span>IIMP — {exp.eventoProyecto ?? "Evento institucional"}</span>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] print:hidden">
+        <div className="min-w-0 space-y-4">
+          <Card className="overflow-hidden">
+            <div className="h-1 bg-primary" />
+            <CardContent className="space-y-5 p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-9 w-auto" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary">
+                      IIMP — {exp.eventoProyecto ?? "Evento institucional"}
+                    </p>
+                    <h2 className="mt-0.5 text-lg font-bold leading-tight text-foreground">{exp.empresaRazonSocial}</h2>
+                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                      RUC {exp.empresaRuc || "—"} · {exp.codigo} · FRM-LOG-104 v01
+                    </p>
                   </div>
-                  </div>
-                  <h2 className="mt-1 text-lg font-bold text-foreground">EVALUACIÓN DEBIDA DILIGENCIA</h2>
-                  <p className="mt-1 font-mono text-[11px] text-muted-foreground">Expediente: {exp.codigo} · Código: FRM-LOG-104 · Versión: 01</p>
                 </div>
                 <div className="text-right">
                   <DdMatrizResultadoFinalBadge valor={final} />
-                  <p className="mt-2 text-[10px] text-muted-foreground">
-                    Fecha: {dateUtils.format(reportDate)}
-                  </p>
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">Fecha: {dateUtils.format(reportDate)}</p>
                 </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <Kpi etiqueta="Vínculos evaluados" valor={vinculos.length} icono={<Users className="h-4 w-4" />} />
+                <Kpi
+                  etiqueta="Con observaciones"
+                  valor={vinculosPdf.length}
+                  alerta={vinculosPdf.length > 0}
+                  icono={<AlertTriangle className="h-4 w-4" />}
+                />
+                <Kpi etiqueta="Evidencias" valor={resumen.totalEvidencias} icono={<Paperclip className="h-4 w-4" />} />
+                <Kpi
+                  etiqueta="Controles de listas"
+                  valor={`${listasConResultado}/${totalListas}`}
+                  avance={totalListas > 0 ? (listasConResultado / totalListas) * 100 : 0}
+                  icono={<ListChecks className="h-4 w-4" />}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-              <section className="space-y-3">
-                <SectionTitle id="datos" icon={<Building2 className="h-3.5 w-3.5" />}>
-                  1. Datos generales de la empresa
-                </SectionTitle>
-                <dl className="grid gap-3 rounded-lg bg-secondary/40 p-4 sm:grid-cols-2">
-                  <Dato label="Razón social">{exp.empresaRazonSocial}</Dato>
-                  <Dato label="RUC / Tax ID">{exp.empresaRuc || "No registrado"}</Dato>
-                  <Dato label="Dirección legal">{datosEmpresa.direccionLegal ?? "No registrada"}</Dato>
-                  <Dato label="Actividad económica">
-                    {exp.actividadEconomica ?? datosEmpresa.actividadEconomica ?? "No registrada"}
-                  </Dato>
-                  <Dato label="Fecha de inicio de actividades">
-                    {datosEmpresa.fechaInicioActividades ?? "No registrada"}
-                  </Dato>
-                  <Dato label="Estado del contribuyente">
-                    {estadoContribuyente}
-                  </Dato>
-                  <Dato label="Representante legal">
+          <Card className="scroll-mt-4" id="datos">
+            <CardContent className="space-y-3 p-5">
+              <SectionTitle icon={<Building2 className="h-3.5 w-3.5" />}>1. Datos generales de la empresa</SectionTitle>
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                <Dato label="Razón social">{exp.empresaRazonSocial}</Dato>
+                <Dato label="RUC / Tax ID">{exp.empresaRuc || "No registrado"}</Dato>
+                <Dato label="Estado del contribuyente">{estadoContribuyente}</Dato>
+                <Dato label="Dirección legal">{datosEmpresa.direccionLegal ?? "No registrada"}</Dato>
+                <Dato label="Actividad económica">
+                  {exp.actividadEconomica ?? datosEmpresa.actividadEconomica ?? "No registrada"}
+                </Dato>
+                <Dato label="Inicio de actividades">{datosEmpresa.fechaInicioActividades ?? "No registrada"}</Dato>
+                <Dato label="País de constitución">{pais}</Dato>
+                <Dato label="Relación comercial">
+                  {tiposRelacion.length > 0 ? tiposRelacion.join(", ") : "Sin registrar"}
+                </Dato>
+                <Dato label="Motivo de evaluación">{datosEmpresa.motivo ?? exp.motivo ?? "No registrado"}</Dato>
+                <Dato label="Historial con el IIMP">{datosEmpresa.historialIimp ?? "No registrado"}</Dato>
+                <Dato label="Beneficio mutuo">{datosEmpresa.beneficioMutuo ?? "No registrado"}</Dato>
+              </dl>
+              <div className="rounded-lg bg-secondary/40 p-3">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Representante legal
+                </p>
+                <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Dato label="Nombre">
                     {expediente?.representanteNombre ?? representanteVinculo?.nombre ?? "No registrado"}
                   </Dato>
-                  <Dato label="Documento del representante">
+                  <Dato label="Documento">
                     {expediente?.representanteDocumento
                       ? `${expediente.representanteTipoDocumento ?? "Documento"} ${expediente.representanteDocumento}`
                       : representanteVinculo?.documento ?? "No registrado"}
                   </Dato>
-                  <Dato label="Cargo del representante">
-                    {representanteVinculo?.cargo ?? "No registrado"}
-                  </Dato>
-                  <Dato label="Correo del representante">
-                    {expediente?.emailRepresentante ?? "No registrado"}
-                  </Dato>
-                  <Dato label="País de constitución">{pais}</Dato>
-                  <Dato label="Relación comercial">
-                    {tiposRelacion.length > 0 ? tiposRelacion.join(", ") : "Sin registrar"}
-                  </Dato>
-                  <Dato label="Motivo de evaluación">
-                    {datosEmpresa.motivo ?? exp.motivo ?? "No registrado"}
-                  </Dato>
-                  <Dato label="Historial con el IIMP">{datosEmpresa.historialIimp ?? "No registrado"}</Dato>
-                  <Dato label="Beneficio mutuo">{datosEmpresa.beneficioMutuo ?? "No registrado"}</Dato>
+                  <Dato label="Cargo">{representanteVinculo?.cargo ?? "No registrado"}</Dato>
+                  <Dato label="Correo">{expediente?.emailRepresentante ?? "No registrado"}</Dato>
                 </dl>
-                <div className="grid gap-2 rounded-lg border border-border px-4 py-3 text-[11px] sm:grid-cols-3">
-                  <span>
-                    <strong className="text-foreground">Vínculos:</strong> {vinculos.length}
-                  </span>
-                  <span>
-                    <strong className="text-foreground">Documentos base:</strong> {documentosBase.length}
-                  </span>
-                  <span>
-                    <strong className="text-foreground">Controles de listas:</strong> {listasConResultado}/{totalListas}
-                  </span>
-                </div>
-              </section>
+              </div>
+            </CardContent>
+          </Card>
 
-              <section className="space-y-3 break-inside-avoid">
-                <SectionTitle
-                  id="cumplimiento"
-                  icon={<Scale className="h-3.5 w-3.5" />}
-                  extra={`${vinculos.length} vínculo(s)`}
-                >
-                  2. Cumplimiento legal y reputación
-                </SectionTitle>
-                <div className="space-y-3">
-                  {vinculos.map((vinculo) => (
-                    <div key={vinculo.id} className="rounded-lg border border-border p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-2">
-                        <div>
-                          <p className="text-xs font-semibold text-foreground">{vinculo.nombre}</p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {DD_MATRIZ_TIPO_VINCULO_LABELS[vinculo.tipo as DdMatrizTipoVinculo] ?? vinculo.tipo}
-                            {vinculo.documento ? ` · ${vinculo.documento}` : ""}
-                          </p>
-                        </div>
-                        <DdMatrizResultadoBadge valor={vinculo.sig.resultado} />
-                      </div>
-                      {vinculo.listas.length === 0 ? (
-                        <p className="pt-2 text-[11px] text-muted-foreground">
-                          Sin controles de listas restrictivas registrados.
-                        </p>
-                      ) : (
-                        <div className="grid gap-1.5 pt-2 sm:grid-cols-2 lg:grid-cols-3">
-                          {vinculo.listas.map((lista) => (
-                            <div
-                              key={`${vinculo.id}-${lista.codigo}`}
-                              className="flex items-center justify-between gap-2 rounded border border-border/70 px-2 py-1.5 text-[10px]"
-                            >
-                              <span className="truncate text-muted-foreground">{lista.label}</span>
-                              <span className="shrink-0 font-semibold text-foreground">
-                                {lista.valor
-                                  ? DD_MATRIZ_SI_NO_NA_LABELS[
-                                      lista.valor as keyof typeof DD_MATRIZ_SI_NO_NA_LABELS
-                                    ] ?? lista.valor
-                                  : "Pendiente"}
+          <Card className="scroll-mt-4" id="vinculos">
+            <CardContent className="space-y-3 p-5">
+              <SectionTitle icon={<Users className="h-3.5 w-3.5" />} extra={`${vinculosVista.length} de ${vinculos.length}`}>
+                2. Vínculos evaluados
+              </SectionTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-md border border-border p-0.5 text-[11px]" role="group" aria-label="Filtrar vínculos">
+                  <button
+                    type="button"
+                    onClick={() => setSoloObservados(false)}
+                    aria-pressed={!soloObservados}
+                    className={`rounded px-2.5 py-1 font-medium transition ${!soloObservados ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    Todos ({vinculos.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSoloObservados(true)}
+                    aria-pressed={soloObservados}
+                    className={`rounded px-2.5 py-1 font-medium transition ${soloObservados ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    Con observaciones ({vinculosPdf.length})
+                  </button>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  El PDF incluye solo los vínculos con observaciones.
+                </span>
+              </div>
+
+              {vinculosVista.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
+                  Ningún vínculo tiene observaciones.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {vinculosVista.map((vinculo) => {
+                    const conObservacion = detalleTieneObservacion(vinculo);
+                    const abierto = abiertos[vinculo.id] ?? conObservacion;
+                    return (
+                      <div
+                        key={vinculo.id}
+                        className={`rounded-lg border ${conObservacion ? "border-warning/40" : "border-border"}`}
+                      >
+                        <div className="flex flex-wrap items-center gap-2 p-3">
+                          <button
+                            type="button"
+                            aria-expanded={abierto}
+                            onClick={() => setAbiertos((previo) => ({ ...previo, [vinculo.id]: !abierto }))}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <ChevronDown
+                              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${abierto ? "" : "-rotate-90"}`}
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate text-xs font-bold text-foreground">{vinculo.nombre}</span>
+                              <span className="block truncate text-[10px] text-muted-foreground">
+                                {DD_MATRIZ_TIPO_VINCULO_LABELS[vinculo.tipo as DdMatrizTipoVinculo] ?? vinculo.tipo}
+                                {vinculo.documento ? ` · ${vinculo.tipoDocumento ?? "Doc."} ${vinculo.documento}` : ""}
+                                {vinculo.pais ? ` · ${nombrePais(vinculo.pais)}` : ""}
+                                {vinculo.cargo ? ` · ${vinculo.cargo}` : ""}
                               </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <SectionTitle id="vinculos" icon={<Users className="h-3.5 w-3.5" />} extra={`${vinculos.length} vínculo(s)`}>
-                  3. Vínculos evaluados
-                </SectionTitle>
-                <div className="overflow-x-auto rounded-lg border border-border">
-                  <table className="w-full min-w-[760px] text-left text-xs">
-                    <thead className="bg-secondary/70 text-[9px] uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2 font-semibold">Vínculo</th>
-                        <th className="px-3 py-2 font-semibold">Tipo</th>
-                        <th className="px-3 py-2 font-semibold">SIG</th>
-                        <th className="px-3 py-2 font-semibold">Reputacional</th>
-                        <th className="px-3 py-2 font-semibold">Compliance</th>
-                        <th className="px-3 py-2 font-semibold">Final</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {vinculos.map((vinculo) => (
-                        <tr key={vinculo.id} className="align-top">
-                          <td className="px-3 py-2.5">
-                            <p className="font-semibold text-foreground">{vinculo.nombre}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {vinculo.documento ?? "Sin documento"}
-                              {vinculo.ambito ? ` · ${vinculo.ambito}` : ""}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2.5 text-[11px] text-muted-foreground">
-                            <p>{DD_MATRIZ_TIPO_VINCULO_LABELS[vinculo.tipo as DdMatrizTipoVinculo] ?? vinculo.tipo}</p>
-                            {vinculo.cargo ? <p className="mt-0.5 text-[10px]">{vinculo.cargo}</p> : null}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <DdMatrizResultadoBadge valor={vinculo.sig.resultado} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <DdMatrizResultadoBadge valor={vinculo.reputacional.resultado} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <DdMatrizResultadoBadge valor={vinculo.compliance.resultado} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              <section className="space-y-3 break-inside-avoid">
-                <SectionTitle
-                  id="detalle-vinculos"
-                  icon={<Users className="h-3.5 w-3.5" />}
-                  extra={`${vinculos.length} ficha(s)`}
-                >
-                  3.1 Detalle por vínculo
-                </SectionTitle>
-                <div className="space-y-3">
-                  {vinculos.map((vinculo) => (
-                    <div key={vinculo.id} className="break-inside-avoid rounded-lg border border-border">
-                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border bg-secondary/30 p-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-bold text-foreground">{vinculo.nombre}</p>
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">
-                            {DD_MATRIZ_TIPO_VINCULO_LABELS[vinculo.tipo as DdMatrizTipoVinculo] ?? vinculo.tipo}
-                            {vinculo.tipoDocumento ? ` · ${vinculo.tipoDocumento}` : ""}
-                            {vinculo.documento ? ` ${vinculo.documento}` : ""}
-                            {vinculo.nacionalidad ? ` · ${vinculo.nacionalidad}` : ""}
-                            {vinculo.pais ? ` · ${nombrePais(vinculo.pais)}` : ""}
-                            {vinculo.ambito ? ` · ${vinculo.ambito}` : ""}
-                          </p>
-                          {vinculo.cargo ? (
-                            <p className="mt-0.5 text-[10px] text-muted-foreground">{vinculo.cargo}</p>
+                            </span>
+                          </button>
+                          {conObservacion ? (
+                            <Badge className="pointer-events-none border-warning/30 bg-warning/10 text-[10px] text-warning">
+                              <AlertTriangle className="mr-1 h-3 w-3" />
+                              <span>Con observaciones</span>
+                            </Badge>
                           ) : null}
+                          <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} />
                         </div>
-                        <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} />
-                      </div>
-                      <div className="grid gap-2 p-3 md:grid-cols-3">
-                        {(["sig", "reputacional", "compliance"] as const).map((area) => (
-                          <div key={area} className="space-y-1.5 rounded-md border border-border/70 p-2.5">
-                            <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
-                              {AREA_LABELS[area]}
-                            </p>
-                            <DdMatrizResultadoBadge valor={vinculo[area].resultado} />
-                            <DdMatrizConclusionBadge valor={vinculo[area].conclusion} />
-                            <p className="text-[9px] text-muted-foreground">
-                              {vinculo[area].fecha ? dateUtils.format(vinculo[area].fecha) : "Sin fecha"}
-                              {vinculo[area].responsable ? ` · ${vinculo[area].responsable}` : ""}
-                            </p>
-                            {vinculo[area].observaciones ? (
-                              <p className="line-clamp-4 text-[10px] leading-relaxed text-foreground">
-                                {vinculo[area].observaciones}
+
+                        {abierto ? (
+                          <div className="space-y-3 border-t border-border p-3">
+                            <div className="grid gap-2 md:grid-cols-3">
+                              {(["sig", "reputacional", "compliance"] as const).map((area) => (
+                                <div key={area} className="space-y-1.5 rounded-md border border-border/70 bg-secondary/20 p-2.5">
+                                  <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                                    {AREA_LABELS[area]}
+                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    <DdMatrizResultadoBadge valor={vinculo[area].resultado} />
+                                    <DdMatrizConclusionBadge valor={vinculo[area].conclusion} />
+                                  </div>
+                                  <p className="text-[9px] text-muted-foreground">
+                                    {vinculo[area].fecha ? dateUtils.format(vinculo[area].fecha) : "Sin fecha"}
+                                    {vinculo[area].responsable ? ` · ${vinculo[area].responsable}` : ""}
+                                  </p>
+                                  {vinculo[area].observaciones ? (
+                                    <p className="rounded border border-warning/30 bg-warning/5 p-2 text-[10px] leading-relaxed text-foreground">
+                                      {vinculo[area].observaciones}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+
+                            <div>
+                              <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                                Controles de listas
                               </p>
+                              {vinculo.listas.length === 0 ? (
+                                <p className="text-[11px] text-muted-foreground">Sin controles registrados.</p>
+                              ) : (
+                                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                                  {vinculo.listas.map((lista) => (
+                                    <div
+                                      key={`${vinculo.id}-${lista.codigo}`}
+                                      className="flex items-center justify-between gap-2 rounded border border-border/70 px-2 py-1.5 text-[10px]"
+                                    >
+                                      <span className="truncate text-muted-foreground">{lista.label}</span>
+                                      <span
+                                        className={`shrink-0 font-semibold ${
+                                          lista.valor === DD_MATRIZ_SI_NO_NA.SI
+                                            ? "text-warning"
+                                            : lista.valor
+                                              ? "text-foreground"
+                                              : "italic text-muted-foreground"
+                                        }`}
+                                      >
+                                        {lista.valor
+                                          ? DD_MATRIZ_SI_NO_NA_LABELS[lista.valor as keyof typeof DD_MATRIZ_SI_NO_NA_LABELS] ?? lista.valor
+                                          : "Pendiente"}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {vinculo.adjuntos.length > 0 ? (
+                              <div>
+                                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                                  Evidencias ({vinculo.adjuntos.length})
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {vinculo.adjuntos.map((adjunto) => (
+                                    <a
+                                      key={adjunto.id}
+                                      href={adjunto.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex max-w-full items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/5"
+                                    >
+                                      <Paperclip className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">{adjunto.nombre}</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
                             ) : null}
                           </div>
-                        ))}
-                      </div>
-                      {vinculo.adjuntos.length > 0 ? (
-                        <div className="border-t border-border px-3 py-2">
-                          <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
-                            Evidencias del vínculo
-                          </p>
-                          <div className="flex flex-wrap gap-x-3 gap-y-1">
-                            {vinculo.adjuntos.map((adjunto) => (
-                              <a
-                                key={adjunto.id}
-                                href={adjunto.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-[10px] font-medium text-primary underline underline-offset-2"
-                              >
-                                {adjunto.nombre}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <SectionTitle id="resultados" icon={<Globe2 className="h-3.5 w-3.5" />}>
-                  4. Resultados por área
-                </SectionTitle>
-                <div className="grid gap-2 md:grid-cols-3">
-                  {(["sig", "reputacional", "compliance"] as const).map((area) => {
-                    const resultado = resultadoArea(vinculos, area);
-                    const responsable = responsableArea(vinculos, area);
-                    return (
-                      <div key={area} className="rounded-lg border border-border bg-secondary/20 p-3">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                          {AREA_LABELS[area]}
-                        </p>
-                        <div className="mt-1.5">
-                          <DdMatrizResultadoBadge valor={resultado} />
-                        </div>
-                        <p className="mt-2 text-[10px] text-muted-foreground">
-                          {responsable ? `Responsable: ${responsable}` : "Sin responsable registrado"}
-                        </p>
+                        ) : null}
                       </div>
                     );
                   })}
                 </div>
-              </section>
+              )}
+            </CardContent>
+          </Card>
 
-              <section className="space-y-3">
-                <SectionTitle id="observaciones" icon={<AlertTriangle className="h-3.5 w-3.5" />} extra={`${observaciones.length} observación(es)`}>
-                  5. Observaciones y sustento
-                </SectionTitle>
-                {observaciones.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
-                    No se registraron observaciones por área en los vínculos evaluados.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {observaciones.map((observacion) => (
-                      <div key={observacion.id} className="rounded-lg border border-warning/30 bg-warning/5 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-[11px] font-bold text-foreground">
-                            {observacion.vinculo}
-                            <span className="ml-2 font-normal text-muted-foreground">
-                              {observacion.area}
-                            </span>
-                          </p>
-                          {observacion.responsable ? (
-                            <span className="text-[10px] text-muted-foreground">{observacion.responsable}</span>
-                          ) : null}
-                        </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">{observacion.texto}</p>
+          <Card className="scroll-mt-4" id="resultados">
+            <CardContent className="space-y-3 p-5">
+              <SectionTitle icon={<Globe2 className="h-3.5 w-3.5" />}>3. Resultados por área</SectionTitle>
+              <div className="grid gap-2 md:grid-cols-3">
+                {(["sig", "reputacional", "compliance"] as const).map((area) => {
+                  const resultado = resultadoArea(vinculos, area);
+                  const responsable = responsableArea(vinculos, area);
+                  return (
+                    <div key={area} className="rounded-lg border border-border bg-secondary/20 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                        {AREA_LABELS[area]}
+                      </p>
+                      <div className="mt-1.5">
+                        <DdMatrizResultadoBadge valor={resultado} />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+                      <p className="mt-2 text-[10px] text-muted-foreground">
+                        {responsable ? `Responsable: ${responsable}` : "Sin responsable registrado"}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
-              <section className="space-y-3 break-inside-avoid">
-                <SectionTitle
-                  id="comunicaciones"
-                  icon={<Users className="h-3.5 w-3.5" />}
-                  extra={`${reputacion.length} caso(s)`}
-                >
-                  5.1 Revisión de Comunicaciones
+          <Card className="scroll-mt-4" id="observaciones">
+            <CardContent className="space-y-3 p-5">
+              <SectionTitle icon={<AlertTriangle className="h-3.5 w-3.5" />} extra={`${observaciones.length} observación(es)`}>
+                4. Observaciones y sustento
+              </SectionTitle>
+              {observaciones.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
+                  No se registraron observaciones por área en los vínculos evaluados.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {observaciones.map((observacion) => (
+                    <div key={observacion.id} className="rounded-lg border-l-4 border-l-warning border-y border-r border-border bg-warning/5 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[11px] font-bold text-foreground">
+                          {observacion.vinculo}
+                          <span className="ml-2 rounded bg-secondary px-1.5 py-0.5 text-[9px] font-semibold uppercase text-muted-foreground">
+                            {observacion.area}
+                          </span>
+                        </p>
+                        {observacion.responsable ? (
+                          <span className="text-[10px] text-muted-foreground">{observacion.responsable}</span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">{observacion.texto}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="scroll-mt-4" id="comunicaciones">
+              <CardContent className="space-y-3 p-5">
+                <SectionTitle icon={<Users className="h-3.5 w-3.5" />} extra={`${reputacion.length} caso(s)`}>
+                  5. Comunicaciones
                 </SectionTitle>
                 {reputacion.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
@@ -664,7 +670,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {reputacion.map((caso) => (
+                    {casosReputacion.map((caso) => (
                       <div key={caso.id} className="rounded-lg border border-border p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-[11px] font-semibold text-foreground">{caso.nombreARevisar}</p>
@@ -674,15 +680,11 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                         </div>
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           Resultado:{" "}
-                          {caso.resultado
-                            ? DD_REPUTACION_RESULTADO_LABELS[caso.resultado] ?? caso.resultado
-                            : "Pendiente"}
+                          {caso.resultado ? DD_REPUTACION_RESULTADO_LABELS[caso.resultado] ?? caso.resultado : "Pendiente"}
                           {caso.revisor ? ` · Revisor: ${caso.revisor}` : ""}
                           {caso.fechaCierre ? ` · Cierre: ${dateUtils.format(caso.fechaCierre)}` : ""}
                         </p>
-                        {caso.comentario ? (
-                          <p className="mt-1 text-[11px] text-foreground">{caso.comentario}</p>
-                        ) : null}
+                        {caso.comentario ? <p className="mt-1 text-[11px] text-foreground">{caso.comentario}</p> : null}
                         {caso.linkHallazgos ? (
                           <a
                             href={caso.linkHallazgos}
@@ -697,162 +699,166 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                     ))}
                   </div>
                 )}
-              </section>
+              </CardContent>
+            </Card>
 
-              <section className="space-y-3 break-inside-avoid">
-                <SectionTitle id="legal" icon={<Scale className="h-3.5 w-3.5" />}>
-                  5.2 Revisión legal
-                </SectionTitle>
+            <Card className="scroll-mt-4" id="legal">
+              <CardContent className="space-y-3 p-5">
+                <SectionTitle icon={<Scale className="h-3.5 w-3.5" />}>6. Revisión legal</SectionTitle>
                 {!tieneLegal ? (
                   <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
                     Sin revisión legal registrada.
                   </p>
                 ) : (
-                  <div className="rounded-lg border border-border p-3 text-[11px]">
+                  <div className="space-y-2 rounded-lg border border-border p-3 text-[11px]">
                     <p>
-                      <strong className="text-foreground">Decisión legal:</strong>{" "}
-                      {expediente?.decisionLegal ?? "Pendiente"}
+                      <strong className="text-foreground">Decisión legal:</strong> {expediente?.decisionLegal ?? "Pendiente"}
                     </p>
-                    <p className="mt-1">
-                      <strong className="text-foreground">Motivo:</strong>{" "}
-                      {expediente?.motivoLegal ?? "Sin motivo registrado"}
+                    <p>
+                      <strong className="text-foreground">Motivo:</strong> {expediente?.motivoLegal ?? "Sin motivo registrado"}
                     </p>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-muted-foreground">
                       {expediente?.legalRevisor ? `Revisor: ${expediente.legalRevisor}` : ""}
-                      {expediente?.fechaLegal
-                        ? ` · ${dateUtils.formatDateTime(expediente.fechaLegal)}`
-                        : ""}
+                      {expediente?.fechaLegal ? ` · ${dateUtils.formatDateTime(expediente.fechaLegal)}` : ""}
                     </p>
                     {expediente?.informeLegalUrl ? (
                       <a
                         href={expediente.informeLegalUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-1 inline-block font-medium text-primary underline underline-offset-2"
+                        className="inline-block font-medium text-primary underline underline-offset-2"
                       >
                         Ver informe legal
                       </a>
                     ) : null}
                   </div>
                 )}
-              </section>
+              </CardContent>
+            </Card>
+          </div>
 
-              <section className="space-y-3 break-before-page">
-                <SectionTitle id="anexos" icon={<Paperclip className="h-3.5 w-3.5" />} extra={`${anexos.length} archivo(s)`}>
-                  7. Anexos y evidencias
-                </SectionTitle>
-                {documentosBase.length > 0 ? (
-                  <div className="space-y-1 rounded-lg border border-border p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Documentos del expediente
-                    </p>
-                    {documentosBase.map((documento, indice) => (
-                      <div key={documento.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                        <span className="min-w-0 truncate text-foreground">
-                          {indice + 1}. {documento.nombre}
-                        </span>
-                        <span className="shrink-0 text-muted-foreground">{documento.estado}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-                {anexos.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
-                    No hay evidencias adjuntas en la matriz.
+          <Card className="scroll-mt-4" id="anexos">
+            <CardContent className="space-y-3 p-5">
+              <SectionTitle icon={<Paperclip className="h-3.5 w-3.5" />} extra={`${anexos.length} archivo(s)`}>
+                7. Anexos y evidencias
+              </SectionTitle>
+              {documentosBase.length > 0 ? (
+                <div className="space-y-1 rounded-lg border border-border p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Documentos del expediente
                   </p>
-                ) : (
-                  <div className="divide-y divide-border rounded-lg border border-border">
-                    {anexos.map((anexo) => (
-                      <div key={anexo.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-primary/10 text-primary">
-                            <Paperclip className="h-3.5 w-3.5" />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-[11px] font-semibold text-foreground">{anexo.nombre}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[anexo.categoria as DdMatrizAdjuntoCategoria] ?? anexo.categoria}
-                              {" · "}
-                              {dateUtils.format(anexo.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                        <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-[10px]">
-                          <a href={anexo.url} target="_blank" rel="noreferrer">
-                            <FileText className="h-3.5 w-3.5" />
-                            <span>Abrir</span>
-                          </a>
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="space-y-3 border-t border-border pt-4">
-                <SectionTitle id="conclusiones" icon={<CheckCircle2 className="h-3.5 w-3.5" />}>
-                  6. Conclusión final del expediente
-                </SectionTitle>
-                <div className={`rounded-lg border p-4 ${final === DD_MATRIZ_RESULTADOS_FINALES.APTO
-                  ? "border-emerald-200 bg-emerald-50/60"
-                  : final === DD_MATRIZ_RESULTADOS_FINALES.NO_APTO
-                    ? "border-red-200 bg-red-50/60"
-                    : "border-primary/20 bg-primary/5"}`}>
-                  <p className="text-sm font-bold text-foreground">
-                    {final
-                      ? finalLabel
-                      : "El expediente aún no tiene conclusión final."}
-                  </p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                    {final
-                      ? `La empresa ${exp.empresaRazonSocial} tiene resultado ${finalLabel} en la evaluación consolidada${tiposRelacion.length > 0 ? ` de la relación ${tiposRelacion.join(", ")}` : ""}.`
-                      : "Los resultados por vínculo se muestran arriba y el informe podrá consolidarse cuando SIG registre la decisión final."}
-                  </p>
-                  {empresa.finalComentario ? (
-                    <p className="mt-2 text-[11px] leading-relaxed text-foreground">
-                      {empresa.finalComentario}
-                    </p>
-                  ) : null}
-                  {empresa.finalPor || empresa.finalFecha ? (
-                    <p className="mt-2 text-[10px] text-muted-foreground">
-                      {empresa.finalPor ? `Registrado por ${empresa.finalPor}` : "Registrado"}
-                      {empresa.finalFecha ? ` · ${dateUtils.formatDateTime(empresa.finalFecha)}` : ""}
-                      {expediente?.fechaVencimiento
-                        ? ` · Vigencia hasta ${dateUtils.format(expediente.fechaVencimiento)}`
-                        : ""}
-                    </p>
-                  ) : null}
+                  {documentosBase.map((documento, indice) => (
+                    <div key={documento.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <span className="min-w-0 truncate text-foreground">
+                        {indice + 1}. {documento.nombre}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground">{documento.estado}</span>
+                    </div>
+                  ))}
                 </div>
-              </section>
+              ) : null}
+              {anexos.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
+                  No hay evidencias adjuntas en la matriz.
+                </p>
+              ) : (
+                <div className="divide-y divide-border rounded-lg border border-border">
+                  {anexos.map((anexo) => (
+                    <div key={anexo.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded bg-primary/10 text-primary">
+                          <Paperclip className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-[11px] font-semibold text-foreground">{anexo.nombre}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[anexo.categoria as DdMatrizAdjuntoCategoria] ?? anexo.categoria}
+                            {" · "}
+                            {dateUtils.format(anexo.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-[10px]">
+                        <a href={anexo.url} target="_blank" rel="noreferrer">
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>Abrir</span>
+                        </a>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="scroll-mt-4" id="conclusiones">
+            <CardContent className="space-y-3 p-5">
+              <SectionTitle icon={<CheckCircle2 className="h-3.5 w-3.5" />}>8. Conclusión final del expediente</SectionTitle>
+              <div
+                className={`rounded-lg border p-4 ${
+                  final === DD_MATRIZ_RESULTADOS_FINALES.APTO
+                    ? "border-emerald-200 bg-emerald-50/60"
+                    : final === DD_MATRIZ_RESULTADOS_FINALES.NO_APTO
+                      ? "border-red-200 bg-red-50/60"
+                      : "border-primary/20 bg-primary/5"
+                }`}
+              >
+                <p className="text-sm font-bold text-foreground">
+                  {final ? finalLabel : "El expediente aún no tiene conclusión final."}
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                  {final
+                    ? `La empresa ${exp.empresaRazonSocial} tiene resultado ${finalLabel} en la evaluación consolidada${tiposRelacion.length > 0 ? ` de la relación ${tiposRelacion.join(", ")}` : ""}.`
+                    : "Los resultados por vínculo se muestran arriba y el informe podrá consolidarse cuando SIG registre la decisión final."}
+                </p>
+                {empresa.finalComentario ? (
+                  <p className="mt-2 text-[11px] leading-relaxed text-foreground">{empresa.finalComentario}</p>
+                ) : null}
+                {empresa.finalPor || empresa.finalFecha ? (
+                  <p className="mt-2 text-[10px] text-muted-foreground">
+                    {empresa.finalPor ? `Registrado por ${empresa.finalPor}` : "Registrado"}
+                    {empresa.finalFecha ? ` · ${dateUtils.formatDateTime(empresa.finalFecha)}` : ""}
+                    {expediente?.fechaVencimiento ? ` · Vigencia hasta ${dateUtils.format(expediente.fechaVencimiento)}` : ""}
+                  </p>
+                ) : null}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <aside className="space-y-4 print:hidden">
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <Card>
             <CardHeader className="border-b border-border pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm font-bold text-primary">
-                <ShieldCheck className="h-4 w-4" />
-                <span>Estado del informe</span>
-              </CardTitle>
+              <CardTitle className="text-sm font-bold text-primary">Contenido</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 pt-4">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-muted-foreground">Resultado final</span>
-                <DdMatrizResultadoFinalBadge valor={final} />
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-muted-foreground">Vínculos</span>
-                <span className="text-xs font-semibold text-foreground">{resumen.totalVinculos}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-muted-foreground">Evidencias</span>
-                <span className="text-xs font-semibold text-foreground">{resumen.totalEvidencias}</span>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] text-muted-foreground">Observaciones</span>
-                <span className="text-xs font-semibold text-warning">{observaciones.length}</span>
-              </div>
+            <CardContent className="p-2">
+              <nav aria-label="Secciones del informe" className="flex flex-col">
+                {[
+                  { id: "datos", label: "Datos generales" },
+                  { id: "vinculos", label: "Vínculos evaluados", cuenta: vinculos.length },
+                  { id: "resultados", label: "Resultados por área" },
+                  { id: "observaciones", label: "Observaciones", cuenta: observaciones.length, alerta: observaciones.length > 0 },
+                  { id: "comunicaciones", label: "Comunicaciones", cuenta: reputacion.length },
+                  { id: "legal", label: "Revisión legal" },
+                  { id: "anexos", label: "Anexos y evidencias", cuenta: anexos.length },
+                  { id: "conclusiones", label: "Conclusión final" },
+                ].map((item) => (
+                  <a
+                    key={item.id}
+                    href={`#${item.id}`}
+                    className="flex items-center justify-between gap-2 rounded px-2.5 py-1.5 text-[11px] text-muted-foreground transition hover:bg-secondary/60 hover:text-foreground"
+                  >
+                    <span>{item.label}</span>
+                    {item.cuenta !== undefined ? (
+                      <span
+                        className={`rounded-full px-1.5 text-[10px] font-semibold ${item.alerta ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground"}`}
+                      >
+                        {item.cuenta}
+                      </span>
+                    ) : null}
+                  </a>
+                ))}
+              </nav>
             </CardContent>
           </Card>
 
@@ -871,16 +877,20 @@ export function DdInformeDetalle({ expedienteId }: Props) {
 
           <Card>
             <CardContent className="space-y-2 p-4">
-              <Button asChild variant="outline" size="sm" className="w-full justify-start gap-1.5 text-xs">
-                <Link href={DD_RUTAS.INFORMES}>
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>Volver a informes</span>
-                </Link>
+              <Button type="button" size="sm" className="w-full justify-start gap-1.5 text-xs" onClick={handlePrint}>
+                <FileDown className="h-3.5 w-3.5" />
+                <span>Generar PDF</span>
               </Button>
               <Button asChild variant="outline" size="sm" className="w-full justify-start gap-1.5 text-xs">
                 <Link href={`${DD_RUTAS.MATRIZ}/${empresa.id}`}>
                   <Scale className="h-3.5 w-3.5" />
                   <span>Revisar matriz</span>
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="w-full justify-start gap-1.5 text-xs">
+                <Link href={DD_RUTAS.INFORMES}>
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Volver a informes</span>
                 </Link>
               </Button>
             </CardContent>
@@ -893,14 +903,6 @@ export function DdInformeDetalle({ expedienteId }: Props) {
           <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-3">
             <div className="flex items-center gap-3">
               <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-10 w-auto" />
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-700">
-                  Instituto de Ingenieros de Minas del Perú
-                </p>
-                <h1 className="mt-1 border border-slate-800 px-6 py-2 text-center text-sm font-bold">
-                  EVALUACIÓN DEBIDA DILIGENCIA
-                </h1>
-              </div>
             </div>
             <table className="w-40 border-collapse text-[8px]">
               <tbody>
@@ -1055,9 +1057,9 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 </td></tr>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">INDECOPI</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
-                  {casosReputacion.length > 0 ? (
+                  {casosReputacionPdf.length > 0 ? (
                     <ol className="list-decimal space-y-1 pl-4">
-                      {casosReputacion.map((caso) => {
+                      {casosReputacionPdf.map((caso) => {
                         const resultado = caso.resultado
                           ? DD_REPUTACION_RESULTADO_LABELS[caso.resultado] ?? caso.resultado
                           : "Pendiente";
@@ -1104,14 +1106,39 @@ export function DdInformeDetalle({ expedienteId }: Props) {
               {documentosBase.map((documento, indice) => (
                 <p key={`pdf-doc-${documento.id}`}>{indice + 1}. {documento.nombre}</p>
               ))}
-              {anexos.map((anexo, indice) => (
+              {anexosPdf.map((anexo, indice) => (
                 <p key={`pdf-anexo-${anexo.id}`}>{documentosBase.length + indice + 1}. {anexo.nombre}</p>
               ))}
-              {documentosBase.length === 0 && anexos.length === 0 ? <p>Sin documentos ni evidencias registradas.</p> : null}
+              {documentosBase.length === 0 && anexosPdf.length === 0 ? <p>Sin documentos ni evidencias registradas.</p> : null}
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Kpi({
+  etiqueta,
+  valor,
+  icono,
+  avance,
+  alerta,
+}: {
+  etiqueta: string;
+  valor: React.ReactNode;
+  icono: React.ReactNode;
+  avance?: number;
+  alerta?: boolean;
+}) {
+  return (
+    <div className={`rounded-lg border p-3 ${alerta ? "border-warning/40 bg-warning/5" : "border-border bg-secondary/20"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{etiqueta}</p>
+        <span className={alerta ? "text-warning" : "text-primary"}>{icono}</span>
+      </div>
+      <p className="mt-1 text-2xl font-bold leading-none text-foreground">{valor}</p>
+      {avance !== undefined ? <Progress value={avance} className="mt-2 h-1.5" /> : null}
     </div>
   );
 }

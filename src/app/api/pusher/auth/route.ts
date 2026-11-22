@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/server/auth";
-import { getPusher, canalStandEventos } from "@/lib/server/pusher";
+import { getPusher, canalStandEventos, canalUsuario } from "@/lib/server/pusher";
 
 interface AuthBody {
   socket_id?: string;
@@ -8,8 +8,8 @@ interface AuthBody {
 }
 
 /**
- * Autoriza canales privados de Pusher. Solo el evento de la sesion puede
- * suscribirse; el cliente nunca recibe datos de otras empresas.
+ * Autoriza canales privados de Pusher. Solo el evento de la sesion y el canal
+ * personal del usuario pueden suscribirse; el cliente nunca recibe datos de otras empresas.
  */
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await getSession();
@@ -32,7 +32,8 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (!body.socket_id || !body.channel_name) {
     return NextResponse.json({ error: "socket_id y channel_name requeridos" }, { status: 400 });
   }
-  if (!session.eventoId || body.channel_name !== canalStandEventos(session.eventoId)) {
+  const canalEvento = session.eventoId ? canalStandEventos(session.eventoId) : null;
+  if (body.channel_name !== canalEvento && body.channel_name !== canalUsuario(session.sub)) {
     return NextResponse.json({ error: "Canal no autorizado" }, { status: 403 });
   }
 

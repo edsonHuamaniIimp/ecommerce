@@ -2,8 +2,11 @@ import {
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_TIPOS_VINCULO,
+  DD_REPUTACION_ESTADOS,
+  DD_REPUTACION_RESULTADOS,
 } from "@/lib/shared/constants";
 import type {
+  DdReputacionCasoDTO,
   DdMatrizAdjuntoDTO,
   DdMatrizEvaluacionDetalleDTO,
   DdMatrizEvaluacionFilaDTO,
@@ -111,6 +114,53 @@ export function observacionesInforme(detalles: DdMatrizEvaluacionDetalleDTO[]): 
     textoBloque(detalle, "Comunicaciones", detalle.reputacional),
     textoBloque(detalle, "Legal / Compliance", detalle.compliance),
   ].filter((item): item is DdInformeObservacion => item !== null));
+}
+
+function normalizarNombre(valor: string): string {
+  return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+}
+
+/**
+ * Un vinculo tiene observaciones si alguna area lo dejo OBSERVADO, exige debida
+ * diligencia reforzada o escribio un texto de observacion.
+ */
+export function detalleTieneObservacion(detalle: DdMatrizEvaluacionDetalleDTO): boolean {
+  const bloques = [detalle.sig, detalle.reputacional, detalle.compliance];
+  return bloques.some(
+    (bloque) =>
+      bloque.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO ||
+      bloque.conclusion === DD_MATRIZ_CONCLUSIONES.OBSERVADO ||
+      bloque.conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA ||
+      bloque.conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA ||
+      Boolean(bloque.observaciones?.trim()),
+  );
+}
+
+/** Vinculos que deben salir en el PDF del informe: solo los que tienen observaciones. */
+export function vinculosConObservaciones(detalles: DdMatrizEvaluacionDetalleDTO[]): DdMatrizEvaluacionDetalleDTO[] {
+  return detalles.filter(detalleTieneObservacion);
+}
+
+/**
+ * Casos reputacionales para el PDF: los que tienen hallazgos / observacion o
+ * corresponden a un vinculo con observaciones (se cruzan por nombre).
+ */
+export function casosReputacionConObservacion(
+  casos: DdReputacionCasoDTO[],
+  detalles: DdMatrizEvaluacionDetalleDTO[],
+): DdReputacionCasoDTO[] {
+  const nombresObservados = new Set(vinculosConObservaciones(detalles).map((detalle) => normalizarNombre(detalle.nombre)));
+  const resultadosConObservacion: string[] = [
+    DD_REPUTACION_RESULTADOS.OBSERVADO,
+    DD_REPUTACION_RESULTADOS.CON_HALLAZGOS,
+    DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA,
+  ];
+  return casos.filter(
+    (caso) =>
+      caso.estado === DD_REPUTACION_ESTADOS.CON_HALLAZGOS ||
+      (caso.resultado !== null && resultadosConObservacion.includes(caso.resultado)) ||
+      nombresObservados.has(normalizarNombre(caso.nombreARevisar)),
+  );
 }
 
 /** Evidencias de todos los vinculos, sin duplicados. */

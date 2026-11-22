@@ -94,6 +94,14 @@ export const ddMatrizAutomatizarSchema = z.object({
   codigo: z.string().trim().min(1).max(40),
 });
 
+export const ddMatrizAutomatizarTodoSchema = z.object({
+  vinculoId: z.string().trim().min(1).max(64),
+});
+
+export const ddMatrizAutomatizacionEstadoQuerySchema = z.object({
+  jobId: z.string().trim().min(1).max(64),
+});
+
 export const ddMatrizEvaluacionAbrirQuerySchema = z.object({
   expedienteId: z.string().trim().min(1).max(60),
 });

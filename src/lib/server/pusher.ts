@@ -23,3 +23,8 @@ export function getPusher(): Pusher | null {
 export function canalStandEventos(eventoId: string): string {
   return `private-evento-${eventoId}`;
 }
+
+/** Canal privado por usuario (avisos personales, p. ej. fin de una automatizacion de evidencias). */
+export function canalUsuario(usuarioId: string): string {
+  return `private-usuario-${usuarioId}`;
+}

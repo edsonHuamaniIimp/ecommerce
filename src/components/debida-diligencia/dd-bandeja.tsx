@@ -50,13 +50,9 @@ import {
   DD_BANDEJA_FILTROS,
   DD_BANDEJA_ORDEN,
   DD_BANDEJA_ORDEN_LABELS,
-  DD_DOCUMENTO_ADICIONAL,
-  DD_DOCUMENTO_VIGENCIA,
   DD_DOCUMENTOS_FILTRO,
-  DD_DOCUMENTOS_REQUERIDOS,
   DD_EVENTO_TODOS,
   DD_ESTADOS,
-  DD_ESTADO_LABELS,
   DD_FILTRO_TODAS,
   DD_IMPORTACION_REVISOR_LABEL,
   DD_MULTIPLES_FILTRO,
@@ -71,16 +67,11 @@ import {
   PERMISSIONS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
+import { exportarExpedientesDd } from "@/lib/client/utils/dd-exportacion-expedientes";
 import { tienePermiso } from "@/lib/shared/utils/permisos";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
-import {
-  exportarTablaCsv,
-  exportarTablaExcel,
-  nombreArchivoExport,
-  type ColumnaExportacion,
-} from "@/lib/shared/utils/export-tabla";
 
 const RESUMEN_VACIO = {
   total: 0,
@@ -99,32 +90,6 @@ const ESTADOS_REVISABLES = new Set<string>([
   DD_ESTADOS.APROBADA,
   DD_ESTADOS.RECHAZADA,
 ]);
-
-/** Columnas de documentos del expediente para la exportacion. */
-const COLUMNAS_DOCUMENTOS = [
-  ...DD_DOCUMENTOS_REQUERIDOS.map((documento) => ({
-    tipo: documento.tipo,
-    titulo: documento.titulo,
-  })),
-  { tipo: DD_DOCUMENTO_VIGENCIA.tipo, titulo: DD_DOCUMENTO_VIGENCIA.titulo },
-  { tipo: DD_DOCUMENTO_ADICIONAL.tipo, titulo: DD_DOCUMENTO_ADICIONAL.titulo },
-];
-
-/** URL absoluta de la version principal del documento en el sistema. */
-function urlDocumentoEnSistema(url: string): string {
-  const ruta = url.trim();
-  if (!ruta) return "";
-  if (/^https?:\/\//i.test(ruta)) return ruta;
-  if (typeof window === "undefined") return ruta;
-  return `${window.location.origin}${ruta.startsWith("/") ? "" : "/"}${ruta}`;
-}
-
-/** Valor exportable: solo la URL de la version principal del documento. */
-function valorDocumentoExportacion(fila: DdBandejaRowDTO, tipo: string): string {
-  const documento = fila.documentos.find((item) => item.tipo === tipo);
-  if (!documento) return "No cargado";
-  return urlDocumentoEnSistema(documento.url) || "Sin URL";
-}
 
 function accionRevision(fila: DdBandejaRowDTO): { puede: boolean; label: string } {
   /* Los importados siguen las mismas reglas por estado que los del portal. */
@@ -233,32 +198,15 @@ export function DdBandeja() {
     multiples,
   ].filter((valor) => valor !== DD_FILTRO_TODAS).length;
 
-  /** Exporta todas las paginas que cumplen los filtros aplicados. */
+  /** Exporta todas las paginas que cumplen los filtros aplicados (con enlaces a los documentos). */
   const exportar = async (formato: "csv" | "xlsx") => {
     setExportando(formato);
     try {
       const filtros = refs.current;
-      const perPage = 100;
-      const primera = await debidaDiligenciaService.bandeja({
-        page: 1,
-        perPage,
-        search: filtros.search.trim() || undefined,
-        estado: filtros.estado,
-        origen: filtros.origen,
-        vinculo: filtros.vinculo,
-        documentos: filtros.documentos,
-        reputacion: filtros.reputacion,
-        asignacion: filtros.asignacion,
-        solicitudes: filtros.solicitudes,
-        multiples: filtros.multiples,
-        orden: filtros.orden,
-      });
-      const filas: DdBandejaRowDTO[] = [...primera.data];
-      for (let page = 2; page <= primera.totalPages; page += 1) {
-        const siguiente = await debidaDiligenciaService.bandeja({
-          page,
-          perPage,
-          search: filtros.search.trim() || undefined,
+      const total = await exportarExpedientesDd(
+        {
+          eventoId: filtros.eventoId,
+          search: filtros.search,
           estado: filtros.estado,
           origen: filtros.origen,
           vinculo: filtros.vinculo,
@@ -268,77 +216,14 @@ export function DdBandeja() {
           solicitudes: filtros.solicitudes,
           multiples: filtros.multiples,
           orden: filtros.orden,
-        });
-        filas.push(...siguiente.data);
-      }
-      if (filas.length === 0) {
+        },
+        formato,
+      );
+      if (total === 0) {
         toast.error("No hay registros para exportar con los filtros actuales");
         return;
       }
-      type FilaExportacion = DdBandejaRowDTO & {
-        vinculoExportacion: string;
-        beneficiariosNombres: string;
-        beneficiariosDocumentos: string;
-        beneficiariosNacionalidades: string;
-        beneficiariosPorcentajes: string;
-      };
-      const unir = (valores: string[]) =>
-        valores.filter((valor) => valor.trim().length > 0).join(" | ");
-      /* Una fila por expediente: los vinculos multiples van en la misma celda. */
-      const filasExportacion: FilaExportacion[] = filas.map((fila) => {
-        const vinculos = fila.tipoRelacionComercial.length > 0
-          ? fila.tipoRelacionComercial
-          : [];
-        const beneficiarios = fila.beneficiarios ?? [];
-        return {
-          ...fila,
-          vinculoExportacion: vinculos.length > 0
-            ? unir(vinculos.map((vinculo) => DD_VINCULO_LABELS[vinculo] ?? vinculo))
-            : "-",
-          beneficiariosNombres: unir(beneficiarios.map((b) => b.nombre)),
-          beneficiariosDocumentos: unir(beneficiarios.map((b) => b.documento)),
-          beneficiariosNacionalidades: unir(beneficiarios.map((b) => b.nacionalidad)),
-          beneficiariosPorcentajes: unir(
-            beneficiarios.map((b) => `${b.porcentaje}%`),
-          ),
-        };
-      });
-      const columnas: ColumnaExportacion<FilaExportacion>[] = [
-        { encabezado: "Empresa", valor: (r) => r.empresa.razonSocial },
-        { encabezado: "Tipo documento", valor: (r) => etiquetaTipoDocumentoEmpresa(r.empresa.tipoDocumento, r.empresa.ruc) },
-        { encabezado: "Documento", valor: (r) => r.empresa.ruc },
-        { encabezado: "Expediente", valor: (r) => r.codigo },
-        { encabezado: "Evento", valor: (r) => r.eventoNombre },
-        { encabezado: "Procedencia", valor: (r) => DD_ORIGEN_LABELS[r.origen] ?? r.origen },
-        { encabezado: "Vínculo", valor: (r) => r.vinculoExportacion },
-        { encabezado: "Motivo importación", valor: (r) => r.motivoImportacion ?? "" },
-        { encabezado: "Estado", valor: (r) => DD_ESTADO_LABELS[r.estado] ?? r.estado },
-        { encabezado: "Inicio solicitud", valor: (r) => (r.fechaInicio ? dateUtils.format(r.fechaInicio) : "") },
-        { encabezado: "Solicitudes de exhibidores", valor: (r) => r.solicitudesAlquiler },
-        { encabezado: "Estado origen", valor: (r) => r.estadoOrigen ?? "" },
-        { encabezado: "Proyecto", valor: (r) => r.eventoProyecto ?? "" },
-        { encabezado: "Documentos", valor: (r) => `${r.documentoCargados}/${r.documentoTotal}` },
-        ...COLUMNAS_DOCUMENTOS.map((documento) => ({
-          encabezado: documento.titulo,
-          valor: (r: FilaExportacion) => valorDocumentoExportacion(r, documento.tipo),
-        })),
-        { encabezado: "Enviado", valor: (r) => (r.fechaEnvio ? dateUtils.format(r.fechaEnvio) : "") },
-        { encabezado: "Aprobado", valor: (r) => (r.fechaAprobacion ? dateUtils.format(r.fechaAprobacion) : "") },
-        { encabezado: "Fecha a caducar", valor: (r) => (r.fechaVencimiento ? dateUtils.format(r.fechaVencimiento) : "") },
-        { encabezado: "Beneficiarios finales", valor: (r) => r.beneficiariosNombres },
-        { encabezado: "Documento beneficiario", valor: (r) => r.beneficiariosDocumentos },
-        { encabezado: "Nacionalidad beneficiario", valor: (r) => r.beneficiariosNacionalidades },
-        { encabezado: "Participación beneficiario", valor: (r) => r.beneficiariosPorcentajes },
-      ];
-      const columnasVisibles = columnas.filter(
-        (columna) => columna.encabezado !== "Evento" || filtros.eventoId === DD_EVENTO_TODOS,
-      );
-      if (formato === "csv") {
-        exportarTablaCsv(filasExportacion, columnasVisibles, nombreArchivoExport("dd-bandeja", "csv"));
-      } else {
-        await exportarTablaExcel(filasExportacion, columnasVisibles, nombreArchivoExport("dd-bandeja", "xlsx"), "DD Bandeja");
-      }
-      toast.success(`${filasExportacion.length} fila(s) exportada(s)`);
+      toast.success(`${total} fila(s) exportada(s)`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo exportar la bandeja");
     } finally {

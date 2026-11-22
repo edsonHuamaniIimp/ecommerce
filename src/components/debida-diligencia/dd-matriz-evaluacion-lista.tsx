@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Button,
@@ -36,6 +36,7 @@ import {
   DdMatrizResultadoBadge,
   DdMatrizResultadoFinalBadge,
 } from "./dd-matriz-badges";
+import { DdMatrizExpedientesTabla } from "./dd-matriz-expedientes-tabla";
 import { DdMatrizResumen } from "./dd-matriz-resumen";
 import { DdEventoSelect } from "./dd-evento-select";
 import { DdPaisBandera } from "./dd-pais-bandera";
@@ -56,6 +57,7 @@ import {
 } from "@/lib/shared/constants";
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
+import { resumenesPorExpediente } from "@/lib/shared/utils/dd-matriz-expediente-resumen";
 import { nombrePais } from "@/lib/shared/utils/pais";
 
 interface Filtros {
@@ -96,8 +98,8 @@ function filtrosComunes(filtros: Filtros): DdMatrizEvaluacionExportarRequestDTO 
   };
 }
 
-function consultaDe(filtros: Filtros) {
-  return { ...filtrosComunes(filtros), page: filtros.page, perPage: filtros.perPage };
+function consultaDe(filtros: Filtros, porEmpresa: boolean) {
+  return { ...filtrosComunes(filtros), page: filtros.page, perPage: filtros.perPage, ...(porEmpresa ? { porEmpresa: true } : {}) };
 }
 
 const etiqueta = <T extends string>(catalogo: Record<T, string>, valor: string | null): string =>
@@ -130,6 +132,8 @@ function EstadoAreaExtendido({
 
 /** Lista de la Matriz de evaluacion DD: una fila por vinculo (empresa o persona ligada). */
 export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" } = {}) {
+  /* La vista extendida lista expedientes (una fila por empresa); la otra, vinculos. */
+  const porExpediente = variante === "extendida";
   const [data, setData] = useState<DdMatrizEvaluacionResponseDTO | null>(null);
   const [resumen, setResumen] = useState<DdMatrizEvaluacionResumenDTO | null>(null);
   const [loading, setLoading] = useState(true);
@@ -145,7 +149,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
     const actual = siguientes ?? filtrosRef.current;
     filtrosRef.current = actual;
     try {
-      const respuesta = await ddMatrizEvaluacionService.listar(consultaDe(actual));
+      const respuesta = await ddMatrizEvaluacionService.listar(consultaDe(actual, porExpediente));
       setData(respuesta);
       /* Despues de listar: la lista sincroniza las filas automaticas que los stats cuentan. */
       if (conResumen) setResumen(await ddMatrizEvaluacionService.resumen(actual.eventoId));
@@ -154,7 +158,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [porExpediente]);
 
   useEffect(() => { void cargar(undefined, true); }, [cargar]);
 
@@ -177,6 +181,8 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
       return siguiente;
     });
 
+  const expedientes = useMemo(() => (data ? resumenesPorExpediente(data.data) : []), [data]);
+
   const idsPagina = data?.data.map((f) => f.id) ?? [];
   const marcadosPagina = idsPagina.filter((id) => seleccion.has(id)).length;
   const estadoCabecera: boolean | "indeterminate" =
@@ -197,7 +203,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
     setExportando(formato);
     try {
       const respuesta = await ddMatrizEvaluacionService.exportar(
-        seleccion.size > 0 ? { ids: [...seleccion] } : filtrosComunes(filtrosRef.current),
+        !porExpediente && seleccion.size > 0 ? { ids: [...seleccion] } : filtrosComunes(filtrosRef.current),
       );
       if (respuesta.data.length === 0) {
         toast.error("No hay registros para exportar con los filtros actuales");
@@ -224,24 +230,24 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Matriz de evaluación DD</h1>
             {data ? (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
-                {data.total} vínculos
+                {data.total} {porExpediente ? "expedientes" : "vínculos"}
               </span>
             ) : null}
           </div>
           <p className="text-sm text-muted-foreground">
             {variante === "extendida"
-              ? "Vista extendida: estado final de SIG, Reputacional y Compliance por vínculo."
+              ? "Vista extendida: un registro por expediente con su avance en SIG, Comunicaciones y Legal, y la conclusión final."
               : "Evaluación de debida diligencia por vínculo: cada empresa y las personas ligadas a ella."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={exportando !== null || loading} onClick={() => { void exportar("xlsx"); }}>
             <FileSpreadsheet className={`h-3.5 w-3.5 ${exportando === "xlsx" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "xlsx" ? "Exportando..." : seleccion.size > 0 ? `Excel (${seleccion.size})` : "Excel"}</span>
+            <span>{exportando === "xlsx" ? "Exportando..." : !porExpediente && seleccion.size > 0 ? `Excel (${seleccion.size})` : "Excel"}</span>
           </Button>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={exportando !== null || loading} onClick={() => { void exportar("csv"); }}>
             <FileText className={`h-3.5 w-3.5 ${exportando === "csv" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "csv" ? "Exportando..." : seleccion.size > 0 ? `CSV (${seleccion.size})` : "CSV"}</span>
+            <span>{exportando === "csv" ? "Exportando..." : !porExpediente && seleccion.size > 0 ? `CSV (${seleccion.size})` : "CSV"}</span>
           </Button>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={loading} onClick={() => aplicar({ page: filtrosRef.current.page }, true)}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -258,7 +264,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
             <div className="relative w-full sm:flex-1">
               <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar vínculo, empresa, documento o expediente..."
+                placeholder={porExpediente ? "Buscar empresa, RUC, vínculo o expediente..." : "Buscar vínculo, empresa, documento o expediente..."}
                 value={filtros.search}
                 onChange={(e) => setFiltros((previos) => ({ ...previos, search: e.target.value }))}
                 onKeyDown={(e) => { if (e.key === "Enter") aplicar({ search: e.currentTarget.value }); }}
@@ -353,15 +359,15 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
 
         <CardContent className="space-y-3 pt-4">
           {loading ? (
-            <TableSkeleton rows={filtros.perPage} columns={11} />
+            <TableSkeleton rows={filtros.perPage} columns={porExpediente ? 10 : 11} />
           ) : !data || data.data.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">No hay vínculos en este filtro.</p>
+              <p className="text-sm text-muted-foreground">{porExpediente ? "No hay expedientes en este filtro." : "No hay vínculos en este filtro."}</p>
               <p className="mt-1 text-xs text-muted-foreground">Cuando un cliente envíe su debida diligencia aparecerá aquí.</p>
             </div>
           ) : (
             <>
-              {seleccion.size > 0 ? (
+              {!porExpediente && seleccion.size > 0 ? (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
                   <span className="font-medium text-foreground">
                     {seleccion.size} vínculo(s) seleccionado(s): Excel y CSV exportarán solo estos.
@@ -371,6 +377,9 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
                   </Button>
                 </div>
               ) : null}
+              {porExpediente ? (
+                <DdMatrizExpedientesTabla expedientes={expedientes} />
+              ) : (
               <div className="overflow-x-auto">
                 <Table className="min-w-[1400px]">
                   <TableHeader>
@@ -467,6 +476,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
                   </TableBody>
                 </Table>
               </div>
+              )}
 
               <div className="flex flex-col gap-2 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-xs text-muted-foreground">

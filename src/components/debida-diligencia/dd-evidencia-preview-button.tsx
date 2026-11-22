@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@nrivera-iimp/ui-kit-iimp";
 import { ExternalLink, Eye } from "lucide-react";
+import type { DdEvidenciaDetalle } from "@/lib/shared/utils/dd-evidencia-detalles";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
 
@@ -10,11 +11,13 @@ interface Props {
   url: string;
   nombre: string;
   mimeType?: string | null;
+  /** Datos de contexto (quien lo subio, cuando...) que se muestran en la vista previa. */
+  detalles?: DdEvidenciaDetalle[];
 }
 
 /** Preview inline para PDF/imagen; el resto se abre en una pestaña nueva. */
-export function DdEvidenciaPreviewButton({ url, nombre, mimeType }: Props) {
-  const [preview, setPreview] = useState<{ url: string; nombre: string; mimeType: string | null } | null>(null);
+export function DdEvidenciaPreviewButton({ url, nombre, mimeType, detalles }: Props) {
+  const [preview, setPreview] = useState<{ url: string; nombre: string; mimeType: string | null; detalles?: DdEvidenciaDetalle[] } | null>(null);
   const tipo = mimeType?.toLowerCase() ?? "";
   const puedePrevisualizar =
     archivoUtils.esPdf(url) || tipo.includes("pdf") || tipo.startsWith("image/");
@@ -29,7 +32,7 @@ export function DdEvidenciaPreviewButton({ url, nombre, mimeType }: Props) {
           className="h-7 w-7 shrink-0 p-0"
           title="Vista previa"
           aria-label={`Ver vista previa de ${nombre}`}
-          onClick={() => setPreview({ url, nombre, mimeType: mimeType ?? null })}
+          onClick={() => setPreview({ url, nombre, mimeType: mimeType ?? null, detalles })}
         >
           <Eye className="h-3.5 w-3.5" />
         </Button>

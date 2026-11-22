@@ -69,10 +69,12 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# Chromium del sistema: lo usa playwright-core para automatizar las evidencias de DD.
+ENV CHROME_PATH=/usr/bin/chromium
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl openssl \
-    libreoffice-writer fonts-liberation \
+    libreoffice-writer fonts-liberation chromium \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs

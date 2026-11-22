@@ -1,27 +1,22 @@
-import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
+import {
+  automatizarCriterio,
+  estadoAutomatizacion,
+  iniciarAutomatizacionGeneral,
+} from "@/lib/server/dd-matriz-automatizacion";
 import { success, error } from "@/lib/server/api-response";
 import {
   API_ERROR_CODES,
-  DD_MATRIZ_CRITERIO_PREFIJO,
-  DD_MATRIZ_LISTA_URLS,
-  DD_MATRIZ_LISTAS,
   DD_MATRIZ_RESULTADOS_FINALES,
-  type DdMatrizAdjuntoCategoria,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/domain/errors/domain-error";
 import { getSession } from "@/lib/server/auth";
-import { getStorage } from "@/lib/server/storage";
 import type { DdMatrizEvaluacionResumenDTO } from "@/types/dto/debida-diligencia";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
-import { capturarEvidenciaPdf } from "@/infrastructure/browser/dd-evidencia-captura";
 import {
-  fuenteAutomatizable,
   normalizarResultadoFinal,
-  urlFuenteLista,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
-import { ddArchivoUtils } from "@/lib/shared/utils/debida-diligencia-archivo";
 import {
   mapDdMatrizAdjuntoToDTO,
   mapDdMatrizEvaluacionDetalleToDTO,
@@ -29,7 +24,9 @@ import {
   mapDdMatrizExportFilaToDTO,
 } from "@/lib/shared/mappers/dd-matriz-evaluacion";
 import {
+  ddMatrizAutomatizacionEstadoQuerySchema,
   ddMatrizAutomatizarSchema,
+  ddMatrizAutomatizarTodoSchema,
   ddMatrizEvaluacionAdjuntoEliminarSchema,
   ddMatrizEvaluacionAbrirQuerySchema,
   ddMatrizEvaluacionDetalleQuerySchema,
@@ -48,6 +45,12 @@ async function sesionRequerida(): Promise<DdSession> {
     permissions: session.permissions,
     eventoId: session.eventoId,
   };
+}
+
+async function usuarioIdRequerido(): Promise<string> {
+  const session = await getSession();
+  if (!session) throw new DomainError("No autorizado", API_ERROR_CODES.UNAUTHORIZED, 401);
+  return session.sub;
 }
 
 function paramsDe(request: Request): Record<string, string> {
@@ -109,59 +112,31 @@ export const ddMatrizEvaluacionController = {
     if (!parsed.success) {
       return error(API_ERROR_CODES.VALIDATION, parsed.error.issues[0]?.message ?? "Datos inválidos", 400);
     }
-
-    const lista = DD_MATRIZ_LISTAS.find((item) => item.codigo === parsed.data.codigo);
-    if (!lista || !fuenteAutomatizable(lista.codigo)) {
-      return error(
-        API_ERROR_CODES.VALIDATION,
-        "Esta fuente no admite automatización o requiere login",
-        422,
-      );
-    }
-
-    const detalle = await services.ddMatrizEvaluacion.detalle(session, parsed.data.vinculoId);
-    const termino = detalle.vinculo.nombre.trim() || detalle.vinculo.documento?.trim() || "";
-    const url = urlFuenteLista(lista.codigo, detalle.vinculo.nombre, detalle.vinculo.documento);
-    if (!url) {
-      return error(API_ERROR_CODES.VALIDATION, "La fuente no tiene una URL configurada", 422);
-    }
-
-    const nombreArchivo = `Evidencia ${lista.label} - ${termino}.pdf`.slice(0, 240);
-    const captura = await capturarEvidenciaPdf(
-      url,
-      termino,
-      nombreArchivo,
-      DD_MATRIZ_LISTA_URLS[lista.codigo]?.inputSelector,
-    );
-    const errorArchivo = ddArchivoUtils.validar(
-      { nombre: captura.nombre, size: captura.bytes.byteLength, bytes: captura.bytes },
-      { soloPdf: true },
-    );
-    if (errorArchivo) return error(API_ERROR_CODES.VALIDATION, errorArchivo, 400);
-
-    const urlArchivo = await getStorage().upload(
-      captura.bytes,
-      `${randomUUID()}.pdf`,
-      captura.mimeType,
-    );
-    const categoriaAdjunto =
-      `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}` as DdMatrizAdjuntoCategoria;
-    /* Reemplaza la evidencia previa del mismo criterio (evita duplicados al reintentar). */
-    const adjuntoPrevio = detalle.adjuntos.find(
-      (adjunto) => adjunto.categoria === categoriaAdjunto,
-    );
-    if (adjuntoPrevio) {
-      await services.ddMatrizEvaluacion.eliminarAdjunto(session, adjuntoPrevio.id);
-    }
-    const adjunto = await services.ddMatrizEvaluacion.registrarAdjunto(session, {
-      vinculoId: parsed.data.vinculoId,
-      categoria: categoriaAdjunto,
-      nombre: captura.nombre,
-      url: urlArchivo,
-      mimeType: captura.mimeType,
-      tamano: captura.bytes.byteLength,
-    });
+    const adjunto = await automatizarCriterio(session, parsed.data.vinculoId, parsed.data.codigo);
     return success(mapDdMatrizAdjuntoToDTO(adjunto));
+  },
+
+  /** Lanza en segundo plano la automatizacion de todos los criterios del vinculo (202). */
+  async automatizarTodo(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const usuarioId = await usuarioIdRequerido();
+    const parsed = ddMatrizAutomatizarTodoSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues[0]?.message ?? "Datos inválidos", 400);
+    }
+    const job = await iniciarAutomatizacionGeneral(session, usuarioId, parsed.data.vinculoId);
+    return success(job, { status: 202 });
+  },
+
+  /** Avance de una automatizacion general (404 si el proceso ya no lo conoce). */
+  async estadoAutomatizacion(request: Request): Promise<NextResponse> {
+    await sesionRequerida();
+    const usuarioId = await usuarioIdRequerido();
+    const parsed = ddMatrizAutomatizacionEstadoQuerySchema.safeParse(paramsDe(request));
+    if (!parsed.success) return error(API_ERROR_CODES.VALIDATION, "Automatización inválida", 400);
+    const job = estadoAutomatizacion(usuarioId, parsed.data.jobId);
+    if (!job) return error(API_ERROR_CODES.NOT_FOUND, "La automatización ya no está disponible", 404);
+    return success(job);
   },
   async guardar(request: Request): Promise<NextResponse> {
     const session = await sesionRequerida();

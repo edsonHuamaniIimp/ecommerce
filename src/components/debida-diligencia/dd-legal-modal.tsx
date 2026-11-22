@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { DdDocumentoBadge, DdReputacionBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
 import { DdRadioIndicator } from "./dd-radio-indicator";
+import { DdVinculosEvidencias } from "./dd-vinculos-evidencias";
 import { useConfirm } from "@/hooks/use-confirm";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
@@ -468,7 +469,7 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                   </section>
                 </TabsContent>
 
-                <TabsContent value="documentos" className="mt-0 space-y-3">
+                <TabsContent value="documentos" className="mt-0 space-y-5">
                   {decision === DD_ACCIONES_LEGAL.OBSERVAR ? (
                     <div className="space-y-1 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
                       <p>
@@ -570,6 +571,7 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                       </div>
                     ) : null}
                   </div>
+                  <DdVinculosEvidencias expedienteId={fila.id} />
                 </TabsContent>
 
                 <TabsContent value="observaciones" className="mt-0 space-y-2">

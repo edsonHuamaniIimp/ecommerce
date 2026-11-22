@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   Input,
   Select,
   SelectContent,
@@ -11,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { FileSpreadsheet, FileText, RefreshCw, Search } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import type {
@@ -38,6 +44,7 @@ import {
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { DdEventoSelect } from "./dd-evento-select";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
+import { exportarExpedientesDd } from "@/lib/client/utils/dd-exportacion-expedientes";
 
 interface FiltrosExcel {
   eventoId: string;
@@ -99,6 +106,7 @@ export function DdMatrizExcel() {
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina] = useState(1);
   const [exportando, setExportando] = useState<"xlsx" | "csv" | null>(null);
+  const [exportandoExpedientes, setExportandoExpedientes] = useState(false);
 
   const cargar = useCallback(async (siguientes: FiltrosExcel) => {
     try {
@@ -129,6 +137,23 @@ export function DdMatrizExcel() {
     () => filas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA),
     [filas, paginaActual],
   );
+
+  /** Exporta los expedientes de DD (una fila por empresa) con los enlaces a sus documentos. */
+  const exportarExpedientes = async (formato: "xlsx" | "csv") => {
+    setExportandoExpedientes(true);
+    try {
+      const total = await exportarExpedientesDd({ eventoId: filtros.eventoId, search: filtros.search }, formato);
+      if (total === 0) {
+        toast.error("No hay expedientes para exportar con los filtros actuales");
+        return;
+      }
+      toast.success(`${total} expediente(s) exportado(s) con enlaces a sus documentos`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo exportar los expedientes");
+    } finally {
+      setExportandoExpedientes(false);
+    }
+  };
 
   const exportar = async (formato: "xlsx" | "csv") => {
     if (filas.length === 0) {
@@ -187,6 +212,33 @@ export function DdMatrizExcel() {
             <FileText className={`h-3.5 w-3.5 ${exportando === "csv" ? "animate-pulse" : ""}`} />
             <span>CSV</span>
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                disabled={exportandoExpedientes}
+                title="Exporta una fila por expediente con los enlaces a sus documentos"
+              >
+                <Download className={`h-3.5 w-3.5 ${exportandoExpedientes ? "animate-pulse" : ""}`} />
+                <span>{exportandoExpedientes ? "Exportando..." : "Exportar DD con enlaces"}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel><span>Expedientes de DD con enlaces a documentos</span></DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={exportandoExpedientes} onSelect={() => { void exportarExpedientes("xlsx"); }}>
+                <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                <span>Excel (.xlsx)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={exportandoExpedientes} onSelect={() => { void exportarExpedientes("csv"); }}>
+                <FileText className="mr-2 h-3.5 w-3.5" />
+                <span>CSV (.csv)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             type="button"
             variant="outline"

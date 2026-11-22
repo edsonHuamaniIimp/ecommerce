@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
   Label,
+  Progress,
   Skeleton,
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
@@ -21,14 +22,20 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Scale,
   Send,
+  ShieldCheck,
   Sparkles,
   Upload,
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
-import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
+import { DdAutomatizacionGeneral } from "./dd-automatizacion-general";
+import { DdEvidenciasCriterio } from "./dd-evidencias-criterio";
+import { DdVinculoResumen } from "./dd-vinculo-resumen";
+import { DdVinculoSkeleton } from "./dd-vinculo-skeleton";
+import { DdVinculoSwitcher } from "./dd-vinculo-switcher";
 import { DdPaisBandera } from "./dd-pais-bandera";
 import { DdRevisionModal } from "./dd-revision-modal";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -42,6 +49,7 @@ import {
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_LISTA_DESCRIPCIONES,
+  DD_MATRIZ_LISTA_OTROS,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADO_LABELS,
@@ -157,6 +165,16 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void cargar();
   }, [cargar]);
+
+  /** Recarga solo las evidencias (no pisa decisiones sin guardar). */
+  const recargarAdjuntos = useCallback(async () => {
+    try {
+      const actual = await ddMatrizEvaluacionService.detalle(id);
+      setDetalle((previo) => (previo ? { ...previo, adjuntos: actual.adjuntos } : previo));
+    } catch {
+      /* el usuario puede refrescar manualmente */
+    }
+  }, [id]);
 
   const subirEvidencia = async (codigo: string, archivo: File | undefined) => {
     if (!archivo || !detalle) return;
@@ -294,17 +312,13 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     }
   };
 
-  if (loading || !detalle) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-32 rounded-xl" />
-        <Skeleton className="h-96 rounded-xl" />
-      </div>
-    );
-  }
+  if (loading || !detalle || detalle.id !== id) return <DdVinculoSkeleton modo="edicion" />;
 
   const tipo = DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo;
   const hayObservados = Object.values(decisiones).some((decision) => decision === "si");
+  const criteriosEvaluables = detalle.listas.filter((lista) => lista.codigo !== DD_MATRIZ_LISTA_OTROS);
+  const totalCriterios = criteriosEvaluables.length;
+  const criteriosDecididos = criteriosEvaluables.filter((lista) => Boolean(decisiones[lista.codigo])).length;
   const puedeEditar = detalle.permisos.editarSig || detalle.permisos.editarListas || detalle.permisos.editarFinal;
   const resultadoComunicaciones = ddUtils.normalizarResultadoReputacion(
     detalle.reputacional.resultado,
@@ -318,12 +332,12 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
         <span>Evaluación de vínculo</span>
       </div>
 
-      <Card>
+      <Card className="border-l-4 border-l-primary">
         <CardContent className="flex flex-wrap items-start justify-between gap-4 p-5">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1 basis-72">
+            <div className="flex items-center gap-3">
               <DdPaisBandera pais={detalle.pais} />
-              <h1 className="truncate text-xl font-bold tracking-tight text-foreground">{detalle.nombre}</h1>
+              <h1 className="min-w-0 truncate text-xl font-bold tracking-tight text-foreground">{detalle.nombre}</h1>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <Badge className="pointer-events-none border-primary/20 bg-primary/10 text-[9px] text-primary"><span>{tipo}</span></Badge>
@@ -333,17 +347,19 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
             <p className="mt-2 text-xs text-muted-foreground">
               {detalle.expediente.empresaRazonSocial} · {detalle.expediente.codigo}
             </p>
+            <DdVinculoResumen detalle={detalle} />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setRevisionAbierta(true)}>
-              <FileText className="h-3.5 w-3.5" /><span>Revisar expediente</span>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <DdVinculoSwitcher expedienteId={detalle.expediente.expedienteId} actualId={detalle.id} />
+            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Revisar expediente" onClick={() => setRevisionAbierta(true)}>
+              <FileText className="h-3.5 w-3.5" /><span>Expediente</span>
             </Button>
-            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <Link href={DD_RUTAS.MATRIZ}><ArrowLeft className="h-3.5 w-3.5" /><span>Volver a Matriz</span></Link>
+            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Volver a Matriz">
+              <Link href={DD_RUTAS.MATRIZ}><ArrowLeft className="h-3.5 w-3.5" /><span>Matriz</span></Link>
             </Button>
             {onVolverRevision ? (
-              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={onVolverRevision}>
-                <FileText className="h-3.5 w-3.5" /><span>Volver a revisión</span>
+              <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Volver a revisión" onClick={onVolverRevision}>
+                <FileText className="h-3.5 w-3.5" /><span>Revisión</span>
               </Button>
             ) : null}
           </div>
@@ -352,14 +368,27 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
 
       <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
         <Card>
-          <CardHeader className="border-b border-border pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm font-bold">
-              <ClipboardCheck className="h-4 w-4 text-primary" />
-              Criterios de evaluación
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Registra el resultado de cada criterio y adjunta la evidencia correspondiente.
-            </p>
+          <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                  <ClipboardCheck className="h-4 w-4 text-primary" />
+                  Criterios de evaluación
+                </CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Registra el resultado de cada criterio y adjunta la evidencia correspondiente.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Progress value={totalCriterios > 0 ? (criteriosDecididos / totalCriterios) * 100 : 0} className="h-1.5 w-40" />
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {criteriosDecididos} de {totalCriterios} criterios evaluados
+                  </span>
+                </div>
+              </div>
+              {puedeEditar ? (
+                <DdAutomatizacionGeneral vinculoId={detalle.id} onTerminada={recargarAdjuntos} />
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -377,7 +406,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                     const evidencias = detalle.adjuntos.filter((adjunto) => adjunto.categoria === `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}`);
                     const fuenteUrl = urlFuenteLista(lista.codigo, detalle.nombre, detalle.documento);
                     return (
-                      <tr key={lista.codigo} className="align-top hover:bg-secondary/20">
+                      <tr key={lista.codigo} className={`align-top transition-colors hover:bg-secondary/30 ${decision === "si" ? "bg-red-50/40" : "even:bg-secondary/10"}`}>
                         <td className="px-4 py-3">
                           <div className="flex items-start gap-2">
                             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">{indice + 1}</span>
@@ -399,7 +428,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                                 type="button"
                                 disabled={!puedeEditar}
                                 onClick={() => setDecisiones((previas) => ({ ...previas, [lista.codigo]: opcion.valor }))}
-                                className={`min-w-12 rounded-md border px-2 py-1.5 text-[10px] font-bold transition ${decision === opcion.valor ? opcion.clase : "border-border bg-card text-muted-foreground hover:bg-secondary/50"}`}
+                                className={`min-w-12 rounded-md border px-2 py-1.5 text-[10px] font-bold transition ${decision === opcion.valor ? `${opcion.clase} shadow-sm ring-1 ring-current/20` : "border-border bg-card text-muted-foreground hover:bg-secondary/50"}`}
                               >
                                 {opcion.label}
                               </button>
@@ -408,23 +437,13 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         </td>
                         <td className="px-4 py-3">
                           <div className="space-y-1">
-                            {evidencias.length === 0 ? (
-                              <p className="text-[10px] text-muted-foreground">Sin evidencia cargada.</p>
-                            ) : (
-                              evidencias.map((evidencia) => (
-                                <div key={evidencia.id} className="flex items-center gap-1.5">
-                                  <a href={evidencia.url} target="_blank" rel="noopener noreferrer" className="flex min-w-0 items-center gap-1 text-[10px] text-primary hover:underline">
-                                    <FileText className="h-3 w-3 shrink-0" />
-                                    <span className="max-w-[220px] truncate">{evidencia.nombre}</span>
-                                  </a>
-                                  <DdEvidenciaPreviewButton
-                                    url={evidencia.url}
-                                    nombre={evidencia.nombre}
-                                    mimeType={evidencia.mimeType}
-                                  />
-                                </div>
-                              ))
-                            )}
+                            {subiendoCriterio === lista.codigo || automatizandoCriterio === lista.codigo ? (
+                              <div className="space-y-1" aria-live="polite" aria-label="Procesando evidencia">
+                                <Skeleton className="h-4 w-52" />
+                                <Skeleton className="h-4 w-36" />
+                              </div>
+                            ) : null}
+                            <DdEvidenciasCriterio criterio={lista.label} evidencias={evidencias} />
                             <div className="flex flex-wrap items-center gap-2">
                               {puedeEditar ? (
                                 <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] font-medium text-primary hover:underline">
@@ -484,7 +503,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
 
         <div className="space-y-4">
           <Card>
-            <CardHeader className="border-b border-border pb-3">
+            <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
               <CardTitle className="flex items-center gap-2 text-sm font-bold">
                 <UserRound className="h-4 w-4 text-primary" />
                 Observación del vínculo
@@ -517,8 +536,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
           </Card>
 
           <Card>
-            <CardHeader className="border-b border-border pb-3">
-              <CardTitle className="text-sm font-bold">Evaluación reputacional (SIG)</CardTitle>
+            <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                Evaluación reputacional (SIG)
+              </CardTitle>
               <p className="text-[10px] text-muted-foreground">
                 Comunicaciones registra observaciones y fuentes. SIG define el resultado y la
                 conclusión reputacional del vínculo.
@@ -581,8 +603,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
           </Card>
 
           <Card>
-            <CardHeader className="border-b border-border pb-3">
-              <CardTitle className="text-sm font-bold">Evaluación SIG del vínculo</CardTitle>
+            <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-bold">
+                <Scale className="h-4 w-4 text-primary" />
+                Evaluación SIG del vínculo
+              </CardTitle>
               <p className="text-[10px] text-muted-foreground">
                 Primero define el resultado. La conclusión SIG se habilita después.
               </p>
@@ -672,6 +697,9 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
           puedeMatriz
           onClose={() => setRevisionAbierta(false)}
           onDone={() => { void cargar(); }}
+          onResultadoFinal={(resultado, comentario, cierre) =>
+            ddMatrizEvaluacionService.registrarResultadoFinal(detalle.expediente.expedienteId, resultado, comentario, cierre)
+          }
         />
       ) : null}
 

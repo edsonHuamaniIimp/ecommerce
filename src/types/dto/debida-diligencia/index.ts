@@ -109,3 +109,8 @@ export type {
 } from "./dd-integracion-documentos-response.dto";
 
 
+
+export type {
+  DdMatrizAutomatizacionCriterioDTO,
+  DdMatrizAutomatizacionDTO,
+} from "./dd-matriz-automatizacion.dto";

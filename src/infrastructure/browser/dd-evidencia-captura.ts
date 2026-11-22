@@ -145,6 +145,82 @@ async function capturarBusquedaEnLista(
   return { bytes: Buffer.from(pdf), mimeType: "application/pdf", extension: "pdf", nombre };
 }
 
+/**
+ * INTERPOL (notificaciones rojas): el formulario pide apellido y nombre por separado.
+ * Con 3+ palabras se toman las dos últimas como apellidos (formato peruano) y el resto
+ * como nombres; con 1-2 palabras la última es el apellido.
+ */
+export function separarNombreInterpol(termino: string): { apellido: string; nombre: string } {
+  const palabras = termino.trim().split(/\s+/).filter(Boolean);
+  if (palabras.length <= 1) return { apellido: palabras[0] ?? "", nombre: "" };
+  const apellidos = palabras.length >= 3 ? 2 : 1;
+  return {
+    apellido: palabras.slice(-apellidos).join(" "),
+    nombre: palabras.slice(0, -apellidos).join(" "),
+  };
+}
+
+/** Escribe con una pulsacion real al final para disparar los handlers de teclado del sitio. */
+async function escribirCampo(page: import("playwright-core").Page, selector: string, valor: string): Promise<void> {
+  if (!valor) return;
+  const input = page.locator(selector).first();
+  await input.fill(valor.slice(0, -1));
+  await input.pressSequentially(valor.slice(-1));
+}
+
+/** Busca en el formulario de notificaciones rojas y deja constancia del resultado. */
+async function capturarBusquedaInterpol(
+  page: import("playwright-core").Page,
+  nombre: string,
+  termino: string,
+  url: string,
+): Promise<EvidenciaCapturada> {
+  const { apellido, nombre: nombres } = separarNombreInterpol(termino);
+  await page.locator("button:has-text(\"Accept\"), button:has-text(\"Aceptar\")").first().click({ timeout: 2000 }).catch(() => undefined);
+  await escribirCampo(page, "#name", apellido);
+  await escribirCampo(page, "#forename", nombres);
+  await page.locator("#submit").first().click();
+  await page.waitForTimeout(5000);
+
+  const total = await page.locator(".redNoticeItem").count();
+  const sinResultados = await page.getByText(/no results for your search/i).first().isVisible().catch(() => false);
+  const coincidencias = sinResultados ? 0 : total;
+
+  await page.evaluate(
+    ({ apellidoBuscado, nombresBuscados, cantidad }) => {
+      const banner = document.createElement("div");
+      banner.style.cssText =
+        "position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#0B2E59;color:#fff;" +
+        "font:15px/1.5 Arial,sans-serif;padding:10px 16px;";
+      banner.textContent =
+        `INTERPOL Red Notices — Apellido: "${apellidoBuscado}"${nombresBuscados ? ` · Nombre: "${nombresBuscados}"` : ""} — ` +
+        (cantidad > 0 ? `${cantidad} notificación(es) encontrada(s)` : "Sin resultados") +
+        ` — ${new Date().toLocaleString("es-PE")}`;
+      document.body.appendChild(banner);
+      document.querySelector(".redNoticesList")?.scrollIntoView({ block: "start" });
+      window.scrollBy(0, -80);
+    },
+    { apellidoBuscado: apellido, nombresBuscados: nombres, cantidad: coincidencias },
+  );
+  await page.waitForTimeout(400);
+
+  const captura = await page.screenshot({ type: "png", fullPage: false });
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head>
+    <body style="font-family:Arial,sans-serif;margin:16px">
+      <h1 style="font-size:15px;margin:0 0 6px">${escaparHtml(nombre)}</h1>
+      <p style="font-size:12px;color:#444;margin:0 0 10px">Búsqueda: apellido "${escaparHtml(apellido)}"${nombres ? `, nombre "${escaparHtml(nombres)}"` : ""} · Resultados: ${coincidencias} · Fuente: ${escaparHtml(url)}</p>
+      <img style="width:100%;border:1px solid #ccc" src="data:image/png;base64,${Buffer.from(captura).toString("base64")}">
+    </body></html>`;
+  await page.setContent(html, { waitUntil: "load" });
+  const pdf = await page.pdf({
+    format: "A4",
+    landscape: true,
+    printBackground: true,
+    margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+  });
+  return { bytes: Buffer.from(pdf), mimeType: "application/pdf", extension: "pdf", nombre };
+}
+
 /** Normaliza texto para búsqueda: minúsculas y sin diacríticos. */
 function normalizarTexto(texto: string): string {
   return texto
@@ -277,7 +353,9 @@ async function capturarBusquedaEnPdf(
   const datos = new Uint8Array(await response.arrayBuffer());
 
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const documento = await getDocument({ data: datos }).promise;
+  /* pdfjs transfiere (deja en 0 bytes) el buffer que recibe: se le pasa una copia para
+   * conservar `datos` intacto (hash, tamaño y visor de la primera página). */
+  const documento = await getDocument({ data: datos.slice() }).promise;
   const paginas = documento.numPages;
 
   const buscado = normalizarTexto(termino);
@@ -440,7 +518,10 @@ async function buscarEnPagina(
   for (const selector of selectores) {
     const input = page.locator(selector).first();
     if (await input.isVisible().catch(() => false)) {
-      await input.fill(termino);
+      /* `fill` no dispara teclas: algunos buscadores (p. ej. Banco Mundial) filtran con keyup,
+       * por eso el ultimo caracter se escribe con una pulsacion real. */
+      await input.fill(termino.slice(0, -1));
+      await input.pressSequentially(termino.slice(-1));
       await input.press("Enter");
       await page.waitForTimeout(1500);
       const submit = page
@@ -520,6 +601,11 @@ export async function capturarEvidenciaPdf(
        de la búsqueda (Ctrl+F) del término, no el listado completo. */
     if (url.includes("scsanctions.un.org/consolidated")) {
       return await capturarBusquedaEnLista(page, nombre, termino, url);
+    }
+
+    /* INTERPOL: formulario propio (apellido / nombre), no un buscador de una sola caja. */
+    if (url.includes("interpol.int")) {
+      return await capturarBusquedaInterpol(page, nombre, termino, url);
     }
 
     /* OpenSanctions/DEA ya traen el término en la URL; en el resto se busca en el formulario. */

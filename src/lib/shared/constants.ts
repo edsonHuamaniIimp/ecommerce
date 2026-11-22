@@ -2410,7 +2410,8 @@ export const DD_MATRIZ_LISTA_URLS: Record<
   },
   banco_mundial: {
     url: "https://www.worldbank.org/en/projects-operations/procurement/debarred-firms",
-    inputSelector: "",
+    /* El buscador de la tabla es #category (el resto de inputs son del encabezado del sitio). */
+    inputSelector: "#category",
   },
   interpol: {
     url: "https://www.interpol.int/en/How-we-work/Notices/Red-Notices/View-Red-Notices",
@@ -2450,8 +2451,27 @@ export const DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS: Record<DdMatrizAdjuntoCategoria
 export const DD_MATRIZ_ADJUNTO_EXTENSIONES = ["pdf", "jpg", "jpeg", "png", "docx"] as const;
 export const DD_MATRIZ_ADJUNTO_ACCEPT = DD_MATRIZ_ADJUNTO_EXTENSIONES.map((extension) => `.${extension}`).join(",");
 
+/** Evidencias que se listan en linea por criterio; el resto va en un modal con la lista completa. */
+export const DD_MATRIZ_EVIDENCIAS_VISIBLES = 3;
+
 /** Prefijo de las categorias de evidencia por criterio (`criterio_<codigo>`). */
 export const DD_MATRIZ_CRITERIO_PREFIJO = "criterio_";
+
+/** Estados de la automatizacion general de evidencias de un vinculo. */
+export const DD_AUTOMATIZACION_ESTADOS = {
+  EN_CURSO: "en_curso",
+  COMPLETADA: "completada",
+  CON_ERRORES: "con_errores",
+} as const;
+export type DdAutomatizacionEstado =
+  (typeof DD_AUTOMATIZACION_ESTADOS)[keyof typeof DD_AUTOMATIZACION_ESTADOS];
+
+/** Evento Pusher (canal privado del usuario) que avisa el termino de la automatizacion general. */
+export const DD_AUTOMATIZACION_EVENTO = "dd-automatizacion-finalizada";
+/** Cada cuanto consulta el cliente el estado si Pusher no esta disponible (ms). */
+export const DD_AUTOMATIZACION_POLL_MS = 4000;
+/** Tiempo maximo que se conserva el estado de una automatizacion en memoria (ms). */
+export const DD_AUTOMATIZACION_TTL_MS = 30 * 60 * 1000;
 
 /** Tipos de fila del Centro documental. */
 export const DD_REPOSITORIO_TIPOS = {

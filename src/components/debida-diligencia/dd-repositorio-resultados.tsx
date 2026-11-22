@@ -103,7 +103,19 @@ function FilaArchivo({ fila, ahora, agrupacion }: FilaArchivoProps) {
       </div>
       <div className="flex items-center gap-2">
         {esDocumento && fila.estado !== DD_DOCUMENTO_ESTADOS.CARGADO ? <DdDocumentoBadge estado={fila.estado} /> : null}
-        <DdEvidenciaPreviewButton url={fila.url} nombre={fila.nombre} mimeType={fila.mimeType} />
+        <DdEvidenciaPreviewButton
+          url={fila.url}
+          nombre={fila.nombre}
+          mimeType={fila.mimeType}
+          detalles={[
+            { etiqueta: "Tipo", valor: fila.claseLabel },
+            { etiqueta: "Vínculo", valor: fila.vinculoNombre },
+            { etiqueta: "Área", valor: fila.area || "—" },
+            { etiqueta: "Subido por", valor: fila.responsable || "—" },
+            { etiqueta: "Fecha de carga", valor: dateUtils.formatDateTime(fila.fecha) },
+            { etiqueta: "Formato", valor: fila.formato.toUpperCase() },
+          ]}
+        />
       </div>
     </li>
   );

@@ -542,7 +542,8 @@ export function DdMatrizBandeja() {
     setExportando(formato);
     try {
       const respuesta = await ddMatrizEvaluacionService.exportar(
-        seleccion.size > 0 ? { ids: [...seleccion] } : filtrosComunes(filtrosRef.current),
+        /* La exportacion depende solo de los filtros; la seleccion de la bandeja es para las acciones. */
+        filtrosComunes(filtrosRef.current),
       );
       if (respuesta.data.length === 0) {
         toast.error("No hay registros para exportar con los filtros actuales");
@@ -590,27 +591,6 @@ export function DdMatrizBandeja() {
     } finally {
       setProcesando(null);
     }
-  };
-
-  const registrarResultadoFinal = async (
-    resultado: DdMatrizResultadoFinal,
-    comentario?: string,
-    cierre?: {
-      clienteComentario?: string | null;
-      documentosObservados?: DdDocumentoTipo[];
-      vinculosObservados?: DdVinculoObservadoRequestDTO[];
-    },
-  ) => {
-    if (!revisionFila) return;
-    const { id } = await ddMatrizEvaluacionService.abrir(revisionFila.id);
-    await ddMatrizEvaluacionService.guardar({
-      id,
-      resultadoFinal: resultado,
-      finalComentario: comentario?.trim() || null,
-      clienteComentario: cierre?.clienteComentario ?? null,
-      documentosObservados: cierre?.documentosObservados ?? [],
-      vinculosObservados: cierre?.vinculosObservados ?? [],
-    });
   };
 
   const enviarComunicaciones = async () => {
@@ -815,7 +795,7 @@ export function DdMatrizBandeja() {
             onClick={() => { void exportar("xlsx"); }}
           >
             <FileSpreadsheet className={`h-3.5 w-3.5 ${exportando === "xlsx" ? "animate-pulse" : ""}`} />
-            <span>{exportando === "xlsx" ? "Exportando..." : seleccion.size > 0 ? `Excel (${seleccion.size})` : "Exportar matriz"}</span>
+            <span>{exportando === "xlsx" ? "Exportando..." : "Exportar matriz"}</span>
           </Button>
           <Button
             type="button"
@@ -1439,7 +1419,9 @@ export function DdMatrizBandeja() {
           puedeMatriz
           onClose={() => setRevisionFila(null)}
           onDone={() => { void cargar(undefined, true); }}
-          onResultadoFinal={registrarResultadoFinal}
+          onResultadoFinal={(resultado, comentario, cierre) =>
+            ddMatrizEvaluacionService.registrarResultadoFinal(revisionFila.id, resultado, comentario, cierre)
+          }
         />
       ) : null}
 

@@ -10,9 +10,10 @@ import {
 } from "@nrivera-iimp/ui-kit-iimp";
 import { ExternalLink } from "lucide-react";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import type { DdEvidenciaDetalle } from "@/lib/shared/utils/dd-evidencia-detalles";
 
 interface Props {
-  documento: { url: string; nombre: string; mimeType?: string | null } | null;
+  documento: { url: string; nombre: string; mimeType?: string | null; detalles?: DdEvidenciaDetalle[] } | null;
   onClose: () => void;
 }
 
@@ -29,6 +30,17 @@ export function DdDocumentoPreviewDialog({ documento, onClose }: Props) {
           <DialogTitle className="text-base font-semibold">Vista previa del documento</DialogTitle>
           <p className="truncate text-xs text-muted-foreground">{documento?.nombre}</p>
         </DialogHeader>
+
+        {documento?.detalles && documento.detalles.length > 0 ? (
+          <dl className="grid gap-x-4 gap-y-2 rounded-lg border border-border bg-card px-3 py-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {documento.detalles.map((detalle) => (
+              <div key={detalle.etiqueta} className="min-w-0">
+                <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{detalle.etiqueta}</dt>
+                <dd className="truncate text-xs font-medium text-foreground" title={detalle.valor}>{detalle.valor}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
 
         {documento ? (
           <div className="max-h-[70vh] overflow-auto rounded-lg border border-border bg-secondary/30">
