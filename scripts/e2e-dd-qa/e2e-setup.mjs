@@ -1,6 +1,6 @@
 // Prepara usuarios y empresas de prueba E2E en la BD de QA (idempotente). Se ejecuta dentro del contenedor de la app.
-const { Client } = require("pg");
-const { randomUUID, randomBytes, scryptSync } = require("crypto");
+import pg from "pg";
+import { randomUUID, randomBytes, scryptSync } from "node:crypto";
 
 const EVENTO_ID = "c0a354e0-4c79-4b38-b88d-ff824cd28964"; // Perumin 2027
 const PASSWORD = "E2eTest#2026";
@@ -13,7 +13,7 @@ function hash(plano) {
 }
 
 (async () => {
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
+  const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await c.connect();
   const ins = async (tabla, fila) => {
     const k = Object.keys(fila);

@@ -5,8 +5,8 @@ Resultados y hallazgos en `docs/01-funcional/26-dd-smoke-e2e-qa.md`.
 
 ## Piezas
 
-- `e2e-setup.js`: crea (idempotente) los usuarios `e2e-sig|com|legal@example.invalid`, 8 empresas `E2E EMPRESA A..H` y un usuario cliente por empresa. Las contraseñas de prueba están definidas en el script. Se ejecuta **dentro del contenedor de la app** (usa `pg` y `DATABASE_URL`).
-- `e2e-run.js`: corre los escenarios T, A..H. Variables: `E2E_SOLO` (por ejemplo `A,B`) y `E2E_RESET=1` (borra primero los expedientes E2E).
+- `e2e-setup.mjs`: crea (idempotente) los usuarios `e2e-sig|com|legal@example.invalid`, 8 empresas `E2E EMPRESA A..H` y un usuario cliente por empresa. Las contraseñas de prueba están definidas en el script. Se ejecuta **dentro del contenedor de la app** (usa `pg` y `DATABASE_URL`).
+- `e2e-run.mjs`: corre los escenarios T, A..H. Variables: `E2E_SOLO` (por ejemplo `A,B`) y `E2E_RESET=1` (borra primero los expedientes E2E).
 - `ultima-corrida.txt`: salida de la última corrida.
 
 ## Precauciones
@@ -19,6 +19,6 @@ Resultados y hallazgos en `docs/01-funcional/26-dd-smoke-e2e-qa.md`.
     -v /opt/ctrst-qa/uploads:/app/public/uploads <imagen-de-qa>
   ```
 
-- Copiar `e2e-run.js` a `/app` del contenedor (necesita resolver `pg`) y ejecutar `node /app/e2e-run.js` con `docker exec -w /app`.
+- Copiar `e2e-run.mjs` a `/app` del contenedor (necesita resolver `pg`) y ejecutar `node /app/e2e-run.mjs` con `docker exec -w /app`.
 - Eliminar el contenedor al terminar (`docker rm -f ctrst-e2e`).
 - Los pasos marcados `BYPASS` en la salida son atajos para seguir el flujo cuando un paso falla por un defecto conocido (ver el documento de hallazgos).

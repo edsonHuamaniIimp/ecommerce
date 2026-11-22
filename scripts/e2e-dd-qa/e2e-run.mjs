@@ -1,5 +1,7 @@
 // Smoke / integracion E2E de Debida Diligencia contra la API real (corre dentro del contenedor ctrst-e2e, sin correos).
-const fs = require("fs");
+import fs from "node:fs";
+import { randomUUID } from "node:crypto";
+import pg from "pg";
 const BASE = process.env.E2E_BASE || "http://localhost:3000";
 const EVENTO = "c0a354e0-4c79-4b38-b88d-ff824cd28964";
 const PASSWORD = "E2eTest#2026";
@@ -85,9 +87,7 @@ async function subirDocumento(usuario, tipo, etiqueta) {
 
 async function sembrarBeneficiarios(esc, ctx, beneficiarios) {
   if (!beneficiarios.length) return;
-  const { Client } = require("pg");
-  const { randomUUID } = require("crypto");
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
+  const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await c.connect();
   try {
     const n = (await c.query("select count(*)::int n from debida_diligencia_beneficiario where expediente_id=$1", [ctx.expedienteId])).rows[0].n;
@@ -348,21 +348,6 @@ async function verEstado(esc, ctx, usuario, etiqueta, esperado) {
   });
 }
 
-async function sigAprueba(esc, ctx) {
-  return paso(esc, "SIG: aprueba el expediente", async () => {
-    const e = await api("sig", "POST", "/api/debida-diligencia/revisar", {
-      expedienteId: ctx.expedienteId,
-      alcance: "expediente",
-      accion: "aprobar",
-      motivo: null,
-      documentosObservados: [],
-      observaciones: [],
-      derivarComunicaciones: false,
-    });
-    return `estado=${e.estado}`;
-  });
-}
-
 async function sigConclusionFinal(esc, ctx, resultadoFinal, comentario) {
   return paso(esc, `SIG: conclusion final = ${resultadoFinal}`, async () => {
     if (!ctx.empresaFila) await sigMatrizFilas(ctx);
@@ -478,7 +463,7 @@ async function escenarioD() {
   const esc = "D";
   const ctx = {};
   await llegarALegal(esc, ctx, "cliD", RUC.D, RAZON(esc), BENEF_NACIONAL(esc));
-  const informe = await paso(esc, "Legal: sube el informe legal (PDF)", async () => {
+  await paso(esc, "Legal: sube el informe legal (PDF)", async () => {
     const fd = new FormData();
     fd.append("file", pdf("informe-legal-D"), "informe-legal-D.pdf");
     const r = await api("legal", "POST", "/api/debida-diligencia/legal/informe", fd, true);
@@ -664,8 +649,7 @@ async function resumenFinal() {
 }
 
 async function reiniciarDatosE2E() {
-  const { Client } = require("pg");
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
+  const c = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await c.connect();
   try {
     const r = await c.query("delete from debida_diligencia where empresa_id in (select id from empresa where ruc like '2099999100%')");

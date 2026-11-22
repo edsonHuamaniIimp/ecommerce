@@ -25,18 +25,18 @@ const CHROME_CANDIDATES = [
  * de fallos ("Failed to create headless user data directory container" / crashpad), por eso
  * se le da un HOME y una carpeta de volcados escribibles.
  */
-const CHROMIUM_ENV = { ...process.env, HOME: process.env.CHROMIUM_HOME ?? "/tmp" };
-const CHROMIUM_ARGS_BASE = ["--no-sandbox", "--disable-dev-shm-usage", "--crash-dumps-dir=/tmp"];
+export const CHROMIUM_ENV = { ...process.env, HOME: process.env.CHROMIUM_HOME ?? "/tmp" };
+export const CHROMIUM_ARGS_BASE = ["--no-sandbox", "--disable-dev-shm-usage", "--crash-dumps-dir=/tmp"];
 
 /** Tiempo maximo para descargar una lista oficial (ms). */
-const DESCARGA_TIMEOUT_MS = 60_000;
+export const DESCARGA_TIMEOUT_MS = 60_000;
 
 /**
  * Descarga una lista oficial. Varios portales (p. ej. DFAT de Australia) dejan colgadas las
  * peticiones sin User-Agent de navegador, por eso se envian cabeceras de navegador y se corta
  * con un mensaje claro si la fuente no responde a tiempo.
  */
-async function descargarFuente(url: string): Promise<Response> {
+export async function descargarFuente(url: string): Promise<Response> {
   try {
     return await fetch(url, {
       headers: {
