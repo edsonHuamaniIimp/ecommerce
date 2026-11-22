@@ -19,6 +19,15 @@ const CHROME_CANDIDATES = [
   "/usr/bin/chromium-browser",
 ].filter((ruta): ruta is string => Boolean(ruta));
 
+/**
+ * Opciones comunes de arranque. En los contenedores el usuario de la app no tiene HOME
+ * (`/nonexistent`) y Chromium aborta al no poder crear su carpeta de datos ni la de volcados
+ * de fallos ("Failed to create headless user data directory container" / crashpad), por eso
+ * se le da un HOME y una carpeta de volcados escribibles.
+ */
+const CHROMIUM_ENV = { ...process.env, HOME: process.env.CHROMIUM_HOME ?? "/tmp" };
+const CHROMIUM_ARGS_BASE = ["--no-sandbox", "--disable-dev-shm-usage", "--crash-dumps-dir=/tmp"];
+
 function chromePath(): string {
   const encontrado = CHROME_CANDIDATES.find((ruta) => existsSync(ruta));
   if (!encontrado) {
@@ -249,7 +258,8 @@ async function capturarPrimeraPaginaPdf(datos: Uint8Array): Promise<string> {
   const browser = await chromium.launch({
     executablePath: chromePath(),
     headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    env: CHROMIUM_ENV,
+    args: CHROMIUM_ARGS_BASE,
   });
 
   try {
@@ -313,7 +323,8 @@ async function renderizarConstancia(html: string): Promise<Buffer> {
   const browser = await chromium.launch({
     executablePath: chromePath(),
     headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    env: CHROMIUM_ENV,
+    args: CHROMIUM_ARGS_BASE,
   });
 
   try {
@@ -560,11 +571,8 @@ export async function capturarEvidenciaPdf(
   const browser = await chromium.launch({
     executablePath: chromePath(),
     headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-blink-features=AutomationControlled",
-    ],
+    env: CHROMIUM_ENV,
+    args: [...CHROMIUM_ARGS_BASE, "--disable-blink-features=AutomationControlled"],
   });
 
   try {
