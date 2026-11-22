@@ -53,6 +53,12 @@ variable "efs_access_point_id" {
   default     = ""
 }
 
+variable "proteger_uploads" {
+  description = "Activa UPLOADS_PROTEGIDOS en la app (exige sesion para documentos de DD)."
+  type        = bool
+  default     = false
+}
+
 variable "uploads_backend" {
   description = "Backend de archivos: 'efs' (STORAGE_PROVIDER=local + volumen EFS) o 's3' (requiere subida prefirmada implementada)"
   type        = string
@@ -390,6 +396,7 @@ locals {
       { name = "NEXT_TELEMETRY_DISABLED", value = "1" },
       { name = "HOME", value = "/tmp" },
       { name = "XDG_CACHE_HOME", value = "/tmp/.cache" },
+      { name = "UPLOADS_PROTEGIDOS", value = var.proteger_uploads ? "true" : "false" },
       { name = "RUN_MIGRATIONS", value = "true" },
       { name = "RUN_SEED", value = var.run_seed ? "true" : "false" },
       { name = "NEXT_PUBLIC_APP_URL", value = local.app_url },

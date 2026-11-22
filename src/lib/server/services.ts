@@ -146,6 +146,7 @@ export const services = {
   ddMatrizEvaluacion: new DdMatrizEvaluacionApplicationService(
     new DdMatrizEvaluacionPrismaRepository(),
     (expedienteId, session) => debidaDiligenciaApp.aprobarDesdeMatriz(expedienteId, session),
+    (expedienteId, session) => debidaDiligenciaApp.cerrarSinRespuestaDesdeMatriz(expedienteId, session),
   ),
   ddClasificarArchivos: new DdClasificarArchivosApplicationService(
     process.env.GEMINI_API_KEY?.trim()

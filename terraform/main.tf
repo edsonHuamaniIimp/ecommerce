@@ -214,6 +214,7 @@ module "ecs" {
   efs_file_system_id        = module.uploads.file_system_id
   efs_access_point_id       = module.uploads.access_point_id
   uploads_backend           = var.uploads_backend
+  proteger_uploads          = var.proteger_uploads
   planogess_api_url         = var.planogess_api_url
   facturas_pdf_url_template = var.facturas_pdf_url_template
   facturas_emisor_ruc       = var.facturas_emisor_ruc
@@ -273,7 +274,8 @@ module "ecs" {
 
 # ── CDN + WAF (us-east-1) ───────────────────────────────────────────────────
 module "cloudfront" {
-  source = "./modules/cloudfront"
+  proteger_uploads = var.proteger_uploads
+  source           = "./modules/cloudfront"
 
   providers = {
     aws = aws.us_east_1

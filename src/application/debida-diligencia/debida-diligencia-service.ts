@@ -1569,6 +1569,35 @@ export class DebidaDiligenciaApplicationService {
     );
   }
 
+  /**
+   * Puente matriz -> expediente: la conclusion final SIN RESPUESTA deja la DD sin uso, asi que se
+   * cierra el expediente (el cliente ya no puede editarlo) y la empresa puede presentar una nueva.
+   * Solo lo invoca la matriz, que ya valido quien puede registrar el resultado final.
+   */
+  async cerrarSinRespuestaDesdeMatriz(expedienteId: string, session: DdSession): Promise<void> {
+    const expediente = await this.repo.findExpedientePorId(expedienteId);
+    if (!expediente) throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    if (expediente.estado === DD_ESTADOS.RECHAZADA || expediente.estado === DD_ESTADOS.APROBADA) return;
+
+    const ahora = dateUtils.now();
+    await this.repo.actualizarEstado(expediente.id, {
+      estado: DD_ESTADOS.RECHAZADA,
+      fechaRevision: ahora,
+      fechaRechazo: ahora,
+      revisadoPor: session.email,
+      motivoRechazo: DD_MENSAJES.CIERRE_SIN_RESPUESTA,
+      actualizadoPor: session.email,
+    });
+    await this.registrarHistorial(expediente.id, {
+      tipo: DD_HISTORIAL_TIPOS.RECHAZO,
+      area: DD_OBSERVACION_AREAS.LOGISTICA,
+      estado: DD_ESTADOS.RECHAZADA,
+      titulo: "Debida diligencia cerrada sin respuesta de la empresa",
+      detalle: DD_MENSAJES.CIERRE_SIN_RESPUESTA,
+      actor: session.email,
+    });
+  }
+
   /** Resolucion de Logistica: aprobar, observar o rechazar. */
   async revisar(
     dto: DdRevisarRequestDTO,
@@ -1597,6 +1626,15 @@ export class DebidaDiligenciaApplicationService {
         API_ERROR_CODES.CONFLICT,
         409,
       );
+    }
+
+    /* Legal ya observo y espera al cliente: derivar de nuevo saltaria la subsanacion. */
+    if (
+      dto.accion === DD_ACCIONES_REVISION.RECHAZAR &&
+      expediente.estado === DD_ESTADOS.OBSERVADA &&
+      expediente.decisionLegal === DD_ACCIONES_LEGAL.OBSERVAR
+    ) {
+      throw new DomainError(DD_MENSAJES.LEGAL_OBSERVADA_ESPERA_CLIENTE, API_ERROR_CODES.CONFLICT, 409);
     }
 
     if (dto.accion === DD_ACCIONES_REVISION.APROBAR && !opciones.omitirValidacionComunicaciones) {

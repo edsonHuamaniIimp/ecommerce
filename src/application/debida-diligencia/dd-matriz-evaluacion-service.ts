@@ -106,6 +106,7 @@ export class DdMatrizEvaluacionApplicationService {
   constructor(
     private readonly repo: IDdMatrizEvaluacionRepository,
     private readonly aprobarExpediente?: DdMatrizAprobarExpediente,
+    private readonly cerrarSinRespuesta?: DdMatrizAprobarExpediente,
   ) {}
 
   private tienePermiso(session: DdSession, permiso: string): boolean {
@@ -494,6 +495,9 @@ export class DdMatrizEvaluacionApplicationService {
         actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
           ? ((await this.repo.findVinculo(actualizado.id)) ?? actualizado)
           : await this.repo.findVinculoEmpresa(actualizado.expediente.expedienteId);
+    }
+    if (empresa?.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA) {
+      await this.cerrarSinRespuesta?.(actualizado.expediente.expedienteId, session);
     }
     const vinculoFinal = actualizado.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
       ? (empresa ?? actualizado)

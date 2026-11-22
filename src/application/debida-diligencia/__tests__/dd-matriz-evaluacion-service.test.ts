@@ -243,6 +243,27 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
+  it("resultado final SIN RESPUESTA cierra el expediente para que la empresa pueda presentar una nueva DD", async () => {
+    const cerrar = vi.fn().mockResolvedValue(undefined);
+    const empresa = { ...vinculo(), tipo: "empresa" } as DdMatrizVinculoEntity;
+    const { repo } = crear(empresa);
+    const servicio = new DdMatrizEvaluacionApplicationService(repo, undefined, cerrar);
+    /* 1a lectura: la fila aun abierta; luego, ya con el resultado guardado. */
+    repo.findVinculo
+      .mockResolvedValueOnce(empresa)
+      .mockResolvedValue({ ...empresa, resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA });
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "sin_respuesta", finalComentario: "No respondio a la observacion" });
+    expect(cerrar).toHaveBeenCalledTimes(1);
+  });
+
+  it("otros resultados finales no cierran el expediente por falta de respuesta", async () => {
+    const cerrar = vi.fn().mockResolvedValue(undefined);
+    const { repo } = crear(vinculo());
+    const servicio = new DdMatrizEvaluacionApplicationService(repo, undefined, cerrar);
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "apto_con_observaciones", finalComentario: "Sustento" });
+    expect(cerrar).not.toHaveBeenCalled();
+  });
+
   it("filas automaticas: SIG puede completar la identidad y queda marcada para la sincronizacion", async () => {
     const { servicio, repo } = crear(vinculo({ nacionalidad: null, cargo: null }));
     await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {

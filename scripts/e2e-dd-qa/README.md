@@ -22,3 +22,9 @@ Resultados y hallazgos en `docs/01-funcional/26-dd-smoke-e2e-qa.md`.
 - Copiar `e2e-run.mjs` a `/app` del contenedor (necesita resolver `pg`) y ejecutar `node /app/e2e-run.mjs` con `docker exec -w /app`.
 - Eliminar el contenedor al terminar (`docker rm -f ctrst-e2e`).
 - Los pasos marcados `BYPASS` en la salida son atajos para seguir el flujo cuando un paso falla por un defecto conocido (ver el documento de hallazgos).
+
+## Ronda 2 (adversarial)
+
+- `ronda2-setup.mjs`: crea 30 empresas y usuarios `e2e-r01..r30@example.invalid` (una vez).
+- `ronda2.mjs`: bloques V (vigencia), S (subsanación), X (seguridad), M (matriz) y N (casos con empresa propia). `E2E_SOLO=V,S` ejecuta solo algunos. Los casos de vigencia siembran por BD una DD importada clonada de QA.
+- Resultados: `ultima-corrida-ronda2.txt` y `docs/01-funcional/27-dd-ronda2-adversarial-qa.md`.

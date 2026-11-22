@@ -58,6 +58,12 @@ variable "static_ttl_seconds" {
   type        = number
 }
 
+variable "proteger_uploads" {
+  description = "Reenvia la cookie de sesion y x-api-key al origen en /uploads/* (documentos de DD protegidos)."
+  type        = bool
+  default     = false
+}
+
 variable "uploads_ttl_seconds" {
   description = "TTL máximo de cache de /uploads (R2)"
   type        = number
@@ -229,6 +235,36 @@ resource "aws_wafv2_web_acl" "main" {
 }
 
 # ── Políticas administradas de cache (sin IDs hardcodeados) ─────────────────
+resource "aws_cloudfront_cache_policy" "uploads_protegidos" {
+  count       = var.proteger_uploads ? 1 : 0
+  name        = "${var.environment}-ctrst-uploads-protegidos"
+  comment     = "Cache de /uploads/* con cookie de sesion y x-api-key en la clave de cache"
+  min_ttl     = 0
+  default_ttl = 0
+  max_ttl     = 2592000
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+
+    cookies_config {
+      cookie_behavior = "whitelist"
+      cookies {
+        items = ["token"]
+      }
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["x-api-key"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+  }
+}
+
 data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
@@ -295,7 +331,7 @@ resource "aws_cloudfront_distribution" "main" {
     viewer_protocol_policy = "redirect-to-https"
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
-    cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
+    cache_policy_id        = var.proteger_uploads ? aws_cloudfront_cache_policy.uploads_protegidos[0].id : data.aws_cloudfront_cache_policy.optimized.id
     compress               = true
     min_ttl                = 0
     default_ttl            = 86400

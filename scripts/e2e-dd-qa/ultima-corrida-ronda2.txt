@@ -1,0 +1,146 @@
+Success	reset expedientes: 20
+16928 /tmp/r2.log
+=== Bloque V ===
+OK  |V1|cliente ve que requiere declaracion de vigencia (DD importada de otro evento)|estadoDeclaracion=sin cargar vence=2027-04-21
+OK  |V1|regularizar con un archivo inexistente es rechazado|rechazado 400: El documento "falsa.pdf" no existe en el almacenamiento. Vuelva a cargarlo.
+OK  |V1|la declaracion de vigencia solo admite PDF|rechazado 400: Formato no permitido. Admitidos: pdf.
+OK  |V1|cliente carga la declaracion de vigencia|estadoDeclaracion=cargado
+OK  |V1|no se puede cargar dos veces la declaracion|rechazado 409: La declaración de vigencia ya está cargada
+OK  |V1|SIG no puede RECHAZAR la declaracion (solo observar o derivar)|rechazado 400: La declaración de vigencia no se rechaza; se observa o se deriva la DD a Legal
+OK  |V1|SIG observa la declaracion|observada; el cliente puede subsanar
+OK  |V1|cliente subsana (nueva declaracion)|estadoDeclaracion=cargado
+OK  |V1|SIG aprueba la declaracion|estadoDeclaracion=aprobado; sigue aprobada=aprobada
+OK  |V1|aprobar otra vez es rechazado|rechazado 409: Solo se aprueba una declaración de vigencia cargada
+OK  |V1|observar una declaracion ya aprobada es rechazado|rechazado 409: La declaración de vigencia ya está aprobada
+OK  |V1|tras aprobar la declaracion el cliente ya no puede recargarla ni ve que la requiera|requiere=false
+OK  |V1|SIG no puede aprobar una declaracion que no existe|rechazado 409: La declaración de vigencia aún no está cargada
+OK  |V1|un cliente con DD vigente (declaracion pendiente) no puede enviar una DD nueva sin declaracion|rechazado 400: Debe cargar la declaración jurada de vigencia de información.
+OK  |V2|DD importada VENCIDA: no admite declaracion de vigencia (debe repetir la DD)|rechazado 409: La DD ya no está vigente
+OK  |V2|SIG tampoco puede aprobar la declaracion de una DD vencida|rechazado 409: La DD ya no está vigente
+FAIL|V4|DD APTO del flujo regular (otro evento, vigente): puede renovarse solo con la declaracion de vigencia|no hay camino de declaracion: puedeRegularizar=false, respuesta=409 Solo las DD importadas de otro evento requieren declaración de vigencia
+OK  |V4|con una DD APTO vigente de otro evento el cliente no queda bloqueado para el evento activo|nueva DD creada para el evento activo (DD-2026-0671)
+=== Bloque S ===
+OK  |S1|los vinculos enviados por el cliente llegan al expediente (bug #1 corregido)|1 vinculo(s) persistidos
+OK  |S1|SIG observa dos documentos (ficha RUC y poderes)|estado=observada
+OK  |S1|el cliente ve ambos documentos observados|observados=ficha_ruc,poderes; observaciones abiertas=2
+OK  |S1|reenviar SIN cambiar ningun documento observado es rechazado|rechazado 400: Reemplace los documentos observados antes de reenviar.
+OK  |S1|subsanar solo uno de los dos documentos observados y reenviar es rechazado|rechazado 400: Reemplace los documentos observados antes de reenviar.
+OK  |S1|subsanar ambos y reenviar vuelve a revision|estado=en_revision; observaciones abiertas=0
+OK  |S1|segunda ronda: SIG vuelve a observar otro documento y el cliente subsana|estado=en_revision
+OK  |S1|el cliente no puede editar mientras el expediente esta en revision|rechazado 409: El expediente está en revisión. Espera el resultado antes de modificarlo.
+OK  |S1|tras dos rondas de observacion el flujo llega a APTO|estado=aprobada
+OK  |S2|SIG solicita un documento adicional|estado=observada
+OK  |S2|reenviar sin adjuntar el documento adicional es rechazado|rechazado 400: Debe adjuntar el documento adicional solicitado por el revisor
+OK  |S2|el documento adicional solo admite PDF|rechazado 400: Formato no permitido. Admitidos: pdf.
+OK  |S2|con el documento adicional el reenvio es aceptado|estado=en_revision
+OK  |S4|preparar expediente en Legal (observado por ambas areas)|estado=en_legal
+OK  |S4|Legal observa sin motivo es rechazado|rechazado 400: El motivo de la observación legal es obligatorio
+OK  |S4|Legal rechaza sin informe es rechazado|rechazado 400: El informe legal es obligatorio para rechazar
+OK  |S4|Legal observa (ronda 1)|estado=observada
+OK  |S4|Legal no puede observar de nuevo mientras espera al cliente|rechazado 409: El expediente no está pendiente de revisión legal
+OK  |S4|cliente subsana y vuelve a Legal|estado=en_legal
+OK  |S4|Legal observa (ronda 2) pidiendo documento adicional y el cliente debe adjuntarlo|rechazado sin adicional; con adicional estado=en_legal
+OK  |S4|Legal rechaza con informe (cierra la DD)|estado=rechazada
+OK  |S4|tras el rechazo: Legal no puede aprobar, SIG no puede aprobar, el cliente no puede editar|rechazado 409: El expediente no está pen | rechazado 409: El resultado final ya est | rechazado 409: El expediente fue rechaza
+OK  |S4|tras el rechazo el cliente puede iniciar una nueva DD (sin duplicar el expediente rechazado)|expedientes 1 -> 2; nueva=DD-2026-0675 estado=borrador
+OK  |S9|DD aprobada vigente: el cliente no puede iniciar otra ni editar|rechazado 409: La debida diligencia actual aún no puede reno | rechazado 409: La debida diligencia aprobada no se puede edi
+OK  |S10|DD aprobada VENCIDA: el cliente puede renovarla|renovacion=DD-2026-0677 estado=borrador
+OK  |S10|la bandeja marca la vigencia vencida del expediente original|2 fila(s): DD-2026-0677:borrador:-, DD-2026-0676:aprobada:-
+=== Bloque X ===
+OK  |X1|cliente B NO puede leer el detalle del expediente de A|rechazado 403: No puedes consultar este expediente
+OK  |X1|cliente B NO puede ver el historial de A|rechazado 403: No puedes consultar este expediente
+OK  |X1|cliente NO puede leer el detalle de un vinculo de la matriz|rechazado 403: Sin permiso para acceder a la Matriz DD
+FAIL|X1|los archivos subidos exigen sesion (URL directa sin cookie)|GET /uploads/64fbc79f-3a13-48af-88b8-fb64120cad04.pdf sin sesion -> 200: el documento es publico (cualquiera con el enlace lo descarga)
+FAIL|X1|un cliente NO puede descargar el documento de otra empresa con su sesion|cliente B descargo /uploads/64fbc79f-3a13-48af-88b8-fb64120cad04.pdf de la empresa A (200)
+OK  |X3|permisos: cliente revisa (SIG) -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente resuelve Legal -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente deriva a Comunicaciones -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente guarda matriz -> debe ser rechazado|rechazado 403: Sin permiso para acceder a la Matriz DD
+OK  |X3|permisos: cliente observa reputacion -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente automatiza -> debe ser rechazado|rechazado 403: Sin permiso para acceder a la Matriz DD
+OK  |X3|permisos: Comunicaciones guarda matriz SIG -> debe ser rechazado|rechazado 403: Sin permiso para acceder a la Matriz DD
+OK  |X3|permisos: Comunicaciones revisa -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: Comunicaciones resuelve Legal -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: Legal revisa (SIG) -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: Legal guarda matriz -> debe ser rechazado|rechazado 403: Sin permiso para acceder a la Matriz DD
+OK  |X3|permisos: Legal observa reputacion -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: SIG resuelve Legal -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: SIG observa reputacion -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: SIG edita como cliente -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: Legal edita como cliente -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente ve bandeja de SIG -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente ve bandeja Legal -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente ve reputacion -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente ve matriz -> debe ser rechazado|rechazado 403: Sin permiso para acceder a la Matriz DD
+OK  |X3|permisos: cliente ve panel -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: cliente ve empresas externas -> debe ser rechazado|rechazado 403: Sin permiso para acceder a Debida Diligencia
+OK  |X3|permisos: sin sesion ve bandeja -> debe ser rechazado|rechazado 401: No autorizado
+OK  |X2|token con firma invalida o alg=none es rechazado|alg none=401, firma falsa=401
+FAIL|X2|fuerza bruta de login: se limita o bloquea tras muchos intentos fallidos|12 intentos fallidos sin limite (codigos 401); el login correcto sigue entrando (200)
+OK  |X5|asignacion masiva: campos de estado enviados por el cliente se ignoran|campos protegidos intactos
+OK  |X6|validacion: beneficiario con porcentaje 101|rechazado 400: El porcentaje no puede superar 100
+OK  |X6|validacion: beneficiario con porcentaje negativo|rechazado 400: El porcentaje no puede ser negativo
+OK  |X6|validacion: beneficiario con porcentaje texto|rechazado 400: Invalid input: expected number, received string
+OK  |X6|validacion: beneficiario con nombre vacio|rechazado 400: El nombre o razón social es obligatorio
+OK  |X6|validacion: beneficiario con nombre de 500 caracteres|rechazado 400: Too big: expected string to have <=200 characters
+OK  |X6|validacion: beneficiario con documento de 40 caracteres|rechazado 400: Too big: expected string to have <=30 characters
+OK  |X6|validacion: beneficiario con DNI de 3 digitos|rechazado 400: El DNI del vínculo debe tener 8 dígitos
+OK  |X6|validacion: beneficiario con nacionalidad con etiquetas HTML|rechazado 400: Nacionalidad inválida
+OK  |X6|validacion: beneficiario con tipo de vinculo inexistente|rechazado 400: Invalid option: expected one of "representante_legal"|"apoderado"|"director"|"gerente"|"beneficiario_final"|"socio_10"|"empresa_vinculada"
+OK  |X6|validacion: beneficiario con tipo de documento inexistente|rechazado 400: Invalid option: expected one of "DNI"|"Carnet de extranjería"|"Pasaporte"|"RUC"
+OK  |X6|validacion: 21 beneficiarios (maximo 20)|rechazado 400: Máximo 20 beneficiarios
+OK  |X6|validacion: dos beneficiarios con el mismo documento|aceptado y consolidado en 1
+OK  |X6|validacion: correo del representante invalido|rechazado 400
+OK  |X6|validacion: sitio web de 5000 caracteres|rechazado 400
+OK  |X6|validacion: relacion comercial inexistente|rechazado 400
+OK  |X7|carga: HTML disfrazado de PDF|rechazado 400
+OK  |X7|carga: archivo vacio|rechazado 400
+OK  |X7|carga: ejecutable renombrado .pdf|rechazado 400
+OK  |X7|carga: PDF real con extension .html|rechazado 400
+OK  |X7|carga: PDF real con extension .svg|rechazado 400
+OK  |X7|carga: PDF real con doble extension .pdf.exe|rechazado 400
+OK  |X7|carga: nombre con ../|aceptado como pdf, servido como application/pdf, nosniff=-
+OK  |X7|carga: PDF de 15 MB|rechazado 400
+FAIL|X7|los archivos se sirven con cabeceras seguras|faltan cabeceras x-content-type-options, content-disposition (content-type=application/pdf)
+OK  |X8|3 'nueva' simultaneas no duplican el expediente|1 expediente
+FAIL|X8|5 'enviar' simultaneos: una sola transicion y sin errores 500|5 envios aceptados en paralelo (historial de envios=5)
+FAIL|X8|legal 'aprobar' doble en paralelo: una sola decision|2 decisiones de Legal aceptadas en paralelo (estado final en_revision)
+OK  |X5|SIG no puede aprobar ni derivar un expediente en borrador|rechazado 409: Solo se pueden revis | rechazado 409: Solo se pueden revis | rechazado 409: El expediente no est
+OK  |X5|Legal no puede resolver un expediente que no esta en Legal|rechazado 409: El expediente no está pendiente de revisión legal
+OK  |X5|derivar a Comunicaciones dos veces es idempotente|1ra derivados=3; 2da derivados=0 existentes=3
+FAIL|X5|Comunicaciones: resolver un caso inexistente o ajeno da error controlado|caso inexistente: error del servidor 500 Invalid `prisma.debidaDiligenciaReputacion.update()` invocation: An operation failed because it depends on one or more records that were required but
+OK  |X5|Comunicaciones: observado sin fuente (link) es rechazado|rechazado 400: La fuente es obligatoria cuando el resultado es OBSERVADO
+FAIL|X5|Comunicaciones: un caso cerrado no se puede reabrir con otro resultado|un caso CERRADO fue modificado por Comunicaciones sin dejar rastro ni reapertura
+=== Bloque M ===
+OK  |M1|una respuesta de lista fuera de SI/NO/N.A. es rechazada|rechazado 400: La lista "osce" no aplica a este vínculo
+OK  |M1|un criterio inexistente es rechazado|rechazado 400: La lista "criterio_inventado" no aplica a este vínculo
+OK  |M1|resultado SIG observado SIN observaciones es rechazado|rechazado 400: Una evaluación OBSERVADA exige registrar la observación
+FAIL|M1|resultado aceptado con conclusion 'requiere DD reforzada' es inconsistente|se acepto una conclusion contradictoria (aceptado + requiere DD reforzada)
+OK  |M1|resultado final inexistente es rechazado|rechazado 400: Resultado final no reconocido
+FAIL|M1|fecha final imposible es rechazada|fecha imposible: error del servidor 500 Invalid `prisma.ddMatrizVinculo.update()` invocation: { where: { id: "5284ee45-81f5-43ed-9314-c8056b1d403a" }, data: { actualizadoPor: "e2e-sig@examp
+FAIL|M1|fecha final en el futuro lejano|se acepto una fecha de decision en el año 2099 (altera la vigencia)
+OK  |M1|comentario final de 5000 caracteres es rechazado|rechazado 400: Too big: expected string to have <=1000 characters
+OK  |M1|adjunto con categoria inexistente es rechazado|rechazado 400: Archivo, vínculo y categoría son obligatorios
+OK  |M1|Comunicaciones y el cliente no pueden subir adjuntos a la matriz|rechazado 400: Archivo, vínculo y catego | rechazado 400: Archivo, vínculo y catego
+OK  |M2|'Automatizar todo' dos veces seguidas no lanza dos procesos|mismo proceso bf3a42c1
+OK  |M2|consultar el avance de un proceso ajeno o inexistente da 404|rechazado 404: La automatización ya no está disponible
+OK  |M3|APTO con un vinculo OBSERVADO por SIG (sin pasar por Legal) es rechazado|rechazado 409: No se puede declarar APTO: Comunicaciones no tiene un veredicto sin hallazgos para: SOCIO 1 R17 (Beneficiario final)
+FAIL|M3|SIN RESPUESTA/EN REVISION no cierran el expediente y se puede continuar|200/409 {"success":true,"data":{"id":"5284ee45-81f5-43ed-9314-c8056b1d403a","tipo":"empresa","origen":"automatico","nombre":"E2E RONDA2 R17 S.A.C.","tipoDocum El resultado final ya está cerr
+=== Bloque N ===
+FAIL|N1|validacion: sitio web con esquema javascript:|se guardo y ENVIO a revision con sitio web con esquema javascript:
+FAIL|N1|validacion: representante con DNI de letras|se guardo y ENVIO a revision con representante con DNI de letras
+OK  |N1|validacion: actividad economica fuera del catalogo|se guarda pero el envio lo rechaza (400)
+OK  |N2|documento referenciado con url con esquema javascript: es rechazado|rechazado 400: La URL del documento "ficha_ruc-r21.pdf" no es válida. Vuelva a cargarlo.
+OK  |N2|documento referenciado con url externa (otro dominio) es rechazado|rechazado 400: La URL del documento "ficha_ruc-r21.pdf" no es válida. Vuelva a cargarlo.
+OK  |N2|documento referenciado con ruta fuera de uploads es rechazado|rechazado 400: La URL del documento "ficha_ruc-r21.pdf" no es válida. Vuelva a cargarlo.
+OK  |N2|payload gigante (5 MB) es rechazado sin romper el servidor|status 200
+OK  |N2|el servidor sigue sano tras los casos anteriores|ok
+FAIL|N3|SIG NO puede derivar a Legal un expediente que Legal dejo observado esperando al cliente|ACEPTADO: estado observada -> en_legal; la observacion de Legal queda sin subsanar y el cliente ya no puede reenviar
+FAIL|N4|tras 'SIN RESPUESTA' el cliente puede volver a presentar una DD|estado=en_revision: el cliente no puede renovar (409 La debida diligencia actual aún no puede renovarse.) ni editar (409 El expediente está en revisión. Espera el resultado antes de modifica
+OK  |N5|SIG observa un VINCULO (beneficiario) y el cliente lo corrige y reenvia|estado observada -> en_revision; observaciones abiertas=0; vinculos=2
+FAIL|N5|la matriz refleja la correccion del vinculo (sin duplicar al socio anterior)|filas del socio 2: 2 (E2E RONDA2 R24 S.A.C. | REPRESENTANTE R24 | SOCIO 1 R24 | SOCIO 2 R24 | SOCIO 2 CORREGIDO)
+OK  |N6|5 'guardar' simultaneos con el mismo vinculo nuevo no lo duplican|2 vinculos
+FAIL|N7|parametros hostiles en las bandejas no producen errores 500|2 respuestas 5xx: bandeja?estado=%00 -> 500; listar?estado=%00 -> 500
+OK  |N7|ids malformados o inexistentes dan 4xx y no 500|sin 5xx
+=== RESUMEN RONDA 2: 118/137 OK, 19 FAIL ===
+	

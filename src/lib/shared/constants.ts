@@ -1525,6 +1525,10 @@ export const DD_MATRIZ_PER_PAGE_MAX = 500;
 
 /** Mensajes de validacion reutilizados por frontend y backend. */
 export const DD_MENSAJES = {
+  LEGAL_OBSERVADA_ESPERA_CLIENTE:
+    "Legal observó este expediente y espera la subsanación del cliente; no puede derivarse a Legal hasta que el cliente reenvíe.",
+  CIERRE_SIN_RESPUESTA:
+    "Cierre por falta de respuesta de la empresa: la debida diligencia ya no puede usarse; la empresa debe presentar una nueva.",
   CONSENT_DATOS: "Debe aceptar el tratamiento de datos personales y derechos ARCO.",
   CONSENT_VERIFICACION: "Debe aceptar la debida diligencia reforzada.",
   DECLARACION_VERACIDAD: "Debe aceptar la declaración jurada de veracidad.",

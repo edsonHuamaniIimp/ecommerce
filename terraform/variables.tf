@@ -463,6 +463,12 @@ variable "budget_alert_email" {
 }
 
 # ── Uploads (EFS) ───────────────────────────────────────────────────────────
+variable "proteger_uploads" {
+  description = "Protege los documentos de DD en /uploads/*: CloudFront reenvia la cookie de sesion (token) y x-api-key al origen y la app exige sesion (UPLOADS_PROTEGIDOS=true). Aplicar antes de habilitar en la app."
+  type        = bool
+  default     = false
+}
+
 variable "uploads_backend" {
   description = "Backend de archivos subidos: 'efs' (funciona hoy con STORAGE_PROVIDER=local) o 's3' (requiere subida prefirmada implementada)"
   type        = string

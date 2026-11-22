@@ -30,6 +30,7 @@ endpoints, flujos, estados, reglas de negocio y limitaciones observadas.
 | 9.4 | Debida Diligencia — decisión UI de la matriz | [18-debida-diligencia-v2-matriz-ui.md](./18-debida-diligencia-v2-matriz-ui.md) | Matriz tipo Excel 54 columnas | `dd:matriz` |
 | 9.5 | Debida Diligencia — reunión de transferencia con SIG (reglas del proceso real) | [25-dd-reunion-transferencia-sig.md](./25-dd-reunion-transferencia-sig.md) | Proceso SIG, Comunicaciones y Legal | `dd:*` |
 | 9.6 | Debida Diligencia — smoke E2E en QA y hallazgos | [26-dd-smoke-e2e-qa.md](./26-dd-smoke-e2e-qa.md) | Cliente, SIG, Comunicaciones y Legal | `dd:*` |
+| 9.7 | Debida Diligencia — ronda 2 adversarial en QA | [27-dd-ronda2-adversarial-qa.md](./27-dd-ronda2-adversarial-qa.md) | Vigencia, subsanación, seguridad | `dd:*` |
 | 9.5 | Debida Diligencia - flujo de revisión y estados | [19-debida-diligencia-v2-flujo-estados.md](./19-debida-diligencia-v2-flujo-estados.md) | Matriz, áreas y decisión final | `dd:*` |
 | 9.6 | Debida Diligencia - bitácora técnica y decisiones | [23-dd-bitacora.md](./23-dd-bitacora.md) | Incidentes, migraciones y runbook | `dd:*` |
 | 9.7 | Debida Diligencia - pruebas de integración QA | [24-dd-pruebas-integracion-qa.md](./24-dd-pruebas-integracion-qa.md) | Casos E2E, defectos y verificaciones | `dd:*` |
