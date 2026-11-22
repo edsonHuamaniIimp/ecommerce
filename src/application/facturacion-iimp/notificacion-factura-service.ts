@@ -110,6 +110,7 @@ export class NotificacionFacturaApplicationService {
       await this.solicitudes
         .crearAlertaRol({
           rol: ROLES.ADMIN,
+          solicitudId,
           tipo: "facturacion",
           clave: ALERTA_CLAVES.FACTURA_ANULADA_RECHAZADA,
           datos: { cuota: cuota.numero, documento },

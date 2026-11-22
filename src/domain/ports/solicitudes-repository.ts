@@ -75,7 +75,7 @@ export interface ISolicitudesRepository {
       tipo?: string | null,
     ): Promise<string>;
   touchAuditoria(solicitudId: string, actor: string | null, ip: string | null): Promise<void>;
-  crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string }): Promise<void>;
+  crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string; solicitudId?: string }): Promise<void>;
   crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity>;
   tieneReevaluacionPendiente(solicitudId: string): Promise<boolean>;
   atenderReevaluacionAprobacion(reevaluacionId: string, reviewerEmail: string): Promise<void>;
@@ -100,7 +100,7 @@ export interface ISolicitudesRepository {
   marcarDocumentosReemplazadosPorIds(solicitudId: string, docIds: string[]): Promise<void>;
   eliminarDocumento(docId: string): Promise<void>;
   crearAlertaRevision(data: { rol: string; solicitudId: string; clave: AlertaClave; datos: AlertaDatos }): Promise<void>;
-  crearAlertaRol(data: { rol: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url: string }): Promise<void>;
+  crearAlertaRol(data: { rol: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url: string; solicitudId?: string }): Promise<void>;
   /** Nombre completo del usuario titular de una solicitud (para correos). */
   findNombreUsuario(userId: string): Promise<string | null>;
   /** RF-08: guarda la URL de la imagen del recorte del pabellon de una solicitud. */

@@ -656,6 +656,7 @@ export class ReservaApplicationService {
           try {
             await this.solicitudesRepo.crearAlertaReserva({
               userId: request.userSub,
+              solicitudId,
               tipo: "reserva_multiple",
               clave: ALERTA_CLAVES.SOLICITUD_MULTIPLE_CLIENTE,
               datos: { total: createdStandIds.length, stands: standCodes.join(", ") },
@@ -663,6 +664,7 @@ export class ReservaApplicationService {
             });
             await this.solicitudesRepo.crearAlertaReserva({
               userId: ADMIN_USER_ID,
+              solicitudId,
               tipo: "reserva_multiple",
               clave: ALERTA_CLAVES.SOLICITUD_MULTIPLE_ADMIN,
               datos: { total: createdStandIds.length, stands: standCodes.join(", ") },

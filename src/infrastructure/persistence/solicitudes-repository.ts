@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/db";
 import type { ISolicitudesRepository, PaisConteo, SolicitudesListParams, SolicitudesPaginatedResult } from "@/domain/ports/solicitudes-repository";
 import type { SolicitudRow, RevisionEntity, RevisionHistorialEntity, ReevaluacionEntity, PlanCuotasSolicitud, DatosFacturacionSolicitud } from "@/domain/models/entities";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_PAGO_SOLICITUD, ESTADOS_FACTURACION, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_TIPO, normalizarCategorias } from "@/lib/shared/constants";
+import { ADMIN_USER_ID, REVISION_AREAS, RESULTADOS_APROBACION, ESTADOS_SOLICITUD, ESTADOS_REVISION, ESTADOS_REEVALUACION, ESTADOS_CUOTA, ESTADOS_STAND, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_PAGO_SOLICITUD, ESTADOS_FACTURACION, IDIOMAS, IIMP_NUMERO_SOLICITUD_PREFIJO, MODOS_PAGO, TIPOS_FACTURACION, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ORIGENES_DOCUMENTO, MONEDAS, SGC_LIFECYCLE_STATUSES, SOLICITUDES_FILTRO_CONTRATO, SOLICITUDES_FILTRO_SGC, SOLICITUDES_FILTRO_TIPO, normalizarCategorias } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { getAlertaPlantilla } from "@/lib/shared/alert-templates";
 import { observadaPorArea } from "@/lib/shared/utils/revision-areas";
@@ -853,11 +853,70 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     return created.id;
   }
 
-  async crearAlertaReserva(data: { userId: string; tipo: string; clave: string; datos: unknown; url?: string }): Promise<void> {
-    const { titulo, mensaje } = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
-    await prisma.alerta.create({
-      data: { userId: data.userId, tipo: data.tipo, titulo, mensaje, clave: data.clave, datos: data.datos as never, url: data.url },
+  /**
+   * Contexto de una alerta: evento de la solicitud (via su stand) y empresa del destinatario.
+   * Sin solicitud ni empresa devuelve nulls (alertas legacy / de sistema).
+   */
+  private async contextoAlerta(solicitudId: string | null | undefined, userId: string | null): Promise<{ eventoId: string | null; empresaId: string | null }> {
+    const [solicitud, cuenta] = await Promise.all([
+      solicitudId
+        ? prisma.solicitud.findUnique({ where: { id: solicitudId }, select: { gessStand: { select: { eventoId: true } }, stands: { take: 1, select: { gessStand: { select: { eventoId: true } } } } } })
+        : Promise.resolve(null),
+      userId && userId !== ADMIN_USER_ID
+        ? prisma.userRole.findFirst({ where: { userId, empresaId: { not: null } }, select: { empresaId: true } })
+        : Promise.resolve(null),
+    ]);
+    return { eventoId: solicitud?.gessStand?.eventoId ?? solicitud?.stands[0]?.gessStand.eventoId ?? null, empresaId: cuenta?.empresaId ?? null };
+  }
+
+  /**
+   * Crea la alerta salvo que ya exista una igual SIN LEER para el mismo destinatario
+   * (mismo tipo, clave, mensaje y solicitud): evita el spam por reintentos de webhook/sync.
+   */
+  private async crearAlertaUnica(data: {
+    userId: string;
+    tipo: string;
+    titulo: string;
+    mensaje: string;
+    clave: string;
+    datos: unknown;
+    url?: string;
+    solicitudId?: string | null;
+    eventoId: string | null;
+    empresaId: string | null;
+  }): Promise<void> {
+    const repetida = await prisma.alerta.findFirst({
+      where: {
+        userId: data.userId,
+        tipo: data.tipo,
+        clave: data.clave,
+        mensaje: data.mensaje,
+        solicitudId: data.solicitudId ?? null,
+        leida: false,
+      },
+      select: { id: true },
     });
+    if (repetida) return;
+    await prisma.alerta.create({
+      data: {
+        userId: data.userId,
+        tipo: data.tipo,
+        titulo: data.titulo,
+        mensaje: data.mensaje,
+        clave: data.clave,
+        datos: data.datos as never,
+        url: data.url,
+        solicitudId: data.solicitudId ?? null,
+        eventoId: data.eventoId,
+        empresaId: data.empresaId,
+      },
+    });
+  }
+
+  async crearAlertaReserva(data: { userId: string; tipo: string; clave: string; datos: unknown; url?: string; solicitudId?: string }): Promise<void> {
+    const { titulo, mensaje } = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
+    const contexto = await this.contextoAlerta(data.solicitudId, data.userId);
+    await this.crearAlertaUnica({ ...data, titulo, mensaje, ...contexto });
   }
 
   async crearReevaluacion(solicitudId: string, estado: string, motivo: string | null, documentos: unknown, createdBy: string): Promise<ReevaluacionEntity> {
@@ -1201,43 +1260,40 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   }
 
   async crearAlertaRevision(data: { rol: string; solicitudId: string; clave: string; datos: unknown }) {
-    const usuarios = await prisma.userRole.findMany({
-      where: { role: { nombre: data.rol } },
-      select: { userId: true },
+    await this.crearAlertaParaRol({
+      rol: data.rol,
+      tipo: "revision_pendiente",
+      clave: data.clave,
+      datos: data.datos,
+      url: `${getAppUrl()}/dashboard/solicitudes?id=${data.solicitudId}`,
+      solicitudId: data.solicitudId,
     });
-    const render = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
-    for (const u of usuarios) {
-      await prisma.alerta.create({
-        data: {
-          userId: u.userId,
-          tipo: "revision_pendiente",
-          titulo: render.titulo,
-          mensaje: render.mensaje,
-          clave: data.clave,
-          datos: data.datos as never,
-          url: `${getAppUrl()}/dashboard/solicitudes?id=${data.solicitudId}`,
-        },
-      });
-    }
   }
 
-  async crearAlertaRol(data: { rol: string; tipo: string; clave: string; datos: unknown; url: string }) {
+  async crearAlertaRol(data: { rol: string; tipo: string; clave: string; datos: unknown; url: string; solicitudId?: string }) {
+    await this.crearAlertaParaRol(data);
+  }
+
+  /** Alerta para cada usuario del rol, con el evento de la solicitud y sin duplicar las no leidas. */
+  private async crearAlertaParaRol(data: { rol: string; tipo: string; clave: string; datos: unknown; url: string; solicitudId?: string }) {
     const usuarios = await prisma.userRole.findMany({
       where: { role: { nombre: data.rol } },
       select: { userId: true },
     });
     const render = getAlertaPlantilla(data.clave as never, IDIOMAS.ES, data.datos as never) ?? { titulo: "", mensaje: "" };
-    for (const u of usuarios) {
-      await prisma.alerta.create({
-        data: {
-          userId: u.userId,
-          tipo: data.tipo,
-          titulo: render.titulo,
-          mensaje: render.mensaje,
-          clave: data.clave,
-          datos: data.datos as never,
-          url: data.url,
-        },
+    const { eventoId } = await this.contextoAlerta(data.solicitudId, null);
+    for (const u of new Set(usuarios.map((x) => x.userId))) {
+      await this.crearAlertaUnica({
+        userId: u,
+        tipo: data.tipo,
+        titulo: render.titulo,
+        mensaje: render.mensaje,
+        clave: data.clave,
+        datos: data.datos,
+        url: data.url,
+        solicitudId: data.solicitudId ?? null,
+        eventoId,
+        empresaId: null,
       });
     }
   }

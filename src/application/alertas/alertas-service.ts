@@ -9,6 +9,8 @@ interface JwtPayload {
   sub: string;
   email?: string | null;
   roles: Rol[];
+  /** Evento activo de la sesion: la campana solo muestra alertas de ese evento. */
+  eventoId?: string | null;
 }
 
 /**
@@ -19,18 +21,27 @@ interface JwtPayload {
 export class AlertasApplicationService {
   constructor(private readonly auth: IAuthRepository) {}
 
-  private buildConditions(sub: string, roles: Rol[]) {
-    const conditions: Record<string, unknown>[] = [{ userId: sub }];
-    if (roles.includes(ROLES.ADMIN)) {
+  /** Alertas propias, las de la empresa del usuario (cuentas cliente) y, para admin, las globales. */
+  private async buildWhere(session: JwtPayload, extra: Record<string, unknown> = {}) {
+    const conditions: Record<string, unknown>[] = [{ userId: session.sub }];
+    if (session.roles.includes(ROLES.ADMIN)) {
       conditions.push({ userId: ADMIN_USER_ID });
     }
-    return conditions;
+    if (session.roles.includes(ROLES.CLIENTE)) {
+      const cuenta = await prisma.userRole.findFirst({
+        where: { userId: session.sub, empresaId: { not: null } },
+        select: { empresaId: true },
+      });
+      if (cuenta?.empresaId) conditions.push({ empresaId: cuenta.empresaId });
+    }
+    const where: Record<string, unknown>[] = [{ OR: conditions }];
+    /* Alertas sin evento (legacy o de sistema) se siguen mostrando en cualquier evento. */
+    if (session.eventoId) where.push({ OR: [{ eventoId: session.eventoId }, { eventoId: null }] });
+    return { AND: where, ...extra };
   }
 
   async listar(session: JwtPayload, soloNoLeidas = false) {
-    const conditions = this.buildConditions(session.sub, session.roles);
-    const where: Record<string, unknown> = { OR: conditions };
-    if (soloNoLeidas) where.leida = false;
+    const where = await this.buildWhere(session, soloNoLeidas ? { leida: false } : {});
 
     const [alertas, noLeidas, idioma] = await Promise.all([
       prisma.alerta.findMany({ where: where as never, orderBy: { createdAt: "desc" }, take: 20 }),
@@ -45,17 +56,15 @@ export class AlertasApplicationService {
   }
 
   async marcarLeida(session: JwtPayload, id: string) {
-    const conditions = this.buildConditions(session.sub, session.roles);
     await prisma.alerta.updateMany({
-      where: { id, OR: conditions } as never,
+      where: (await this.buildWhere(session, { id })) as never,
       data: { leida: true },
     });
   }
 
   async marcarTodasLeidas(session: JwtPayload) {
-    const conditions = this.buildConditions(session.sub, session.roles);
     await prisma.alerta.updateMany({
-      where: { OR: conditions, leida: false } as never,
+      where: (await this.buildWhere(session, { leida: false })) as never,
       data: { leida: true },
     });
   }

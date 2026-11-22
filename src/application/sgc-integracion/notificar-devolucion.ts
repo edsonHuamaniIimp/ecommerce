@@ -25,6 +25,7 @@ export async function notificarDevolucionSgc(
       await solicitudes
         .crearAlertaReserva({
           userId: detalle.userId,
+          solicitudId,
           tipo: ALERTA_TIPOS.DOCUMENTOS_OBSERVADOS,
           clave: ALERTA_CLAVES.DOCUMENTOS_OBSERVADOS,
           datos: { stands: detalle.standCode, total: lista.length, documentos: lista },

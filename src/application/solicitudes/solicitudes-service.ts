@@ -363,6 +363,7 @@ export class SolicitudesApplicationService {
       if (detalle.userId) {
         await this.repo.crearAlertaReserva({
           userId: detalle.userId,
+          solicitudId: data.solicitudId,
           tipo: ALERTA_TIPOS.DOCUMENTOS_OBSERVADOS,
           clave: ALERTA_CLAVES.DOCUMENTOS_OBSERVADOS,
           datos: { stands: detalle.standCode, total: docIds.length, documentos },
@@ -1095,6 +1096,7 @@ export class SolicitudesApplicationService {
         if (detalle) {
           await this.repo.crearAlertaRol({
             rol: ROLES.ADMIN,
+            solicitudId: params.solicitudId,
             tipo: ALERTA_TIPOS.CONTRATO_FIRMADO,
             clave: ALERTA_CLAVES.CONTRATO_FIRMADO_SUBIDO,
             datos: { stands: detalle.standCode },

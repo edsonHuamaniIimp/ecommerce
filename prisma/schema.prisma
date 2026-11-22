@@ -875,10 +875,16 @@ model Alerta {
   leida       Boolean  @default(false)
   url         String?  @db.VarChar(500)
   solicitudId String?  @map("solicitud_id")
+  /// Empresa del Portal del Cliente a la que pertenece la alerta (comparten campana las cuentas de la misma empresa).
+  empresaId   String?  @map("empresa_id")
+  /// Evento de la solicitud que origino la alerta; la campana filtra por el evento activo.
+  eventoId    String?  @map("evento_id") @db.VarChar(100)
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([userId])
   @@index([initialUserId])
+  @@index([empresaId, leida])
+  @@index([eventoId])
   @@index([userId, leida])
   @@index([createdAt])
   @@map("alerta")

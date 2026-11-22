@@ -562,6 +562,7 @@ export class ContratoApplicationService {
           await this.solicitudes
             .crearAlertaReserva({
               userId: detalle.userId,
+              solicitudId,
               tipo: "reserva",
               clave: ALERTA_CLAVES.CONTRATO_REGENERADO_REPRESENTANTES,
               datos: { stands: detalle.standCode ?? solicitudId },
