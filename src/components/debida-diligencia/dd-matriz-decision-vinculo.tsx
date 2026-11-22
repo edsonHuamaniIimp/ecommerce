@@ -100,6 +100,15 @@ const RESULTADOS_SIG: {
 
 const AMBITO_LABELS: Record<string, string> = DD_MATRIZ_AMBITO_LABELS;
 
+/** La conclusion reputacional se guarda como requiere_debida_diligencia aunque la opcion use el valor de la matriz. */
+function conclusionReputacionalElegida(actual: string | null, opcion: string): boolean {
+  if (actual === opcion) return true;
+  return (
+    opcion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA &&
+    actual === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA
+  );
+}
+
 function decisionInicial(valor: string | null): DecisionCriterio | null {
   if (valor === "si" || valor === "no" || valor === "na") return valor;
   return null;
@@ -589,7 +598,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         disabled={!detalle.permisos.editarReputacional}
                         onClick={() => setConclusionReputacional(opcion)}
                         className={`rounded-lg border px-2.5 py-2 text-left text-[10px] font-semibold transition ${
-                          conclusionReputacional === opcion
+                          conclusionReputacionalElegida(conclusionReputacional, opcion)
                             ? "border-primary bg-primary/10 text-primary"
                             : "border-border bg-card text-muted-foreground hover:bg-secondary/40"
                         }`}

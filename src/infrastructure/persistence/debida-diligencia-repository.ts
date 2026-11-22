@@ -674,9 +674,13 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
           });
           beneficiariosConservados.add(existenteId);
         } else {
-          await tx.debidaDiligenciaBeneficiario.create({
+          const creado = await tx.debidaDiligenciaBeneficiario.create({
             data: { expedienteId: id, ...datos },
+            select: { id: true },
           });
+          /* Los recien creados tambien se conservan: sin esto el deleteMany de abajo los borraba. */
+          beneficiariosConservados.add(creado.id);
+          beneficiariosPorDocumento.set(b.documento.trim().toUpperCase(), creado.id);
         }
       }
       await tx.debidaDiligenciaBeneficiario.deleteMany({

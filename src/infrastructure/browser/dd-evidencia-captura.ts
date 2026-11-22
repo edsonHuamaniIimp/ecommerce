@@ -28,6 +28,37 @@ const CHROME_CANDIDATES = [
 const CHROMIUM_ENV = { ...process.env, HOME: process.env.CHROMIUM_HOME ?? "/tmp" };
 const CHROMIUM_ARGS_BASE = ["--no-sandbox", "--disable-dev-shm-usage", "--crash-dumps-dir=/tmp"];
 
+/** Tiempo maximo para descargar una lista oficial (ms). */
+const DESCARGA_TIMEOUT_MS = 60_000;
+
+/**
+ * Descarga una lista oficial. Varios portales (p. ej. DFAT de Australia) dejan colgadas las
+ * peticiones sin User-Agent de navegador, por eso se envian cabeceras de navegador y se corta
+ * con un mensaje claro si la fuente no responde a tiempo.
+ */
+async function descargarFuente(url: string): Promise<Response> {
+  try {
+    return await fetch(url, {
+      headers: {
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "accept-language": "es-PE,es;q=0.9,en;q=0.8",
+      },
+      signal: AbortSignal.timeout(DESCARGA_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const agotado = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    throw new DomainError(
+      agotado
+        ? "La fuente oficial no respondió a tiempo. Reintenta o revisa manualmente el portal."
+        : "No se pudo conectar con la fuente oficial. Reintenta o revisa manualmente el portal.",
+      API_ERROR_CODES.VALIDATION,
+      504,
+    );
+  }
+}
+
 function chromePath(): string {
   const encontrado = CHROME_CANDIDATES.find((ruta) => existsSync(ruta));
   if (!encontrado) {
@@ -353,7 +384,7 @@ async function capturarBusquedaEnPdf(
   termino: string,
   nombre: string,
 ): Promise<EvidenciaCapturada> {
-  const response = await fetch(url);
+  const response = await descargarFuente(url);
   if (!response.ok) {
     throw new DomainError(
       "No se pudo descargar la fuente oficial",
@@ -426,6 +457,46 @@ async function capturarBusquedaEnPdf(
   };
 }
 
+/** Cuanto tiempo se reutiliza una lista oficial ya descargada y leida (ms). */
+const LISTA_XLSX_TTL_MS = 6 * 60 * 60 * 1000;
+
+interface LibroXlsxCargado {
+  datos: Buffer;
+  libro: import("exceljs").Workbook;
+  hash: string;
+}
+
+/* Descargar y leer la lista tarda decenas de segundos y la automatizacion general la pide una
+ * vez por persona: se guarda la promesa para no repetirlo (ni en paralelo) durante unas horas. */
+const globalXlsx = globalThis as unknown as {
+  __ddListasXlsx?: Map<string, { expira: number; cargado: Promise<LibroXlsxCargado> }>;
+};
+const listasXlsx = (globalXlsx.__ddListasXlsx ??= new Map());
+
+function cargarLibroXlsx(url: string): Promise<LibroXlsxCargado> {
+  const existente = listasXlsx.get(url);
+  if (existente && existente.expira > Date.now()) return existente.cargado;
+
+  const cargado = (async (): Promise<LibroXlsxCargado> => {
+    const response = await descargarFuente(url);
+    if (!response.ok) {
+      throw new DomainError("No se pudo descargar la fuente oficial", API_ERROR_CODES.VALIDATION, 502);
+    }
+    const datos = Buffer.from(await response.arrayBuffer());
+    const exceljs = await import("exceljs");
+    const ExcelJS = exceljs.default ?? exceljs;
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(datos as unknown as Parameters<typeof libro.xlsx.load>[0]);
+    return { datos, libro, hash: createHash("sha256").update(datos).digest("hex") };
+  })();
+  listasXlsx.set(url, { expira: Date.now() + LISTA_XLSX_TTL_MS, cargado });
+  /* Si falla no se guarda: el siguiente intento vuelve a descargar. */
+  cargado.catch(() => {
+    if (listasXlsx.get(url)?.cargado === cargado) listasXlsx.delete(url);
+  });
+  return cargado;
+}
+
 /**
  * Constancia de búsqueda para fuentes que entregan una hoja de cálculo (p. ej.
  * sanciones australianas): descarga el XLSX, busca el término en sus celdas y
@@ -436,20 +507,7 @@ async function capturarBusquedaEnXlsx(
   termino: string,
   nombre: string,
 ): Promise<EvidenciaCapturada> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new DomainError(
-      "No se pudo descargar la fuente oficial",
-      API_ERROR_CODES.VALIDATION,
-      502,
-    );
-  }
-  const datos = Buffer.from(await response.arrayBuffer());
-
-  const exceljs = await import("exceljs");
-  const ExcelJS = exceljs.default ?? exceljs;
-  const libro = new ExcelJS.Workbook();
-  await libro.xlsx.load(datos as unknown as Parameters<typeof libro.xlsx.load>[0]);
+  const { datos, libro, hash } = await cargarLibroXlsx(url);
 
   const buscado = normalizarTexto(termino);
   const fragmentos: string[] = [];
@@ -478,7 +536,6 @@ async function capturarBusquedaEnXlsx(
   });
 
   const fecha = new Date().toLocaleString("es-PE");
-  const hash = createHash("sha256").update(datos).digest("hex");
   const lista = fragmentos.length
     ? `<ul style="font-size:12px;line-height:1.5">${fragmentos
         .map((fragmento) => `<li>${escaparHtml(fragmento)}</li>`)
@@ -564,7 +621,7 @@ export async function capturarEvidenciaPdf(
 
   let htmlInicial: string | null = null;
   if (url.includes("scsanctions.un.org/consolidated")) {
-    const response = await fetch(url);
+    const response = await descargarFuente(url);
     if (response.ok) htmlInicial = await response.text();
   }
 

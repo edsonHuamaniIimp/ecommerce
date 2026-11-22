@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizarResultadoReputacional,
   complianceDesbloqueado,
   derivarAmbito,
   evaluarBloqueArea,
@@ -388,5 +389,13 @@ describe("complianceDesbloqueado (regla 5)", () => {
     expect(complianceDesbloqueado(DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA, 0)).toBe(false);
     expect(complianceDesbloqueado(DD_MATRIZ_CONCLUSIONES.SIN_OBSERVACIONES, 3)).toBe(false);
     expect(complianceDesbloqueado(null, 3)).toBe(false);
+  });
+});
+
+describe("conclusion reputacional de SIG", () => {
+  it("acepta requiere_dd_reforzada (valor que envia la pantalla) como requiere debida diligencia", () => {
+    expect(normalizarResultadoReputacional("requiere_dd_reforzada")).toBe("requiere_debida_diligencia");
+    expect(normalizarResultadoReputacional("requiere_debida_diligencia")).toBe("requiere_debida_diligencia");
+    expect(normalizarResultadoReputacional("sin_observaciones")).toBe("sin_observaciones");
   });
 });

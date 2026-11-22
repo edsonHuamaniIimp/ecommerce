@@ -1,0 +1,201 @@
+Success	RESET expedientes E2E eliminados: 6
+OK  |T|salud del servicio|{"success":true,"data":{"status":"ok","service":"contratos-stands"}}
+OK  |T|login sig|roles=logistica
+OK  |T|login com|roles=comunicacion
+OK  |T|login legal|roles=legal
+OK  |T|permisos: cliente NO puede ver la bandeja de SIG|bloqueado (403)
+OK  |T|permisos: Comunicaciones NO puede ver la bandeja Legal|bloqueado (403)
+OK  |T|permisos: Legal NO puede derivar a Comunicaciones|bloqueado (403)
+=== Escenario A ===
+OK  |A|login cliente|roles=cliente
+OK  |A|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0662
+OK  |A|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |A|cliente: guardar formulario (vinculos/beneficiarios)|id=1abc0ece-f0ec-44de-a461-656bcd4f356a estado=borrador beneficiarios=0
+FAIL|A|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |A|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |A|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0662
+OK  |A|SIG: ver expediente en su bandeja|codigo=DD-2026-0662 estado=en_revision docs=4/4
+OK  |A|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |A|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |A|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |A|Comunicaciones: ve los casos del expediente|3 casos (pendientes=3)
+OK  |A|Comunicaciones: inicia y declara resultado por vinculo|3 cerrados (0 observados)
+OK  |A|SIG: evalua listas y declara conclusion por vinculo|3 vinculos evaluados
+OK  |A|SIG: conclusion final = apto|resultadoFinal=apto fecha=2026-11-22T12:00:00.000Z
+OK  |A|estado tras conclusion final apto|estado=aprobada legal=- aprobada=2026-11-22T19:21:59.819Z vence=2027-05-22T19:21:59.819Z
+OK  |A|matriz: la fila de la empresa tiene el resultado final|empresa=apto
+FAIL|A|matriz: el resultado final se muestra en TODAS las filas de vinculos (regla R10)|solo 1/3 filas tienen apto; el resto: null,null
+=== Escenario B ===
+OK  |B|login cliente|roles=cliente
+OK  |B|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0663
+OK  |B|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |B|cliente: guardar formulario (vinculos/beneficiarios)|id=53e249c6-e4c6-4ea1-bebc-6b726e34e9dc estado=borrador beneficiarios=0
+FAIL|B|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |B|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |B|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0663
+OK  |B|SIG: ver expediente en su bandeja|codigo=DD-2026-0663 estado=en_revision docs=4/4
+OK  |B|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |B|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |B|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |B|Comunicaciones: ve los casos del expediente|3 casos (pendientes=3)
+OK  |B|Comunicaciones: inicia y declara resultado por vinculo|3 cerrados (1 observados)
+FAIL|B|SIG: conclusion reputacional REQUIERE DD REFORZADA (SOCIO NACIONAL)|POST /api/debida-diligencia/matriz-evaluacion/guardar -> 400 Conclusión no reconocida
+OK  |B|BYPASS bug#2: se usa el valor 'requiere_debida_diligencia' para la conclusion reputacional|guardado
+OK  |B|SIG: evalua listas y declara conclusion por vinculo|3 vinculos evaluados
+OK  |B|SIG: deriva a Legal (requiere DD reforzada)|estado=en_legal
+OK  |B|estado tras derivar a Legal|estado=en_legal legal=- aprobada=- vence=-
+OK  |B|Legal: ve el expediente en su bandeja|estado=en_legal codigo=DD-2026-0663
+OK  |B|Legal: aprobar|estado=en_revision decisionLegal=aprobar
+OK  |B|estado tras aprobacion de Legal (vuelve a Logistica)|estado=en_revision legal=aprobar aprobada=- vence=-
+FAIL|B|SIG: conclusion final = apto|POST /api/debida-diligencia/matriz-evaluacion/guardar -> 409 No se puede declarar APTO: Comunicaciones no tiene un veredicto sin hallazgos para: SOCIO NACIONAL B (Benefic
+OK  |B|BYPASS bug#3: Legal ya aprobo pero APTO se bloquea por el veredicto de Comunicaciones; se usa APTO CON OBSERVACIONES|continua
+OK  |B|SIG: conclusion final = apto_con_observaciones|resultadoFinal=apto_con_observaciones fecha=2026-11-22T12:00:00.000Z
+FAIL|B|estado tras conclusion final tras Legal|esperado=aprobada real=en_revision
+FAIL|B|matriz: la fila de la empresa tiene el resultado final|empresa.resultadoFinal=apto_con_observaciones esperado=apto
+FAIL|B|matriz: el resultado final se muestra en TODAS las filas de vinculos (regla R10)|solo 0/3 filas tienen apto; el resto: apto_con_observaciones,null,null
+=== Escenario C ===
+OK  |C|login cliente|roles=cliente
+OK  |C|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0664
+OK  |C|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |C|cliente: guardar formulario (vinculos/beneficiarios)|id=8ac61846-f9ea-4ae0-9b6d-6a7302da9a36 estado=borrador beneficiarios=0
+FAIL|C|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |C|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |C|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0664
+OK  |C|SIG: ver expediente en su bandeja|codigo=DD-2026-0664 estado=en_revision docs=4/4
+OK  |C|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |C|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |C|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |C|Comunicaciones: ve los casos del expediente|3 casos (pendientes=3)
+OK  |C|Comunicaciones: inicia y declara resultado por vinculo|3 cerrados (1 observados)
+FAIL|C|SIG: conclusion reputacional REQUIERE DD REFORZADA (SOCIO NACIONAL)|POST /api/debida-diligencia/matriz-evaluacion/guardar -> 400 Conclusión no reconocida
+OK  |C|BYPASS bug#2: se usa el valor 'requiere_debida_diligencia' para la conclusion reputacional|guardado
+OK  |C|SIG: evalua listas y declara conclusion por vinculo|3 vinculos evaluados
+OK  |C|SIG: deriva a Legal (requiere DD reforzada)|estado=en_legal
+OK  |C|estado tras derivar a Legal|estado=en_legal legal=- aprobada=- vence=-
+OK  |C|Legal: ve el expediente en su bandeja|estado=en_legal codigo=DD-2026-0664
+OK  |C|Legal: observar|estado=observada decisionLegal=observar
+OK  |C|estado tras observacion de Legal|estado=observada legal=observar aprobada=- vence=-
+OK  |C|cliente: ve la observacion y subsana (vigencia de poderes)|observaciones abiertas=1; documento poderes reemplazado
+OK  |C|cliente: reenvia|estado=en_legal
+OK  |C|estado tras subsanacion del cliente|estado=en_legal legal=observar aprobada=- vence=-
+OK  |C|Legal: ve el expediente subsanado en su bandeja de seguimiento|estado=en_legal decisionLegal=observar
+OK  |C|Legal: aprobar|estado=en_revision decisionLegal=aprobar
+OK  |C|SIG: conclusion final = apto_con_observaciones|resultadoFinal=apto_con_observaciones fecha=2026-11-22T12:00:00.000Z
+FAIL|C|estado tras conclusion final apto con observaciones|esperado=aprobada real=en_revision
+OK  |C|matriz: la fila de la empresa tiene el resultado final|empresa=apto_con_observaciones
+FAIL|C|matriz: el resultado final se muestra en TODAS las filas de vinculos (regla R10)|solo 1/3 filas tienen apto_con_observaciones; el resto: null,null
+=== Escenario D ===
+OK  |D|login cliente|roles=cliente
+OK  |D|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0665
+OK  |D|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |D|cliente: guardar formulario (vinculos/beneficiarios)|id=5d0197ac-5965-4966-bbe7-61f8945499e6 estado=borrador beneficiarios=0
+FAIL|D|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |D|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |D|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0665
+OK  |D|SIG: ver expediente en su bandeja|codigo=DD-2026-0665 estado=en_revision docs=4/4
+OK  |D|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |D|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |D|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |D|Comunicaciones: ve los casos del expediente|3 casos (pendientes=3)
+OK  |D|Comunicaciones: inicia y declara resultado por vinculo|3 cerrados (1 observados)
+FAIL|D|SIG: conclusion reputacional REQUIERE DD REFORZADA (SOCIO NACIONAL)|POST /api/debida-diligencia/matriz-evaluacion/guardar -> 400 Conclusión no reconocida
+OK  |D|BYPASS bug#2: se usa el valor 'requiere_debida_diligencia' para la conclusion reputacional|guardado
+OK  |D|SIG: evalua listas y declara conclusion por vinculo|3 vinculos evaluados
+OK  |D|SIG: deriva a Legal (requiere DD reforzada)|estado=en_legal
+OK  |D|estado tras derivar a Legal|estado=en_legal legal=- aprobada=- vence=-
+OK  |D|Legal: ve el expediente en su bandeja|estado=en_legal codigo=DD-2026-0665
+OK  |D|Legal: sube el informe legal (PDF)|informe-legal-D.pdf
+OK  |D|Legal: rechazar|estado=rechazada decisionLegal=rechazar
+OK  |D|estado tras rechazo de Legal|estado=rechazada legal=rechazar aprobada=- vence=-
+FAIL|D|SIG: conclusion final = no_apto|POST /api/debida-diligencia/matriz-evaluacion/guardar -> 409 El resultado final ya está cerrado; solo se puede modificar cuando el expediente está en revisión o con docum
+OK  |D|matriz: la fila de la empresa tiene el resultado final|empresa=no_apto
+FAIL|D|matriz: el resultado final se muestra en TODAS las filas de vinculos (regla R10)|solo 1/3 filas tienen no_apto; el resto: null,null
+OK  |D|cliente: ve el resultado (rechazada) en su expediente|estado=rechazada motivo=E2E: SIG y Comunicaciones concluyen que requiere debida dili
+=== Escenario E ===
+OK  |E|login cliente|roles=cliente
+OK  |E|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0666
+OK  |E|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |E|cliente: guardar formulario (vinculos/beneficiarios)|id=65e173fd-edba-4eb5-80c9-11a8a5ebe36e estado=borrador beneficiarios=0
+FAIL|E|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |E|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |E|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0666
+OK  |E|SIG: ver expediente en su bandeja|codigo=DD-2026-0666 estado=en_revision docs=4/4
+OK  |E|SIG: observa la documentacion (ficha RUC)|estado=observada
+OK  |E|estado tras observacion de SIG|estado=observada legal=- aprobada=- vence=-
+OK  |E|cliente: ve la observacion y subsana (ficha RUC)|observaciones abiertas=1; documento ficha_ruc reemplazado
+OK  |E|cliente: reenvia|estado=en_revision
+OK  |E|estado tras subsanacion del cliente|estado=en_revision legal=- aprobada=- vence=-
+OK  |E|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |E|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |E|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |E|Comunicaciones: ve los casos del expediente|3 casos (pendientes=3)
+OK  |E|Comunicaciones: inicia y declara resultado por vinculo|3 cerrados (0 observados)
+OK  |E|SIG: evalua listas y declara conclusion por vinculo|3 vinculos evaluados
+OK  |E|SIG: conclusion final = apto_con_observaciones|resultadoFinal=apto_con_observaciones fecha=2026-11-22T12:00:00.000Z
+FAIL|E|estado tras conclusion final apto con observaciones|esperado=aprobada real=en_revision
+OK  |E|matriz: la fila de la empresa tiene el resultado final|empresa=apto_con_observaciones
+FAIL|E|matriz: el resultado final se muestra en TODAS las filas de vinculos (regla R10)|solo 1/3 filas tienen apto_con_observaciones; el resto: null,null
+=== Escenario F ===
+OK  |F|login cliente|roles=cliente
+OK  |F|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0667
+OK  |F|cliente: subir 4 documentos obligatorios|4 documentos
+FAIL|F|cliente: declarar empresa vinculada extranjera con su ID local (Chile, 8 digitos)|POST /api/debida-diligencia/guardar -> 400 El RUC de la empresa vinculada debe tener 11 dígitos
+OK  |F|BYPASS bug#4: se reintenta con un RUC de 11 digitos para la empresa vinculada|continua
+OK  |F|cliente: guardar formulario (vinculos/beneficiarios)|id=8d5a3385-5ef0-4cf3-8fec-6bc203573f84 estado=borrador beneficiarios=0
+FAIL|F|cliente: los beneficiarios guardados quedan en el expediente|enviados=6 guardados=0
+OK  |F|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|6 insertados
+OK  |F|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0667
+OK  |F|SIG: ver expediente en su bandeja|codigo=DD-2026-0667 estado=en_revision docs=4/4
+OK  |F|SIG: matriz sincroniza vinculos del expediente|8 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE, beneficiario:extranjero:AR, beneficiario:extranjero:CN, beneficiario:extranjero:DE
+OK  |F|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |F|SIG: deriva a Comunicaciones|derivados=8 existentes=0 total=8
+OK  |F|matriz: criterios distintos para nacional y extranjero|E2E EMPRESA F [nacional/PE]=7 (sinUE,sinInterpol,nacional) | REPRESENTANTE [nacional/PE]=6 (sinUE,sinInterpol,nacional) | SOCIO PERUANO [nacional/PE]=6 (sinUE,sinInterpol
+OK  |F|Comunicaciones: ve los casos del expediente|8 casos (pendientes=8)
+OK  |F|Comunicaciones: inicia y declara resultado por vinculo|8 cerrados (1 observados)
+OK  |F|SIG: evalua listas y declara conclusion por vinculo|8 vinculos evaluados
+OK  |F|SIG: conclusion final = apto_con_observaciones|resultadoFinal=apto_con_observaciones fecha=2026-11-22T12:00:00.000Z
+FAIL|F|estado tras conclusion final apto con observaciones|esperado=aprobada real=en_revision
+OK  |F|matriz: la fila de la empresa tiene el resultado final|empresa=apto_con_observaciones
+FAIL|F|matriz: el resultado final se muestra en TODAS las filas de vinculos (regla R10)|solo 1/8 filas tienen apto_con_observaciones; el resto: null,null,null,null,null,null,null
+OK  |F|SIG: lanza 'Automatizar todo' (asincrono) en MARIA GOMEZ ARGENT|jobId=2e1eb90e criterios=10 estado=en_curso
+FAIL|F|automatizacion: avance y termino (polling)|estado=con_errores 9/10 ok en 193s | errores: sanciones_australia:fetch failed
+=== Escenario G ===
+OK  |G|login cliente|roles=cliente
+OK  |G|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0668
+OK  |G|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |G|cliente: guardar formulario (vinculos/beneficiarios)|id=58722247-d3e9-46c1-a018-5d1d20248e3d estado=borrador beneficiarios=0
+FAIL|G|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |G|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |G|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0668
+OK  |G|SIG: ver expediente en su bandeja|codigo=DD-2026-0668 estado=en_revision docs=4/4
+OK  |G|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |G|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |G|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |G|Comunicaciones: ve los casos del expediente|3 casos (pendientes=3)
+OK  |G|Comunicaciones: inicia y declara resultado por vinculo|3 cerrados (0 observados)
+OK  |G|SIG: evalua listas y declara conclusion por vinculo|3 vinculos evaluados
+OK  |G|SIG: conclusion final DOCUMENTACION OBSERVADA con comentario y documento para el cliente|resultadoFinal=documentacion_observada
+OK  |G|estado tras documentacion observada final|estado=observada legal=- aprobada=- vence=-
+OK  |G|cliente: ve la observacion y subsana (documento de identidad)|observaciones abiertas=1; documento identidad_representante reemplazado
+OK  |G|cliente: reenvia|estado=en_revision
+OK  |G|estado tras subsanacion del cliente|estado=en_revision legal=- aprobada=- vence=-
+OK  |G|SIG: conclusion final = apto|resultadoFinal=apto fecha=2026-11-22T12:00:00.000Z
+OK  |G|estado tras conclusion final apto|estado=aprobada legal=- aprobada=2026-11-22T19:25:20.951Z vence=2027-05-22T19:25:20.951Z
+=== Escenario H ===
+OK  |H|login cliente|roles=cliente
+OK  |H|cliente: crear/iniciar DD (nueva)|estado=borrador codigo=DD-2026-0669
+OK  |H|cliente: subir 4 documentos obligatorios|4 documentos
+OK  |H|cliente: guardar formulario (vinculos/beneficiarios)|id=b4ff6b70-4382-42ab-9185-9d0e7a8af58f estado=borrador beneficiarios=0
+FAIL|H|cliente: los beneficiarios guardados quedan en el expediente|enviados=1 guardados=0
+OK  |H|BYPASS bug#1: beneficiarios no se persistieron con guardar; se insertan por BD|1 insertados
+OK  |H|cliente: enviar a revision|estado=en_revision codigo=DD-2026-0669
+OK  |H|SIG: ver expediente en su bandeja|codigo=DD-2026-0669 estado=en_revision docs=4/4
+OK  |H|SIG: matriz sincroniza vinculos del expediente|3 vinculos -> empresa:nacional:PE, representante:nacional:PE, beneficiario:nacional:PE
+OK  |H|SIG: declara vinculos completos|vinculosCompletos=true
+OK  |H|SIG: deriva a Comunicaciones|derivados=3 existentes=0 total=3
+OK  |H|SIG: conclusion final = sin_respuesta|resultadoFinal=sin_respuesta fecha=2026-11-22T12:00:00.000Z
+OK  |H|estado tras conclusion final SIN RESPUESTA|estado=en_revision legal=- aprobada=- vence=-
+OK  |T|vista extendida: un registro por expediente (porEmpresa)|total=8 expedientes=8 filas=29
+OK  |T|informe: datos de matriz y expediente accesibles (empresa A)|estado=aprobada docs=4 reputacion=3 observaciones=0
+=== RESUMEN: 164/190 pasos OK, 26 FAIL ===
+	
