@@ -761,63 +761,22 @@ export function DdMatrizBandeja() {
   const sinRespuesta = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA, porEmpresa);
   const noAptos = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.NO_APTO, porEmpresa);
 
-  const stats = [
-    {
-      titulo: "Empresas",
-      valor: resumen?.empresas ?? 0,
-      detalle: "Titulares con evaluación",
-      icono: <Building2 className="h-4 w-4" />,
-      color: "text-primary bg-primary/10",
-    },
-    {
-      titulo: "Vínculos",
-      valor: resumen?.total ?? 0,
-      detalle: "Sujetos evaluados (matriz)",
-      icono: <Users className="h-4 w-4" />,
-      color: "text-primary bg-primary/10",
-    },
-    {
-      titulo: "Pendientes",
-      valor: pendientes,
-      detalle: "Sin evaluación final o en revisión",
-      icono: <Clock3 className="h-4 w-4" />,
-      color: "text-blue-700 bg-blue-50",
-    },
-    {
-      titulo: "APTO CON OBS.",
-      valor: observados,
-      detalle: "Apto con observaciones / documentación",
-      icono: <AlertTriangle className="h-4 w-4" />,
-      color: "text-amber-700 bg-amber-50",
-    },
-    {
-      titulo: "APTO",
-      valor: aprobados,
-      detalle: "Resultado final APTO",
-      icono: <CheckCircle2 className="h-4 w-4" />,
-      color: "text-emerald-700 bg-emerald-50",
-    },
-    {
-      titulo: "NO APTO",
-      valor: noAptos,
-      detalle: "Bloqueo de la empresa",
-      icono: <XCircle className="h-4 w-4" />,
-      color: "text-red-700 bg-red-50",
-    },
-    {
-      titulo: "SIN RESPUESTA",
-      valor: sinRespuesta,
-      detalle: "Cierre sin respuesta del cliente",
-      icono: <Clock3 className="h-4 w-4" />,
-      color: "text-slate-700 bg-slate-100",
-    },
-    {
-      titulo: "DD reforzada",
-      valor: resumen?.requierenReforzada ?? 0,
-      detalle: "Derivados a Compliance",
-      icono: <ShieldAlert className="h-4 w-4" />,
-      color: "text-violet-700 bg-violet-50",
-    },
+  /* Estos cinco se excluyen entre si: su suma es el total de la vista (empresas o vinculos). */
+  const resultados = [
+    { titulo: "Pendientes", valor: pendientes, detalle: "Sin evaluación final o en revisión", icono: <Clock3 className="h-4 w-4" />, color: "text-blue-700 bg-blue-50" },
+    { titulo: "APTO CON OBS.", valor: observados, detalle: "Apto con observaciones / documentación", icono: <AlertTriangle className="h-4 w-4" />, color: "text-amber-700 bg-amber-50" },
+    { titulo: "APTO", valor: aprobados, detalle: "Resultado final APTO", icono: <CheckCircle2 className="h-4 w-4" />, color: "text-emerald-700 bg-emerald-50" },
+    { titulo: "NO APTO", valor: noAptos, detalle: "Bloqueo de la empresa", icono: <XCircle className="h-4 w-4" />, color: "text-red-700 bg-red-50" },
+    { titulo: "SIN RESPUESTA", valor: sinRespuesta, detalle: "Cierre sin respuesta del cliente", icono: <Clock3 className="h-4 w-4" />, color: "text-slate-700 bg-slate-100" },
+  ];
+  const totalVista = porEmpresa ? (resumen?.empresas ?? 0) : (resumen?.total ?? 0);
+  const sumaResultados = resultados.reduce((suma, item) => suma + item.valor, 0);
+  const unidadVista = porEmpresa ? "empresas" : "vínculos";
+  /* Referencias: no forman parte de la suma. */
+  const referencias = [
+    { titulo: "Empresas", valor: resumen?.empresas ?? 0, detalle: "Titulares con evaluación", icono: <Building2 className="h-4 w-4" />, color: "text-primary bg-primary/10" },
+    { titulo: "Vínculos", valor: resumen?.total ?? 0, detalle: "Sujetos evaluados (matriz)", icono: <Users className="h-4 w-4" />, color: "text-primary bg-primary/10" },
+    { titulo: "DD reforzada", valor: resumen?.requierenReforzada ?? 0, detalle: "Vínculos derivados a Compliance. Ya están contados en los resultados", icono: <ShieldAlert className="h-4 w-4" />, color: "text-violet-700 bg-violet-50" },
   ];
 
   return (
@@ -910,15 +869,46 @@ export function DdMatrizBandeja() {
           </Button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
-        {stats.map((stat) => (
-          <div key={stat.titulo} className="rounded-xl border border-border bg-card p-3">
-            <div className={`mb-2 inline-flex rounded-md p-1.5 ${stat.color}`}>{stat.icono}</div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{stat.titulo}</p>
-            <p className="mt-1 text-xl font-bold tracking-tight text-foreground">{stat.valor}</p>
-            <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{stat.detalle}</p>
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,5fr)_minmax(0,3fr)]">
+        <div className="space-y-2 rounded-xl border border-border bg-card/50 p-3" aria-label="Resultado final">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">
+              Resultado final · cuenta {unidadVista}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Estos cinco suman{" "}
+              <strong className={sumaResultados === totalVista ? "text-emerald-700" : "text-destructive"}>
+                {sumaResultados} de {totalVista}
+              </strong>{" "}
+              {unidadVista}
+            </p>
           </div>
-        ))}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {resultados.map((stat) => (
+              <div key={stat.titulo} className="rounded-lg border border-border bg-card p-3">
+                <div className={`mb-2 inline-flex rounded-md p-1.5 ${stat.color}`}>{stat.icono}</div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{stat.titulo}</p>
+                <p className="mt-1 text-xl font-bold tracking-tight text-foreground">{stat.valor}</p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{stat.detalle}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2 rounded-xl border border-dashed border-border bg-secondary/30 p-3" aria-label="Totales de referencia">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Referencia · no se suman a los resultados
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {referencias.map((stat) => (
+              <div key={stat.titulo} className="rounded-lg border border-border/70 bg-card/70 p-3">
+                <div className={`mb-2 inline-flex rounded-md p-1.5 ${stat.color}`}>{stat.icono}</div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{stat.titulo}</p>
+                <p className="mt-1 text-lg font-bold tracking-tight text-foreground">{stat.valor}</p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">{stat.detalle}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
