@@ -140,6 +140,13 @@ export const ddUtils = {
     return null;
   },
 
+  /** Compara documentos ignorando espacios, guiones y mayusculas. */
+  mismoDocumento(a: string | null | undefined, b: string | null | undefined): boolean {
+    const normalizar = (valor?: string | null) => (valor ?? "").replace(/[s-]/g, "").toUpperCase();
+    const x = normalizar(a);
+    return x.length > 0 && x === normalizar(b);
+  },
+
   /** Validacion del paso 3: representante y beneficiarios. */
   validarRepresentante(datos: {
     representanteNombre: string;
@@ -174,6 +181,9 @@ export const ddUtils = {
       }
       if (!REGEX_NACIONALIDAD.test(beneficiario.nacionalidad.trim())) {
         return `Ingrese una nacionalidad válida para el beneficiario ${indice + 1}.`;
+      }
+      if (ddUtils.mismoDocumento(beneficiario.documento, datos.representanteDocumento)) {
+        return `El documento del vínculo ${indice + 1} ya está mencionado como representante legal principal.`;
       }
       const tipoDocumento =
         beneficiario.tipoDocumento?.trim() ||

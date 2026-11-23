@@ -33,6 +33,7 @@ import {
   DD_TIPOS_VINCULO_PERSONA,
   type DdTipoVinculoPersona,
 } from "@/lib/shared/constants";
+import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import {
   esEmpresaVinculada,
   tipoDocumentoEmpresaVinculada,
@@ -377,6 +378,11 @@ export function DdWizardPaso3({
                           : <Search className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
+                    {ddUtils.mismoDocumento(beneficiario.documento, form.representanteDocumento) ? (
+                      <p className="mt-1 text-[10px] font-medium text-destructive" role="alert">
+                        Este documento ya está mencionado como representante legal principal.
+                      </p>
+                    ) : null}
                     {!esPaisPeru(beneficiario.nacionalidad) ? (
                       <p className="mt-1 text-[10px] text-muted-foreground">
                         {beneficiario.nacionalidad

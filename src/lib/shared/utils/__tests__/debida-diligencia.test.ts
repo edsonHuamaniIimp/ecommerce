@@ -523,3 +523,27 @@ describe("ddUtils.pasosNavegables", () => {
     ).toEqual([1, 2, 3, 4]);
   });
 });
+
+describe("ddUtils.validarRepresentante - documento repetido", () => {
+  const datos = (documentoVinculo: string) => ({
+    representanteNombre: "JACK GEORGE ESPIRITU SOTO",
+    representanteDocumento: "08423451",
+    representanteNacionalidad: "Perú",
+    beneficiarios: [{
+      nombre: "Otra Persona",
+      documento: documentoVinculo,
+      tipoDocumento: "DNI",
+      nacionalidad: "Perú",
+      porcentaje: "0",
+      tipoVinculoPersona: "director",
+    }],
+  });
+
+  it("rechaza un vinculo con el mismo documento del representante", () => {
+    expect(ddUtils.validarRepresentante(datos("08423451"))).toContain("representante legal principal");
+  });
+
+  it("acepta un documento distinto", () => {
+    expect(ddUtils.validarRepresentante(datos("08423452"))).toBeNull();
+  });
+});
