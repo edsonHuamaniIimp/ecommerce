@@ -183,6 +183,8 @@ export interface DdMatrizResumenEntity {
   empresas: number;
   total: number;
   resultadoFinal: DdMatrizConteo[];
+  /** Resultado final de la DD por empresa (expediente): el del vinculo titular. */
+  resultadoFinalEmpresas: DdMatrizConteo[];
   ambito: DdMatrizConteo[];
   tipo: DdMatrizConteo[];
   paises: DdMatrizPaisFacet[];

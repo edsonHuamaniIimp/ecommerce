@@ -37,7 +37,7 @@ export function porcentajeParticipacionValido(
   return requerido ? porcentaje >= DD_PORCENTAJE_PARTICIPACION_MIN : true;
 }
 
-/** Una empresa vinculada siempre se identifica con RUC. */
+/** Una empresa vinculada peruana se identifica con RUC; una extranjera, con RUT. */
 export function esEmpresaVinculada(tipoVinculoPersona?: string | null): boolean {
   return tipoVinculoPersona === DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA;
 }
@@ -45,10 +45,18 @@ export function esEmpresaVinculada(tipoVinculoPersona?: string | null): boolean 
 /** Tipo de documento que corresponde por defecto al rol declarado. */
 export function tipoDocumentoPredeterminadoVinculo(
   tipoVinculoPersona?: string | null,
+  nacionalidad?: string | null,
 ): DdTipoDocumentoVinculo {
   return esEmpresaVinculada(tipoVinculoPersona)
-    ? DD_TIPOS_DOCUMENTO_VINCULO.RUC
+    ? tipoDocumentoEmpresaVinculada(nacionalidad)
     : DD_TIPOS_DOCUMENTO_VINCULO.DNI;
+}
+
+/** Empresa vinculada: RUC si es peruana (o aun sin nacionalidad); RUT si es extranjera. */
+export function tipoDocumentoEmpresaVinculada(nacionalidad?: string | null): DdTipoDocumentoVinculo {
+  return nacionalidad && !esPaisPeru(nacionalidad)
+    ? DD_TIPOS_DOCUMENTO_VINCULO.RUT
+    : DD_TIPOS_DOCUMENTO_VINCULO.RUC;
 }
 
 /**
@@ -60,7 +68,7 @@ export function normalizarTipoDocumentoVinculo(
   tipoDocumento: string | null | undefined,
   nacionalidad?: string | null,
 ): DdTipoDocumentoVinculo {
-  if (esEmpresaVinculada(tipoVinculoPersona)) return DD_TIPOS_DOCUMENTO_VINCULO.RUC;
+  if (esEmpresaVinculada(tipoVinculoPersona)) return tipoDocumentoEmpresaVinculada(nacionalidad);
   if (tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC) return DD_TIPOS_DOCUMENTO_VINCULO.RUC;
   if (tipoDocumento && (DD_TIPOS_DOCUMENTO_VINCULO_PERSONA as readonly string[]).includes(tipoDocumento)) {
     return tipoDocumento as DdTipoDocumentoVinculo;

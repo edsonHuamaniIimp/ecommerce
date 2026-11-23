@@ -36,6 +36,7 @@
 } from "@/lib/shared/constants";
 import {
   esEmpresaVinculada,
+  tipoDocumentoEmpresaVinculada,
   normalizarTipoDocumentoVinculo,
 } from "./debida-diligencia-v2";
 import { dateUtils } from "./date";
@@ -182,8 +183,11 @@ export const ddUtils = {
           beneficiario.nacionalidad,
         );
       const empresaVinculada = esEmpresaVinculada(beneficiario.tipoVinculoPersona);
-      if (empresaVinculada && tipoDocumento !== DD_TIPOS_DOCUMENTO_VINCULO.RUC) {
-        return `La empresa vinculada ${indice + 1} debe identificarse con RUC.`;
+      if (empresaVinculada) {
+        const esperado = tipoDocumentoEmpresaVinculada(beneficiario.nacionalidad);
+        if (tipoDocumento !== esperado) {
+          return `La empresa vinculada ${indice + 1} debe identificarse con ${esperado}.`;
+        }
       }
       if (!empresaVinculada && tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC) {
         return `El RUC solo aplica a una empresa vinculada (${indice + 1}).`;

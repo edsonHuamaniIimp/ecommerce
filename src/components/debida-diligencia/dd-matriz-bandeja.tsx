@@ -167,8 +167,13 @@ function consultaDe(filtros: Filtros) {
   return { ...filtrosComunes(filtros), page: filtros.page, perPage: filtros.perPage, porEmpresa: true };
 }
 
-function contarFinal(resumen: DdMatrizEvaluacionResumenDTO | null, codigo: DdMatrizResultadoFinal | null): number {
-  return resumen?.resultadoFinal.find((item) => item.valor === codigo)?.total ?? 0;
+function contarFinal(
+  resumen: DdMatrizEvaluacionResumenDTO | null,
+  codigo: DdMatrizResultadoFinal | null,
+  porEmpresa = false,
+): number {
+  const conteos = porEmpresa ? resumen?.resultadoFinalEmpresas : resumen?.resultadoFinal;
+  return conteos?.find((item) => item.valor === codigo)?.total ?? 0;
 }
 
 /** Porcentaje declarado en el cargo; los beneficiarios lo guardan como "Beneficiario final (10%)". */
@@ -402,6 +407,8 @@ function ResultadoFinalStitch({ valor }: { valor: string | null }) {
 export function DdMatrizBandeja() {
   const [data, setData] = useState<DdMatrizEvaluacionResponseDTO | null>(null);
   const [resumen, setResumen] = useState<DdMatrizEvaluacionResumenDTO | null>(null);
+  /* Cards: "dd" cuenta empresas (resultado de la DD); "matriz" cuenta vinculos. */
+  const [vistaCards, setVistaCards] = useState<"dd" | "matriz">("dd");
   const [loading, setLoading] = useState(true);
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIALES);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -727,15 +734,16 @@ export function DdMatrizBandeja() {
     }
   };
 
-  const aprobados = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.APTO);
+  const porEmpresa = vistaCards === "dd";
+  const aprobados = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.APTO, porEmpresa);
   const observados =
-    contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES) +
-    contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA);
+    contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES, porEmpresa) +
+    contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA, porEmpresa);
   /* Pendientes = sin resultado final + en revision (incluye lo derivado a Legal): todo lo aun no cerrado. */
   const pendientes =
-    contarFinal(resumen, null) + contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION);
-  const sinRespuesta = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
-  const noAptos = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.NO_APTO);
+    contarFinal(resumen, null, porEmpresa) + contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION, porEmpresa);
+  const sinRespuesta = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA, porEmpresa);
+  const noAptos = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.NO_APTO, porEmpresa);
 
   const stats = [
     {
@@ -748,7 +756,7 @@ export function DdMatrizBandeja() {
     {
       titulo: "Vínculos",
       valor: resumen?.total ?? 0,
-      detalle: "Sujetos evaluados",
+      detalle: "Sujetos evaluados (matriz)",
       icono: <Users className="h-4 w-4" />,
       color: "text-primary bg-primary/10",
     },
@@ -865,6 +873,27 @@ export function DdMatrizBandeja() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        <span className="font-semibold uppercase tracking-wide text-muted-foreground">Resultados por:</span>
+        {(
+          [
+            ["dd", "DD (por empresa)"],
+            ["matriz", "Matriz (por vínculo)"],
+          ] as const
+        ).map(([valor, etiqueta]) => (
+          <Button
+            key={valor}
+            type="button"
+            size="sm"
+            variant={vistaCards === valor ? "default" : "outline"}
+            className="h-7 px-2.5 text-[11px]"
+            aria-pressed={vistaCards === valor}
+            onClick={() => setVistaCards(valor)}
+          >
+            {etiqueta}
+          </Button>
+        ))}
+      </div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         {stats.map((stat) => (
           <div key={stat.titulo} className="rounded-xl border border-border bg-card p-3">

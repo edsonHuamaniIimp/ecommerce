@@ -17,8 +17,13 @@ export function esVinculoEmpresa(vinculo: DdVinculoVista): boolean {
   if (vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA) return true;
   return (
     vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.VINCULADO &&
-    vinculo.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC
+    esDocumentoDeEmpresa(vinculo.tipoDocumento)
   );
+}
+
+/** RUC (peruana) o RUT (extranjera): identifican a una empresa. */
+function esDocumentoDeEmpresa(tipoDocumento?: string | null): boolean {
+  return tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC || tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUT;
 }
 
 /**
@@ -27,7 +32,7 @@ export function esVinculoEmpresa(vinculo: DdVinculoVista): boolean {
  */
 export function etiquetaTipoVinculo(vinculo: DdVinculoVista): string {
   if (vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.VINCULADO) {
-    if (vinculo.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC) return DD_MATRIZ_TIPO_VINCULO_EMPRESA_VINCULADA_LABEL;
+    if (esDocumentoDeEmpresa(vinculo.tipoDocumento)) return DD_MATRIZ_TIPO_VINCULO_EMPRESA_VINCULADA_LABEL;
     if (vinculo.tipoDocumento) return DD_MATRIZ_TIPO_VINCULO_PERSONA_VINCULADA_LABEL;
   }
   return DD_MATRIZ_TIPO_VINCULO_LABELS[vinculo.tipo as DdMatrizTipoVinculo] ?? vinculo.tipo;

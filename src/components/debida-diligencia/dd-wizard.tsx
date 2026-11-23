@@ -78,6 +78,7 @@ import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import {
   esEmpresaVinculada,
+  tipoDocumentoEmpresaVinculada,
   normalizarTipoDocumentoVinculo,
   tipoDocumentoVinculoConConsulta,
 } from "@/lib/shared/utils/debida-diligencia-v2";
@@ -390,7 +391,7 @@ export function DdWizard({
             ...b,
             tipoVinculoPersona: valor,
             tipoDocumento: esEmpresaVinculada(valor)
-              ? DD_TIPOS_DOCUMENTO_VINCULO.RUC
+              ? tipoDocumentoEmpresaVinculada(b.nacionalidad)
               : esPaisPeru(b.nacionalidad)
                 ? DD_TIPOS_DOCUMENTO_VINCULO.DNI
                 : DD_TIPOS_DOCUMENTO_VINCULO.PASAPORTE,
@@ -401,7 +402,9 @@ export function DdWizard({
           return { ...b, tipoDocumento: valor };
         }
         if (campo === "nacionalidad") {
-          if (esEmpresaVinculada(b.tipoVinculoPersona)) return { ...b, nacionalidad: valor };
+          if (esEmpresaVinculada(b.tipoVinculoPersona)) {
+            return { ...b, nacionalidad: valor, tipoDocumento: tipoDocumentoEmpresaVinculada(valor) };
+          }
           return {
             ...b,
             nacionalidad: valor,

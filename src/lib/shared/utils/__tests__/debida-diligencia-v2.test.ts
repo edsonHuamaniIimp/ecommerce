@@ -203,3 +203,15 @@ describe("calcularResultadoEmpresa", () => {
     expect(calcularResultadoEmpresa([null, undefined])).toBeNull();
   });
 });
+
+describe("empresa vinculada: RUC (Peru) o RUT (extranjera)", () => {
+  const EV = DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA;
+  it("peruana o sin nacionalidad usa RUC", () => {
+    expect(normalizarTipoDocumentoVinculo(EV, null, "Perú")).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUC);
+    expect(normalizarTipoDocumentoVinculo(EV, null, null)).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUC);
+  });
+  it("extranjera usa RUT aunque llegue RUC", () => {
+    expect(normalizarTipoDocumentoVinculo(EV, "RUC", "Alemania")).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUT);
+    expect(tipoDocumentoPredeterminadoVinculo(EV, "Chile")).toBe(DD_TIPOS_DOCUMENTO_VINCULO.RUT);
+  });
+});

@@ -1764,6 +1764,8 @@ export type DdTipoDocumentoRepresentante =
 export const DD_TIPOS_DOCUMENTO_VINCULO = {
   ...DD_TIPOS_DOCUMENTO_REPRESENTANTE,
   RUC: "RUC",
+  /** Identificador tributario de una empresa vinculada extranjera (no se consulta SUNAT). */
+  RUT: "RUT",
 } as const;
 
 export type DdTipoDocumentoVinculo =

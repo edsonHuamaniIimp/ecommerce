@@ -50,6 +50,7 @@ import {
   resolverPais,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { esPaisNacional, paisDeTexto } from "@/lib/shared/utils/pais";
+import { tipoDocumentoEmpresaVinculada } from "@/lib/shared/utils/debida-diligencia-v2";
 
 /** Tamano de lote al crear filas automaticas. */
 const LOTE_CREACION = 500;
@@ -466,7 +467,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         const rol = b.tipoVinculoPersona ?? DD_TIPOS_VINCULO_PERSONA.BENEFICIARIO_FINAL;
         const empresaVinculada = rol === DD_TIPOS_VINCULO_PERSONA.EMPRESA_VINCULADA;
         const tipoDocumento = empresaVinculada
-          ? DD_TIPOS_DOCUMENTO_VINCULO.RUC
+          ? tipoDocumentoEmpresaVinculada(b.nacionalidad)
           : b.tipoDocumento ?? tipoDocumentoBeneficiario(b.documento);
         const porcentajeAplica =
           DD_VINCULOS_PERSONA_CON_PORCENTAJE.includes(rol as (typeof DD_VINCULOS_PERSONA_CON_PORCENTAJE)[number]) &&
@@ -805,7 +806,26 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       return [...conteo.entries()].map(([valor, total]) => ({ valor, total }));
     };
 
-    const [empresas, total, resultadoFinal, ambito, tipo, sig, reputacional, compliance, paises, requierenReforzada, pendientesCompliance, enRevision] =
+    /* Resultado de DD por empresa: el del vinculo titular (tipo empresa) de cada expediente. */
+    const contarResultadoFinalEmpresas = async (): Promise<DdMatrizConteo[]> => {
+      const filas = await prisma.ddMatrizVinculo.findMany({
+        where: { ...enEvento, tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA },
+        select: {
+          expedienteId: true,
+          resultadoFinal: true,
+          expediente: { select: { estado: true } },
+        },
+      });
+      const porExpediente = new Map<string, string | null>();
+      for (const fila of filas) {
+        porExpediente.set(fila.expedienteId, resultadoFinalEfectivo(fila.resultadoFinal, fila.expediente.estado));
+      }
+      const conteo = new Map<string | null, number>();
+      for (const valor of porExpediente.values()) conteo.set(valor, (conteo.get(valor) ?? 0) + 1);
+      return [...conteo.entries()].map(([valor, total]) => ({ valor, total }));
+    };
+
+    const [empresas, total, resultadoFinal, resultadoFinalEmpresas, ambito, tipo, sig, reputacional, compliance, paises, requierenReforzada, pendientesCompliance, enRevision] =
       await Promise.all([
         prisma.ddMatrizVinculo.groupBy({
           by: ["expedienteId"],
@@ -814,6 +834,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
         }),
         prisma.ddMatrizVinculo.count({ where: enEvento }),
         contarResultadoFinalEfectivo(),
+        contarResultadoFinalEmpresas(),
         agrupar("ambito"),
         agrupar("tipo"),
         agrupar("sigResultado"),
@@ -847,6 +868,7 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       empresas: empresas.length,
       total,
       resultadoFinal,
+      resultadoFinalEmpresas,
       ambito,
       tipo,
       paises: paises.flatMap((p) => (p.pais ? [{ pais: p.pais, total: p._count._all }] : [])),

@@ -35,6 +35,7 @@ import {
 } from "@/lib/shared/constants";
 import {
   esEmpresaVinculada,
+  tipoDocumentoEmpresaVinculada,
   tipoDocumentoVinculoConConsulta,
 } from "@/lib/shared/utils/debida-diligencia-v2";
 import { esPaisPeru } from "@/lib/shared/utils/pais";
@@ -200,7 +201,7 @@ export function DdWizardPaso3({
           <div>
             <h2 id="dd-paso3-vinculos" className="flex items-center gap-2 text-sm font-semibold text-primary">
               <Users className="h-4 w-4" />
-              <span>Beneficiarios y personas vinculadas</span>
+              <span>Otras personas naturales o jurídicas vinculadas</span>
               <Badge className="pointer-events-none text-[10px]">{beneficiarios.length} registro(s)</Badge>
               {totalVinculosObservados > 0 ? (
                 <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.WARNING}`}>
@@ -209,7 +210,7 @@ export function DdWizardPaso3({
               ) : null}
             </h2>
             <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
-              Registre personas naturales o jurídicas vinculadas a la empresa. La participación es opcional; si corresponde, indique el porcentaje.
+              Declare las personas naturales o jurídicas vinculadas a la empresa en caso aplique alguna de ellas (representantes legales, apoderados, directores, gerentes, beneficiarios finales, accionistas o socios con 10% o más de participación).
             </p>
           </div>
           <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={agregarBeneficiario}>
@@ -313,7 +314,7 @@ export function DdWizardPaso3({
                       </SelectTrigger>
                       <SelectContent>
                         {(empresaVinculada
-                          ? [DD_TIPOS_DOCUMENTO_VINCULO.RUC]
+                          ? [tipoDocumentoEmpresaVinculada(beneficiario.nacionalidad)]
                           : DD_TIPOS_DOCUMENTO_VINCULO_PERSONA
                         ).map((tipo) => (
                           <SelectItem key={tipo} value={tipo}>
@@ -324,7 +325,9 @@ export function DdWizardPaso3({
                     </Select>
                     {empresaVinculada ? (
                       <p className="mt-1 text-[10px] text-muted-foreground">
-                        La empresa vinculada se identifica con RUC.
+                        {esPaisPeru(beneficiario.nacionalidad) || !beneficiario.nacionalidad
+                          ? "La empresa vinculada peruana se identifica con RUC."
+                          : "La empresa vinculada extranjera se identifica con RUT (identificador tributario de su país)."}
                       </p>
                     ) : null}
                   </div>
@@ -340,7 +343,9 @@ export function DdWizardPaso3({
                             ? "RUC de 11 dígitos"
                             : beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.DNI
                               ? "DNI de 8 dígitos"
-                              : "N.º de documento"
+                              : beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUT
+                                ? "RUT / identificador tributario"
+                                : "N.º de documento"
                         }
                         inputMode={
                           beneficiario.tipoDocumento === DD_TIPOS_DOCUMENTO_VINCULO.RUC ||

@@ -10,6 +10,7 @@ export interface DdMatrizEvaluacionResumenDTO {
   empresas: number;
   total: number;
   resultadoFinal: DdMatrizConteoDTO[];
+  resultadoFinalEmpresas: DdMatrizConteoDTO[];
   ambito: DdMatrizConteoDTO[];
   tipo: DdMatrizConteoDTO[];
   paises: { pais: string; total: number }[];
