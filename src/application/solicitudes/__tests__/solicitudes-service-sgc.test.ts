@@ -696,6 +696,31 @@ describe("SolicitudesApplicationService - firma subida por Asociado", () => {
     expect(sgc.crearExpedienteDesdeSolicitud).not.toHaveBeenCalled();
   });
 
+  it("firmado por ambos sin revision previa: no duplica la revision del Asociado (unique solicitud+area)", async () => {
+    const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
+    const base = baseDetalle();
+    let creada = false;
+    repo.detalle = vi.fn().mockImplementation(async () => ({
+      ...base,
+      revisiones: creada ? [{ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.PENDIENTE }] : [],
+    }));
+    repo.crearRevisionInicial = vi.fn().mockImplementation(async () => {
+      if (creada) throw new Error("Unique constraint failed on the fields: (`solicitud_id`, `area`)");
+      creada = true;
+      return {};
+    });
+    const sgc = sgcMock();
+    vi.spyOn(sgc, "aprobarPorContratoFirmadoCompleto").mockResolvedValue(true);
+    const svc = new SolicitudesApplicationService(repo, sgc);
+
+    await svc.uploadDocumento(cargaFirmada({ firmadoCliente: true, firmadoGerencia: true }));
+
+    expect(repo.crearRevisionInicial).toHaveBeenCalledTimes(1);
+    expect(repo.crearOActualizarRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ area: REVISION_AREAS.ASOCIADO, estado: RESULTADOS_APROBACION.APROBADO }),
+    );
+  });
+
   it("firmado solo por el cliente: queda pendiente de revision del Asociado", async () => {
     const repo = repoMock(REVISION_AREAS.ASOCIADO, RESULTADOS_APROBACION.PENDIENTE);
     repo.detalle = vi.fn().mockResolvedValue(baseDetalle());

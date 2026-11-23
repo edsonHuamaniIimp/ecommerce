@@ -484,7 +484,12 @@ export class SolicitudesApplicationService {
    * (`estadoPago`) se habilita sin reiniciar pagos ya confirmados.
    */
   private async aprobarPorContratoFirmadoCompleto(detalle: SolicitudRow, autor: string): Promise<void> {
-    await this.encolarRevisionReservaEmpresa(detalle);
+    /*
+     * `detalle` puede estar desactualizado: el caller ya encolo la revision del
+     * Asociado. Releer evita crearla dos veces (unique solicitud_id + area).
+     */
+    const actual = (await this.repo.detalle(detalle.id)) ?? detalle;
+    await this.encolarRevisionReservaEmpresa(actual);
     await this.repo.crearOActualizarRevision({
       solicitudId: detalle.id,
       area: REVISION_AREAS.ASOCIADO,
