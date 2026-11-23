@@ -85,6 +85,7 @@ import {
   type DdEstado,
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
+import { conclusionReputacionalTrasResultado } from "@/lib/shared/utils/dd-matriz-conclusion-reputacional";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { normalizarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
@@ -2031,6 +2032,17 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     vinculoId: string,
     data: { resultado: string; observaciones: string | null; responsable: string; fecha: Date },
   ): Promise<void> {
+    const actual = await prisma.ddMatrizVinculo.findUnique({
+      where: { id: vinculoId },
+      select: { repResultado: true, repConclusion: true },
+    });
+    /* Aceptado por Comunicaciones: la conclusion reputacional queda "sin observaciones" sin que SIG tenga que guardarla. */
+    const conclusion = actual
+      ? conclusionReputacionalTrasResultado(
+          { resultado: actual.repResultado, conclusion: actual.repConclusion },
+          data.resultado,
+        )
+      : undefined;
     await prisma.ddMatrizVinculo.update({
       where: { id: vinculoId },
       data: {
@@ -2038,6 +2050,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         repObservaciones: data.observaciones,
         repResponsable: data.responsable,
         repFecha: data.fecha,
+        ...(conclusion !== undefined ? { repConclusion: conclusion } : {}),
       },
     });
   }

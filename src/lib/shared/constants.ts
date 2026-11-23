@@ -535,6 +535,8 @@ export const ALL_PERMISSIONS = [
   { key: "dd:reputacion", label: "Revision reputacional", descripcion: "Evaluar imagen y reputacion de los nombres derivados por Logistica (Comunicaciones)", section: "debida_diligencia" },
   { key: "dd:panel", label: "Panel de Debida Diligencia", descripcion: "Ver KPIs, vigencias y matriz de empresas del modulo", section: "debida_diligencia" },
   { key: "dd:matriz", label: "Matriz de evaluacion DD", descripcion: "Registrar la matriz de evaluacion de debida diligencia por vinculo (empresa/persona)", section: "debida_diligencia" },
+  { key: "dd:informes", label: "Informes DD", descripcion: "Ver los informes de debida diligencia por empresa y generar su PDF", section: "debida_diligencia" },
+  { key: "dd:repositorio", label: "Centro documental DD", descripcion: "Ver el centro documental, importar evidencias por carpeta (con sugerencia de IA) y eliminar las evidencias propias", section: "debida_diligencia" },
   { key: "dd:admin", label: "Administracion de Debida Diligencia", descripcion: "Configurar reglas, plazos, links y auditoria del modulo", section: "debida_diligencia" },
 ] as const;
 
@@ -591,6 +593,8 @@ export const PERMISSIONS = {
   DD_REPUTACION: "dd:reputacion",
   DD_PANEL: "dd:panel",
   DD_MATRIZ: "dd:matriz",
+  DD_INFORMES: "dd:informes",
+  DD_REPOSITORIO: "dd:repositorio",
   DD_ADMIN: "dd:admin",
 } as const satisfies Record<string, Permission>;
 

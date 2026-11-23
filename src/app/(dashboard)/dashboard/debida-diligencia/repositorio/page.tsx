@@ -10,7 +10,7 @@ import { tienePermiso } from "@/lib/shared/utils/permisos";
 export default function DebidaDiligenciaRepositorioPage() {
   const { session, cargando } = useSesion();
   const eventoId = session?.eventoId ?? "";
-  const autorizado = tienePermiso(session, PERMISSIONS.DD_MATRIZ);
+  const autorizado = tienePermiso(session, PERMISSIONS.DD_REPOSITORIO);
 
   return (
     <PaginaDashboard

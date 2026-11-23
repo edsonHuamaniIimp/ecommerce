@@ -216,7 +216,10 @@ export interface IDebidaDiligenciaRepository {
   ): Promise<{ derivadoPor: string; vinculoId: string | null }>;
   /** Actualiza un caso reputacional. */
   actualizarReputacion(id: string, data: DdReputacionActualizacion): Promise<{ derivadoPor: string; vinculoId: string | null }>;
-  /** Refleja solo las observaciones de Comunicaciones en la fila de matriz. */
+  /**
+   * Refleja las observaciones de Comunicaciones en la fila de matriz. Si el resultado es aceptado y SIG
+   * aun no definio la conclusion reputacional, la deja en "sin observaciones" por defecto.
+   */
   actualizarObservacionMatriz(
     vinculoId: string,
     data: { resultado: string; observaciones: string | null; responsable: string; fecha: Date },

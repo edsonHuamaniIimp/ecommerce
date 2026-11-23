@@ -19,7 +19,7 @@ export default function DebidaDiligenciaInformesPage() {
     );
   }
 
-  if (!tienePermiso(session, PERMISSIONS.DD_MATRIZ)) {
+  if (!tienePermiso(session, PERMISSIONS.DD_INFORMES)) {
     return <DdAccesoDenegado mensaje="Los informes de debida diligencia están reservados a las áreas evaluadoras." />;
   }
 

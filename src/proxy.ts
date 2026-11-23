@@ -38,6 +38,8 @@ const PROTECTED: ProtectedRoute[] = [
   /* Debida Diligencia: permisos propios del modulo (dd:*). */
   { path: DD_RUTAS.BANDEJA, permission: PERMISSIONS.DD_REVISION },
   { path: DD_RUTAS.MATRIZ, permission: PERMISSIONS.DD_MATRIZ },
+  { path: DD_RUTAS.INFORMES, permission: PERMISSIONS.DD_INFORMES },
+  { path: DD_RUTAS.REPOSITORIO, permission: PERMISSIONS.DD_REPOSITORIO },
   { path: DD_RUTAS.CONFIGURACION, permission: PERMISSIONS.DD_ADMIN },
   { path: DD_RUTAS.LEGAL, permission: PERMISSIONS.DD_LEGAL },
   { path: DD_RUTAS.REPUTACION, permission: PERMISSIONS.DD_REPUTACION },

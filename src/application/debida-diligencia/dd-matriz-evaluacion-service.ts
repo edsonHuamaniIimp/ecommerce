@@ -103,6 +103,11 @@ export type DdMatrizAprobarExpediente = (
   session: DdSession,
 ) => Promise<void>;
 
+/** Informes DD y Centro documental consultan la matriz solo para leer (lista, detalle y abrir). */
+const ACCESO_LECTURA = [PERMISSIONS.DD_INFORMES, PERMISSIONS.DD_REPOSITORIO] as const;
+/** El Centro documental ademas carga y elimina evidencias. */
+const ACCESO_ADJUNTOS = [PERMISSIONS.DD_REPOSITORIO] as const;
+
 export class DdMatrizEvaluacionApplicationService {
   constructor(
     private readonly repo: IDdMatrizEvaluacionRepository,
@@ -114,8 +119,12 @@ export class DdMatrizEvaluacionApplicationService {
     return session.roles.includes(ROLES.ADMIN) || session.permissions.includes(permiso);
   }
 
-  private exigirAcceso(session: DdSession): void {
-    if (!this.tienePermiso(session, PERMISSIONS.DD_MATRIZ)) {
+  /** Acceso a la matriz: el permiso propio o uno de los alternos (Informes / Centro documental leen sus datos). */
+  private exigirAcceso(session: DdSession, alternos: readonly string[] = []): void {
+    if (
+      !this.tienePermiso(session, PERMISSIONS.DD_MATRIZ) &&
+      !alternos.some((permiso) => this.tienePermiso(session, permiso))
+    ) {
       throw new DomainError("Sin permiso para acceder a la Matriz DD", API_ERROR_CODES.FORBIDDEN, 403);
     }
   }
@@ -188,7 +197,7 @@ export class DdMatrizEvaluacionApplicationService {
 
   /** Lista paginada; antes sincroniza las filas automaticas con los expedientes del evento. */
   async listar(session: DdSession, query: DdMatrizEvaluacionQueryDTO): Promise<DdMatrizListarResultado> {
-    this.exigirAcceso(session);
+    this.exigirAcceso(session, ACCESO_LECTURA);
     const eventoId = this.eventoFiltro(session, query.eventoId);
     const nuevas = eventoId
       ? await this.repo.sincronizarEvento(eventoId, session.email)
@@ -267,7 +276,7 @@ export class DdMatrizEvaluacionApplicationService {
    * Bandeja o el Panel. Sincroniza primero: la fila puede no existir aun.
    */
   async vinculoEmpresaDeExpediente(session: DdSession, expedienteId: string): Promise<string> {
-    this.exigirAcceso(session);
+    this.exigirAcceso(session, ACCESO_LECTURA);
     /* La bandeja puede estar en "Todos los eventos": sincroniza el evento del
      * expediente, no el evento activo de la sesion. */
     const eventoId = await this.repo.findEventoIdDeExpediente(expedienteId);
@@ -291,7 +300,7 @@ export class DdMatrizEvaluacionApplicationService {
   }
 
   async detalle(session: DdSession, id: string): Promise<DdMatrizDetalleResultado> {
-    this.exigirAcceso(session);
+    this.exigirAcceso(session, ACCESO_LECTURA);
     const vinculo = await this.vinculoRequerido(id);
     const [adjuntos, empresa] = await Promise.all([
       this.repo.listarAdjuntos(id),
@@ -656,7 +665,7 @@ export class DdMatrizEvaluacionApplicationService {
     vinculoId: string,
     categoria: DdMatrizAdjuntoCategoria,
   ): Promise<DdMatrizVinculoEntity> {
-    this.exigirAcceso(session);
+    this.exigirAcceso(session, ACCESO_ADJUNTOS);
     const vinculo = await this.vinculoRequerido(vinculoId);
     const adjuntos = await this.repo.listarAdjuntos(vinculoId);
     this.exigirPermisoAdjunto(session, vinculo, adjuntos, categoria);
@@ -684,12 +693,12 @@ export class DdMatrizEvaluacionApplicationService {
   }
 
   async eliminarAdjunto(session: DdSession, id: string): Promise<void> {
-    this.exigirAcceso(session);
+    this.exigirAcceso(session, ACCESO_ADJUNTOS);
     const adjunto = await this.repo.findAdjunto(id);
     if (!adjunto) throw new DomainError("Adjunto no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
     const vinculo = await this.vinculoRequerido(adjunto.vinculoId);
     const adjuntos = await this.repo.listarAdjuntos(adjunto.vinculoId);
-    this.exigirPermisoAdjunto(session, vinculo, adjuntos, adjunto.categoria);
+    this.exigirPermisoAdjunto(session, vinculo, adjuntos, adjunto.categoria, adjunto);
     await this.repo.eliminarAdjunto(id);
     await this.repo.registrarAuditoria(
       "matriz_adjunto_eliminar",
@@ -704,15 +713,20 @@ export class DdMatrizEvaluacionApplicationService {
     vinculo: DdMatrizVinculoEntity,
     adjuntos: DdMatrizAdjuntoEntity[],
     categoria: DdMatrizAdjuntoCategoria,
+    existente?: DdMatrizAdjuntoEntity,
   ): void {
     const permisos = this.calcularPermisos(session, vinculo, adjuntos);
-    const permitido =
+    /* Centro documental: carga evidencias de cualquier categoria y elimina solo las que subio. */
+    const delCentroDocumental =
+      this.tienePermiso(session, PERMISSIONS.DD_REPOSITORIO) &&
+      (!existente || existente.creadoPor === session.email);
+    const permitidoPorArea =
       categoria === DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO
         ? permisos.editarReputacional || permisos.editarConclusionReputacional
         : categoria === DD_MATRIZ_ADJUNTO_CATEGORIAS.COMPLIANCE_SUSTENTO
           ? permisos.editarCompliance || permisos.editarSig
           : permisos.editarSig;
-    if (!permitido) this.prohibido("Sin permiso para gestionar este adjunto");
+    if (!delCentroDocumental && !permitidoPorArea) this.prohibido("Sin permiso para gestionar este adjunto");
   }
 
   /** Combina el bloque existente con lo enviado y aplica las reglas del proceso. */

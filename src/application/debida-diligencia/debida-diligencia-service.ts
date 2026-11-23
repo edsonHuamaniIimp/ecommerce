@@ -178,7 +178,10 @@ export class DebidaDiligenciaApplicationService {
       this.tienePermiso(session, PERMISSIONS.DD_REVISION) ||
       this.tienePermiso(session, PERMISSIONS.DD_LEGAL) ||
       this.tienePermiso(session, PERMISSIONS.DD_REPUTACION) ||
-      this.tienePermiso(session, PERMISSIONS.DD_PANEL);
+      this.tienePermiso(session, PERMISSIONS.DD_PANEL) ||
+      this.tienePermiso(session, PERMISSIONS.DD_MATRIZ) ||
+      this.tienePermiso(session, PERMISSIONS.DD_INFORMES) ||
+      this.tienePermiso(session, PERMISSIONS.DD_REPOSITORIO);
     if (!esStaff) {
       const empresaId = await this.empresaDelUsuario(session);
       if (empresaId !== expediente.empresaId) {

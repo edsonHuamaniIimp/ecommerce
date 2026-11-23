@@ -66,9 +66,9 @@ const navItems: NavItem[] = [
   { href: DD_RUTAS.BASE, label: "Mi debida diligencia", icon: ShieldCheck, permission: PERMISSIONS.DD_FORMULARIO, section: "Debida Diligencia", soloCliente: true },
   { href: DD_RUTAS.MIS_DILIGENCIAS, label: "Mis debidas diligencias", icon: History, permission: PERMISSIONS.DD_FORMULARIO, section: "Debida Diligencia", soloCliente: true },
   { href: DD_RUTAS.MATRIZ, label: "Matriz DD", icon: Table2, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
-  { href: DD_RUTAS.INFORMES, label: "Informes DD", icon: FileCheck2, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
+  { href: DD_RUTAS.INFORMES, label: "Informes DD", icon: FileCheck2, permission: PERMISSIONS.DD_INFORMES, section: "Debida Diligencia" },
   { href: DD_RUTAS.CONFIGURACION, label: "Administración DD", icon: SlidersHorizontal, anyOf: [PERMISSIONS.DD_ADMIN, PERMISSIONS.ADMIN_FULL], section: "Debida Diligencia" },
-  { href: DD_RUTAS.REPOSITORIO, label: "Centro documental", icon: FolderOpen, permission: PERMISSIONS.DD_MATRIZ, section: "Debida Diligencia" },
+  { href: DD_RUTAS.REPOSITORIO, label: "Centro documental", icon: FolderOpen, permission: PERMISSIONS.DD_REPOSITORIO, section: "Debida Diligencia" },
   { href: DD_RUTAS.LEGAL, label: "Revisión legal", icon: Scale, permission: PERMISSIONS.DD_LEGAL, section: "Debida Diligencia" },
   { href: DD_RUTAS.REPUTACION, label: "Revisión reputacional", icon: Megaphone, permission: PERMISSIONS.DD_REPUTACION, section: "Debida Diligencia" },
 ];

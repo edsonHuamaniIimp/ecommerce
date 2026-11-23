@@ -698,7 +698,44 @@ describe("DdMatrizEvaluacionApplicationService", () => {
   });
 });
 
+describe("permisos propios de Informes DD y Centro documental DD", () => {
+  const solo = (permiso: string) => ({ email: "doc@iimp.org.pe", roles: [], permissions: [permiso], eventoId: "evento-1" });
 
+  it("Informes DD puede leer (lista, detalle y abrir) pero no editar ni cargar evidencias", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.listar.mockResolvedValue({ data: [], total: 0 });
+    repo.findVinculoEmpresa.mockResolvedValue(vinculo({ id: "v-emp", tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA }));
+    const s = solo(PERMISSIONS.DD_INFORMES);
+    await expect(servicio.listar(s, { page: 1, perPage: 10 })).resolves.toBeDefined();
+    await expect(servicio.detalle(s, "v-1")).resolves.toBeDefined();
+    await expect(servicio.vinculoEmpresaDeExpediente(s, "exp-1")).resolves.toBeDefined();
+    await expect(servicio.guardar(s, { id: "v-1", sig: { resultado: "ACEPTADO" } })).rejects.toMatchObject({ status: 403 });
+    await expect(servicio.autorizarAdjunto(s, "v-1", DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME)).rejects.toMatchObject({ status: 403 });
+    await expect(servicio.resumen(s)).rejects.toMatchObject({ status: 403 });
+  });
 
+  it("Centro documental DD lee y carga evidencias de cualquier categoria", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.listar.mockResolvedValue({ data: [], total: 0 });
+    const s = solo(PERMISSIONS.DD_REPOSITORIO);
+    await expect(servicio.listar(s, { page: 1, perPage: 10 })).resolves.toBeDefined();
+    await expect(servicio.autorizarAdjunto(s, "v-1", DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME)).resolves.toBeDefined();
+    await expect(servicio.autorizarAdjunto(s, "v-1", DD_MATRIZ_ADJUNTO_CATEGORIAS.REPUTACIONAL_SUSTENTO)).resolves.toBeDefined();
+    await expect(servicio.guardar(s, { id: "v-1", sig: { resultado: "ACEPTADO" } })).rejects.toMatchObject({ status: 403 });
+  });
 
+  it("Centro documental DD elimina solo las evidencias que subio", async () => {
+    const propia = { ...informe(), id: "a-propia", creadoPor: "doc@iimp.org.pe" };
+    const ajena = { ...informe(), id: "a-ajena", creadoPor: "otro@iimp.org.pe" };
+    const { servicio, repo } = crear(vinculo(), [propia, ajena]);
+    repo.findAdjunto.mockImplementation(async (id: string) => (id === "a-propia" ? propia : ajena));
+    const s = solo(PERMISSIONS.DD_REPOSITORIO);
+    await expect(servicio.eliminarAdjunto(s, "a-propia")).resolves.toBeUndefined();
+    await expect(servicio.eliminarAdjunto(s, "a-ajena")).rejects.toMatchObject({ status: 403 });
+  });
 
+  it("sin ninguno de los permisos no hay acceso", async () => {
+    const { servicio } = crear(vinculo());
+    await expect(servicio.detalle(solo(PERMISSIONS.DD_REPUTACION), "v-1")).rejects.toMatchObject({ status: 403 });
+  });
+});

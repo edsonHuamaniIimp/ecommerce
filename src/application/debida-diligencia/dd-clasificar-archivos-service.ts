@@ -18,7 +18,7 @@ export class DdClasificarArchivosApplicationService {
     dto: DdClasificarArchivosRequestDTO,
     session: DdSession,
   ): Promise<DdClasificarArchivosResponseDTO> {
-    if (!tienePermiso(session, PERMISSIONS.DD_MATRIZ)) {
+    if (!tienePermiso(session, PERMISSIONS.DD_MATRIZ) && !tienePermiso(session, PERMISSIONS.DD_REPOSITORIO)) {
       throw new DomainError("No autorizado para clasificar evidencias", API_ERROR_CODES.FORBIDDEN, 403);
     }
 
