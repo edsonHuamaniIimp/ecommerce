@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { IGV_PORCENTAJE, TIPOS_DESCUENTO } from "@/lib/shared/constants";
+import { IGV_PORCENTAJE, MONEDAS, TIPOS_DESCUENTO } from "@/lib/shared/constants";
 import type { PlanCuotasSolicitud } from "@/domain/models/entities";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { numberUtils } from "@/lib/shared/utils/number";
@@ -60,7 +60,11 @@ export function ConfiguracionPabellonPanel({ plan, moneda }: Props) {
           <Dato label="Moneda" valor={monedaPlan || "—"} />
           <Dato
             label="Tipo de cambio"
-            valor={plan.tipoCambio ? String(plan.tipoCambio) : "No aplica"}
+            valor={
+              monedaPlan === MONEDAS.PEN && plan.tipoCambio
+                ? `S/ ${plan.tipoCambio} por US$`
+                : "No aplica (contrato en USD)"
+            }
           />
           <Dato label="Tipo de descuento" valor={etiquetaDescuento(plan, monedaPlan)} />
           <Dato label="Cantidad de cuotas" valor={String(plan.cuotas.length)} />
