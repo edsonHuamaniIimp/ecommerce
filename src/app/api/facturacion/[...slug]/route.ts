@@ -16,6 +16,8 @@ export const { GET, POST, PATCH, DELETE } = createRouter({
     "recordatorios/enviar": (req) => facturacionController.enviarRecordatorios(req),
     "completar-requisitos": (req) => facturacionController.completarRequisitos(req),
     "solicitar-factura": (req) => facturacionController.solicitarFactura(req),
+    "programar-factura": (req) => facturacionController.programarFactura(req),
+    "cancelar-programada": (req) => facturacionController.cancelarProgramada(req),
   },
   PATCH: {
     actualizar: (req) => facturacionController.actualizar(req),

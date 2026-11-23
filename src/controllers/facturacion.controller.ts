@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { services } from "@/lib/server/services";
 import { adjuntarComprobanteFiscalSchema, enviarRecordatoriosSchema } from "@/validators/facturacion.validator";
@@ -23,7 +23,21 @@ export const facturacionController = {
     const tipo = searchParams.get("tipo") ?? undefined;
     const requerimiento = searchParams.get("requerimiento") ?? undefined;
     const tipoSolicitud = searchParams.get("tipoSolicitud") ?? undefined;
-    return success(await service.listar({ page, perPage, eventoId, estado, search, tipo, requerimiento, tipoSolicitud }));
+    const resultado = await service.listar({ page, perPage, eventoId, estado, search, tipo, requerimiento, tipoSolicitud });
+    /* Solicitudes internas: adjunta la solicitud de factura programada vigente (si existe). */
+    const programadas = await services.facturacionProgramada.vigentes(
+      resultado.data.filter((r) => r.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA).map((r) => r.solicitudId),
+    );
+    const data = resultado.data.map((r) => {
+      const p = programadas.find((x) => x.solicitudId === r.solicitudId);
+      return {
+        ...r,
+        programada: p
+          ? { fechaProgramada: p.fechaProgramada, estado: p.estado, ultimoError: p.ultimoError, cuotaId: p.cuotaId }
+          : null,
+      };
+    });
+    return success({ ...resultado, data });
   },
 
   async detalle(request: Request): Promise<NextResponse> {
@@ -64,6 +78,34 @@ export const facturacionController = {
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
     const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
     return success(await services.solicitarFactura.solicitarComoStaff(cuotaId, lista, requisitos ?? null));
+  },
+
+  /** Programa la solicitud de factura (solicitudes internas): se guarda como tarea y la ejecuta el cron. */
+  async programarFactura(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarSolicitudFactura(session.permissions);
+    const { cuotaId, fechaProgramada, archivos, requisitos } = (await request.json()) as {
+      cuotaId: string;
+      fechaProgramada: string;
+      archivos?: unknown;
+      requisitos?: RequisitosFacturacionInput | null;
+    };
+    if (!cuotaId || !fechaProgramada) return error(API_ERROR_CODES.VALIDATION, "cuotaId y fechaProgramada requeridos", 400);
+    const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
+    const tarea = await services.facturacionProgramada.programar(cuotaId, fechaProgramada, lista, requisitos ?? null, session.email ?? null);
+    return success({ id: tarea.id, fechaProgramada: tarea.fechaProgramada, estado: tarea.estado });
+  },
+
+  /** Cancela la solicitud de factura programada de una solicitud. */
+  async cancelarProgramada(request: Request): Promise<NextResponse> {
+    const session = await getSession();
+    if (!session) return error(API_ERROR_CODES.UNAUTHORIZED, "No autorizado", 401);
+    service.autorizarSolicitudFactura(session.permissions);
+    const { solicitudId } = (await request.json()) as { solicitudId?: string };
+    if (!solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
+    await services.facturacionProgramada.cancelar(solicitudId);
+    return success({ ok: true });
   },
 
   /** Completa los requisitos de una solicitud ya enviada (Facturacion actua en nombre del cliente). */

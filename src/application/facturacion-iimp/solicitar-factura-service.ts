@@ -299,7 +299,7 @@ export class SolicitarFacturaApplicationService {
   }
 
   /** Normaliza la declaracion de requisitos y valida el enlace de la plataforma. */
-  private normalizarRequisitos(input: RequisitosFacturacionInput): RequisitosFacturacionInput {
+  normalizarRequisitos(input: RequisitosFacturacionInput): RequisitosFacturacionInput {
     const enlace = (input.plataformaUrl ?? "").trim();
     if (enlace && !/^https?:\/\/\S+$/i.test(enlace)) {
       throw new DomainError("El enlace de la plataforma debe ser una URL http(s) valida", API_ERROR_CODES.VALIDATION, 400);

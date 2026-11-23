@@ -19,6 +19,10 @@ export const sgcCronController = {
 
     const reconciliacion = await services.sgc.sincronizarCron();
     const outbox = await services.sgcOutbox.despachar();
-    return success({ ...reconciliacion, outbox });
+    /* Mismo scheduler (cada 10 min): registra las solicitudes de factura programadas que ya vencieron. */
+    const facturacionProgramada = await services.facturacionProgramada
+      .ejecutarVencidas()
+      .catch((e: unknown) => ({ error: e instanceof Error ? e.message : "error" }));
+    return success({ ...reconciliacion, outbox, facturacionProgramada });
   },
 };

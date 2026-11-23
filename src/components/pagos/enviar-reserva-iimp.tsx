@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, FileText, Loader2, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CalendarClock, FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { pagosService, type ArchivoIImpInputDTO, type RequisitosFacturacionDTO } from "@/lib/client/api/services/pagos-service";
 import { facturacionService } from "@/lib/client/api/services/facturacion-service";
@@ -25,6 +25,8 @@ interface Props {
   admin?: boolean;
   /** Cuotas del registro (solo admin al solicitar): permite elegir la cuota de origen. */
   cuotas?: Array<{ id: string; numero: number }>;
+  /** Solicitud interna (solo admin al solicitar): permite guardar la solicitud como tarea con fecha y hora. */
+  interna?: boolean;
   /** Se ejecuta tras registrar la solicitud (recarga del listado). */
   onEnviado: () => void;
 }
@@ -162,9 +164,13 @@ function AdjuntoRequisito({
  * los documentos en el mismo modal. La cuota (la de la bandeja) ya viene fijada.
  * Los requisitos son referenciales; las constancias de pago se adjuntan al pagar.
  */
-export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, modo = "solicitud", admin = false, cuotas = [], onEnviado }: Props) {
+export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, standCode, modo = "solicitud", admin = false, cuotas = [], interna = false, onEnviado }: Props) {
   const esCompletar = modo === "completar";
   const esAdminSolicitud = admin && modo === "solicitud";
+  const permiteProgramar = esAdminSolicitud && interna;
+  /** Panel "Configurar fecha" abierto y fecha/hora (datetime-local, hora de Peru). */
+  const [configurandoFecha, setConfigurandoFecha] = useState(false);
+  const [fechaLocal, setFechaLocal] = useState("");
   const [cuotaOrigen, setCuotaOrigen] = useState({ id: cuotaId, numero: cuotaNumero ?? 1 });
   const cuotaEfectivaId = esAdminSolicitud ? cuotaOrigen.id : cuotaId;
   const cuotaEfectivaNumero = esAdminSolicitud ? cuotaOrigen.numero : cuotaNumero;
@@ -202,6 +208,8 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
       setRequisitos(esCompletar ? REQUISITOS_COMPLETAR : REQUISITOS_INICIALES);
       setError(null);
       setCuotaOrigen({ id: cuotaId, numero: cuotaNumero ?? 1 });
+      setConfigurandoFecha(false);
+      setFechaLocal("");
     }
     onOpenChange(v);
   };
@@ -224,45 +232,80 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
     !Boolean((requisitos.otros ?? "").trim()) &&
     !requisitos.ninguna;
 
-  /** Valida requisitos y documentos; luego envia la solicitud de factura. */
-  const enviar = async () => {
-    if (!cuotaEfectivaId) return;
+  /** Requisitos declarados en el formato del API. */
+  const armarRequisitos = () => ({
+    oc: requisitos.oc,
+    hes: requisitos.hes,
+    plataforma: requisitos.plataforma,
+    plataformaNombre: requisitos.plataformaNombre || null,
+    plataformaUrl: requisitos.plataformaUrl || null,
+    valorizacion: requisitos.valorizacion,
+    otros: requisitos.otros || null,
+    ninguna: requisitos.ninguna,
+    descripcionFactura: requisitos.descripcionFactura || null,
+  });
+
+  /** Valida requisitos y documentos; devuelve false (y muestra el error) si falta algo. */
+  const validar = (): boolean => {
     if (sinRequisitoDeclarado) {
       setError("Selecciona al menos un requisito o marca \"Ninguna de las anteriores\".");
-      return;
+      return false;
     }
     if (requisitos.plataforma) {
       if (!requisitos.plataformaNombre?.trim()) {
         setError("Indica el nombre de la plataforma.");
-        return;
+        return false;
       }
       if (!/^https?:\/\/.+/i.test((requisitos.plataformaUrl ?? "").trim())) {
         setError("Ingresa un enlace válido de la plataforma (http:// o https://).");
-        return;
+        return false;
       }
     }
     if (requisitos.otros && !requisitos.otros.trim()) {
       setError("Especifica el requisito en \"Otros requisitos\".");
-      return;
+      return false;
     }
     if (faltantes.length > 0) {
       setError(`Adjunta al menos un documento de: ${faltantes.map((tipo) => TIPOS_ARCHIVO_LABELS[tipo] ?? tipo).join(", ")}.`);
+      return false;
+    }
+    return true;
+  };
+
+  /** Guarda la solicitud como tarea: el cron la registra en la fecha y hora configuradas. */
+  const programar = async () => {
+    if (!cuotaEfectivaId || !validar()) return;
+    if (!fechaLocal) {
+      setError("Indica la fecha y hora en que se solicitará la factura.");
+      return;
+    }
+    /* El input es hora de Peru (UTC-5, sin horario de verano). */
+    const fecha = new Date(`${fechaLocal}:00-05:00`);
+    if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) {
+      setError("La fecha y hora deben ser posteriores al momento actual.");
       return;
     }
     setError(null);
     setEnviando(true);
     try {
-      const datosRequisitos = {
-        oc: requisitos.oc,
-        hes: requisitos.hes,
-        plataforma: requisitos.plataforma,
-        plataformaNombre: requisitos.plataformaNombre || null,
-        plataformaUrl: requisitos.plataformaUrl || null,
-        valorizacion: requisitos.valorizacion,
-        otros: requisitos.otros || null,
-        ninguna: requisitos.ninguna,
-        descripcionFactura: requisitos.descripcionFactura || null,
-      };
+      await facturacionService.programarFactura(cuotaEfectivaId, fecha.toISOString(), armarRequisitos(), archivos);
+      toast.success("Solicitud de factura programada. Se registrará automáticamente en la fecha indicada.");
+      cerrar(false);
+      onEnviado();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo programar la solicitud de factura");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  /** Valida requisitos y documentos; luego envia la solicitud de factura. */
+  const enviar = async () => {
+    if (!cuotaEfectivaId || !validar()) return;
+    setError(null);
+    setEnviando(true);
+    try {
+      const datosRequisitos = armarRequisitos();
       if (esCompletar) {
         if (admin) await facturacionService.completarRequisitos(cuotaEfectivaId, datosRequisitos, archivos);
         else await pagosService.completarRequisitos(cuotaEfectivaId, datosRequisitos, archivos);
@@ -510,11 +553,46 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
           </div>
         </div>
 
-        <DialogFooter>
-          <Button className="w-full" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado} onClick={() => { void enviar(); }}>
-            {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
-            <span>{enviando ? (esCompletar ? "Guardando..." : "Enviando solicitud...") : (esCompletar ? "Guardar requisitos" : esAdminSolicitud ? "Solicitar factura" : "Enviar solicitud de factura")}</span>
-          </Button>
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          {permiteProgramar && configurandoFecha && (
+            <div className="w-full space-y-1.5 rounded-lg border border-border p-3">
+              <label htmlFor="fecha-programada" className="text-xs font-semibold text-foreground">
+                Fecha y hora para solicitar la factura <span className="font-normal text-muted-foreground">(hora de Perú)</span>
+              </label>
+              <Input
+                id="fecha-programada"
+                type="datetime-local"
+                className="h-9 text-xs"
+                value={fechaLocal}
+                onChange={(e) => { setError(null); setFechaLocal(e.target.value); }}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Se guardan los requisitos y documentos de arriba como una tarea. En esa fecha y hora el sistema registra la solicitud de factura (puede demorar hasta 10 minutos).
+              </p>
+              <Button className="w-full" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado || !fechaLocal} onClick={() => { void programar(); }}>
+                {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-1.5 h-4 w-4" />}
+                <span>{enviando ? "Guardando..." : "Guardar programación"}</span>
+              </Button>
+            </div>
+          )}
+          <div className="flex w-full flex-col gap-2 sm:flex-row">
+            {permiteProgramar && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:flex-1"
+                disabled={enviando}
+                onClick={() => { setError(null); setConfigurandoFecha((v) => !v); }}
+              >
+                <CalendarClock className="mr-1.5 h-4 w-4" />
+                <span>Configurar fecha</span>
+              </Button>
+            )}
+            <Button className="w-full sm:flex-1" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado} onClick={() => { void enviar(); }}>
+              {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileText className="mr-1.5 h-4 w-4" />}
+              <span>{enviando ? (esCompletar ? "Guardando..." : "Enviando solicitud...") : (esCompletar ? "Guardar requisitos" : esAdminSolicitud ? "Solicitar factura" : "Enviar solicitud de factura")}</span>
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

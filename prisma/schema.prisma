@@ -597,6 +597,7 @@ model Solicitud {
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
   gessStand      GessStand?           @relation(fields: [gessStandId], references: [id])
+  facturacionesProgramadas FacturacionProgramada[]
   revisiones     Revision[]
   reevaluaciones Reevaluacion[]
   docsAdjuntos   SolicitudDocumento[] @relation("SolicitudDocs")
@@ -1263,6 +1264,31 @@ model SgcWebhookEvento {
 }
 
 /// Cola de salida (outbox): operaciones hacia el SGC con reintentos y backoff.
+/// Solicitud de factura programada (solicitudes internas): se guarda con los requisitos
+/// y documentos declarados y la ejecuta el cron en la fecha y hora configuradas.
+model FacturacionProgramada {
+  id              String    @id @default(uuid())
+  solicitudId     String    @map("solicitud_id")
+  cuotaId         String    @map("cuota_id")
+  /// Instante (UTC) a partir del cual el cron registra la solicitud de factura.
+  fechaProgramada DateTime  @map("fecha_programada")
+  requisitos      Json
+  archivos        Json      @default("[]")
+  /// pendiente | procesando | ejecutada | error | cancelada
+  estado          String    @default("pendiente") @db.VarChar(20)
+  ultimoError     String?   @map("ultimo_error") @db.VarChar(500)
+  ejecutadaAt     DateTime? @map("ejecutada_at")
+  createdBy       String?   @map("created_by") @db.VarChar(200)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+
+  @@index([estado, fechaProgramada])
+  @@index([solicitudId])
+  @@map("facturacion_programada")
+}
+
 model SgcOutbox {
   id             String   @id @default(uuid())
   operacion      String   @db.VarChar(40) // subir-contrato | subir-anexos | subsanar

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Table, TableHe
 import { CreditCard, CheckCircle2, Clock, Download, ExternalLink, Eye, Info, Loader2, Check, Plus, Search, Pencil, Trash2, X, Upload, FileText, Archive, Receipt, XCircle, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { internalApi } from "@/lib/client/api/services/internal-api";
+import { facturacionService } from "@/lib/client/api/services/facturacion-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { authService } from "@/lib/client/api/services/auth-service";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -15,7 +16,7 @@ import { NotificarRecordatoriosDialog } from "@/components/facturacion/notificar
 import { EnviarReservaIimp } from "@/components/pagos/enviar-reserva-iimp";
 import { requisitosVacios } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
-import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, PERMISSIONS, REQUERIMIENTOS_FACTURACION, SOLICITUDES_FILTRO_TIPO, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, TIPOS_SOLICITUD, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
+import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_FACTURACION_PROGRAMADA, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, PERMISSIONS, REQUERIMIENTOS_FACTURACION, SOLICITUDES_FILTRO_TIPO, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, TIPOS_SOLICITUD, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { numberUtils } from "@/lib/shared/utils/number";
 import { ConfiguracionPabellonPanel } from "@/components/facturacion/configuracion-pabellon-panel";
@@ -106,6 +107,8 @@ interface FacturacionItem {
   iimpContrato: string | null;
   /** Tipo de solicitud: null = regular; reserva_empresa = administrativa. */
   tipoSolicitud: string | null;
+  /** Solicitud de factura programada vigente (solo solicitudes internas). */
+  programada: { fechaProgramada: string; estado: string; ultimoError: string | null; cuotaId: string } | null;
   solicitudEstado: string;
   createdAt: string;
   cuotas: CuotaItem[];
@@ -283,6 +286,7 @@ export default function FacturacionPage() {
     numero: number;
     standCode: string;
     cuotas: Array<{ id: string; numero: number }>;
+    interna: boolean;
   } | null>(null);
   /** Documento abierto en la vista previa (modal en la misma pagina). */
   const [previewDoc, setPreviewDoc] = useState<{ url: string; nombre: string } | null>(null);
@@ -332,6 +336,17 @@ export default function FacturacionPage() {
     conFactura: number;
     anulada: number;
   } | null>(null);
+
+  /** Cancela la solicitud de factura programada de una solicitud interna. */
+  const cancelarProgramada = async (solicitudId: string) => {
+    try {
+      await facturacionService.cancelarProgramada(solicitudId);
+      toast.success("Programación cancelada");
+      void load(page);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo cancelar la programación");
+    }
+  };
 
   const load = useCallback(async (p = 1) => {
     setLoading(true);
@@ -692,11 +707,34 @@ export default function FacturacionPage() {
                                             numero: cuotaSolicitud.numero,
                                             standCode: row.standCode,
                                             cuotas: cuotasRegistro,
+                                            interna: row.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA,
                                           })}
                                         >
                                           <FileText className="h-3 w-3" />
                                           <span>Solicitar factura</span>
                                         </Button>
+                                        {row.programada && (
+                                          <div className="space-y-0.5">
+                                            <Badge className={`pointer-events-none text-[9px] ${row.programada.estado === ESTADOS_FACTURACION_PROGRAMADA.ERROR ? BADGE_STYLES.DESTRUCTIVE : BADGE_STYLES.INFO}`}>
+                                              <span>{row.programada.estado === ESTADOS_FACTURACION_PROGRAMADA.ERROR ? "Programada con error" : row.programada.estado === ESTADOS_FACTURACION_PROGRAMADA.PROCESANDO ? "Registrando..." : "Programada"}</span>
+                                            </Badge>
+                                            <p className="text-[9px] text-muted-foreground">
+                                              {new Date(row.programada.fechaProgramada).toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "short", timeStyle: "short" })}
+                                            </p>
+                                            {row.programada.ultimoError && (
+                                              <p className="max-w-[180px] text-[9px] text-destructive">{row.programada.ultimoError}</p>
+                                            )}
+                                            {puedeSolicitarFactura && row.programada.estado !== ESTADOS_FACTURACION_PROGRAMADA.PROCESANDO && (
+                                              <button
+                                                type="button"
+                                                className="text-[9px] font-medium text-destructive underline"
+                                                onClick={() => { void cancelarProgramada(row.solicitudId); }}
+                                              >
+                                                Cancelar programación
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                         {!solicitudHabilitada && diasSolicitud !== null && (
                                           <p className="text-[9px] text-muted-foreground">
                                             Disponible en {diasSolicitud} día{diasSolicitud === 1 ? "" : "s"}
@@ -821,6 +859,7 @@ export default function FacturacionPage() {
         cuotaNumero={solicitarAdmin?.numero}
         standCode={solicitarAdmin?.standCode}
         cuotas={solicitarAdmin?.cuotas}
+        interna={solicitarAdmin?.interna ?? false}
         modo="solicitud"
         admin
         onEnviado={() => {

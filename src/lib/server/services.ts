@@ -43,6 +43,8 @@ import { UsuariosApplicationService } from "@/application/usuarios/usuarios-serv
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client";
 import { SolicitarFacturaApplicationService } from "@/application/facturacion-iimp/solicitar-factura-service";
+import { FacturacionProgramadaPrismaRepository } from "@/infrastructure/persistence/facturacion-programada-repository";
+import { FacturacionProgramadaApplicationService } from "@/application/facturacion-iimp/facturacion-programada-service";
 import { ArchivosCuentaCorrienteApplicationService } from "@/application/facturacion-iimp/archivos-cuenta-service";
 import { FacturacionApplicationService } from "@/application/facturacion/facturacion-service";
 import { RecordatoriosFacturacionApplicationService } from "@/application/facturacion/recordatorios-facturacion-service";
@@ -115,6 +117,9 @@ const debidaDiligenciaApp = new DebidaDiligenciaApplicationService(
   ddConfiguracionRepo,
 );
 
+const solicitarFacturaApp = new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient);
+const facturacionProgramadaApp = new FacturacionProgramadaApplicationService(new FacturacionProgramadaPrismaRepository(), facturacionRepo, solicitarFacturaApp);
+
 export const services = {
   eventos: new EventoApplicationService(eventoRepo),
   presala: new PresalaApplicationService(kbServiciosClient, eventoRepo),
@@ -135,7 +140,8 @@ export const services = {
   reportesSolicitudes: new ReportesSolicitudesApplicationService(reportesSolicitudesRepo),
   facturacion: new FacturacionApplicationService(facturacionRepo, authRepo, solicitudesRepo, empresaRepo, reservaIimpClient),
   recordatoriosFacturacion: new RecordatoriosFacturacionApplicationService(facturacionRepo, reservaIimpClient, authRepo),
-  solicitarFactura: new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient),
+  solicitarFactura: solicitarFacturaApp,
+  facturacionProgramada: facturacionProgramadaApp,
   archivosCuenta: new ArchivosCuentaCorrienteApplicationService(facturacionRepo, solicitudesRepo, reservaIimpClient),
   tiposStandImagen: new TiposStandImagenApplicationService(tipoStandImagenRepo),
   contrato: contratoApp,

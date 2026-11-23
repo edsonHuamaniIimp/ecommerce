@@ -33,6 +33,21 @@ export const facturacionService = {
     });
   },
 
+  /** Solicitudes internas: guarda la solicitud como tarea y el cron la registra en la fecha indicada (ISO 8601). */
+  programarFactura(cuotaId: string, fechaProgramada: string, requisitos: RequisitosFacturacionDTO, archivos: ArchivoIImpInputDTO[] = []) {
+    return internalApi.post<{ id: string; fechaProgramada: string; estado: string }>("/api/facturacion/programar-factura", {
+      cuotaId,
+      fechaProgramada,
+      ...(archivos.length > 0 ? { archivos } : {}),
+      requisitos,
+    });
+  },
+
+  /** Cancela la solicitud de factura programada de la solicitud. */
+  cancelarProgramada(solicitudId: string) {
+    return internalApi.post<{ ok: boolean }>("/api/facturacion/cancelar-programada", { solicitudId });
+  },
+
   /** Facturacion completa los requisitos de una solicitud ya enviada (sin reenviar la reserva). */
   completarRequisitos(cuotaId: string, requisitos: RequisitosFacturacionDTO, archivos: ArchivoIImpInputDTO[] = []) {
     return internalApi.post<{ ok: boolean }>("/api/facturacion/completar-requisitos", {
