@@ -11,6 +11,7 @@ import {
   agruparInformes,
   casosReputacionConObservacion,
   detalleTieneObservacion,
+  evidenciasConHallazgo,
   vinculosConObservaciones,
 } from "@/lib/shared/utils/dd-informe";
 import type {
@@ -156,5 +157,22 @@ describe("informe PDF: solo vinculos con observaciones", () => {
       "EMPRESA X",
       "OTRO",
     ]);
+  });
+});
+
+describe("anexos del PDF: solo criterios con SI", () => {
+  const adj = (id: string, categoria: string) => ({
+    id, categoria, nombre: id + ".pdf", url: "/u/" + id, mimeType: "application/pdf", tamano: 1, creadoPor: "x", createdAt: "2026-01-01T00:00:00.000Z",
+  });
+  it("incluye evidencias de criterios en SI y excluye NO, NA y sustentos generales", () => {
+    const detalle = {
+      listas: [
+        { codigo: "oefa", label: "OEFA", color: "", valor: "si" },
+        { codigo: "indecopi", label: "INDECOPI", color: "", valor: "no" },
+        { codigo: "ofac", label: "OFAC", color: "", valor: "na" },
+      ],
+      adjuntos: [adj("a", "criterio_oefa"), adj("b", "criterio_indecopi"), adj("c", "criterio_ofac"), adj("d", "sig_sustento")],
+    } as unknown as Parameters<typeof evidenciasConHallazgo>[0][number];
+    expect(evidenciasConHallazgo([detalle]).map((x) => x.id)).toEqual(["a"]);
   });
 });

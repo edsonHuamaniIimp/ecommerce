@@ -285,6 +285,8 @@ export interface DdBandejaRow {
   decisionLegal: DdAccionLegal | null;
   motivoLegal: string | null;
   fechaLegal: Date | null;
+  /** Fecha en que se derivo el expediente a Legal. */
+  fechaDerivacionLegal: Date | null;
 }
 
 export interface DdBandejaParams {

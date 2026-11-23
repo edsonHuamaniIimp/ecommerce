@@ -731,7 +731,10 @@ export function DdMatrizBandeja() {
   const observados =
     contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES) +
     contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA);
-  const pendientes = contarFinal(resumen, null);
+  /* Pendientes = sin resultado final + en revision (incluye lo derivado a Legal): todo lo aun no cerrado. */
+  const pendientes =
+    contarFinal(resumen, null) + contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION);
+  const sinRespuesta = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
   const noAptos = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.NO_APTO);
 
   const stats = [
@@ -752,7 +755,7 @@ export function DdMatrizBandeja() {
     {
       titulo: "Pendientes",
       valor: pendientes,
-      detalle: "Aún sin evaluación final",
+      detalle: "Sin evaluación final o en revisión",
       icono: <Clock3 className="h-4 w-4" />,
       color: "text-blue-700 bg-blue-50",
     },
@@ -776,6 +779,13 @@ export function DdMatrizBandeja() {
       detalle: "Bloqueo de la empresa",
       icono: <XCircle className="h-4 w-4" />,
       color: "text-red-700 bg-red-50",
+    },
+    {
+      titulo: "SIN RESPUESTA",
+      valor: sinRespuesta,
+      detalle: "Cierre sin respuesta del cliente",
+      icono: <Clock3 className="h-4 w-4" />,
+      color: "text-slate-700 bg-slate-100",
     },
     {
       titulo: "DD reforzada",
@@ -855,7 +865,7 @@ export function DdMatrizBandeja() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         {stats.map((stat) => (
           <div key={stat.titulo} className="rounded-xl border border-border bg-card p-3">
             <div className={`mb-2 inline-flex rounded-md p-1.5 ${stat.color}`}>{stat.icono}</div>

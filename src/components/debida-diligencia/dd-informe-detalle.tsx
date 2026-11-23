@@ -59,6 +59,7 @@ import {
 import {
   casosReputacionConObservacion,
   detalleTieneObservacion,
+  evidenciasConHallazgo,
   evidenciasInforme,
   observacionesInforme,
   vinculosConObservaciones,
@@ -242,7 +243,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const anexos = useMemo(() => evidenciasInforme(vinculos), [vinculos]);
   /* El PDF solo incluye los vinculos con observaciones (la vista en pantalla muestra todos). */
   const vinculosPdf = useMemo(() => vinculosConObservaciones(vinculos), [vinculos]);
-  const anexosPdf = useMemo(() => evidenciasInforme(vinculosPdf), [vinculosPdf]);
+  const anexosPdf = useMemo(() => evidenciasConHallazgo(vinculosPdf), [vinculosPdf]);
   const vinculosVista = soloObservados ? vinculosPdf : vinculos;
 
   if (loading) {
@@ -516,7 +517,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                           <div className="space-y-3 border-t border-border p-3">
                             <div className="grid gap-2 md:grid-cols-3">
                               {(["sig", "reputacional", "compliance"] as const).map((area) => (
-                                <div key={area} className="space-y-1.5 rounded-md border border-border/70 bg-secondary/20 p-2.5">
+                                <div key={area} className="min-w-0 space-y-1.5 rounded-md border border-border/70 bg-secondary/20 p-2.5">
                                   <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
                                     {AREA_LABELS[area]}
                                   </p>
@@ -529,7 +530,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                                     {vinculo[area].responsable ? ` · ${vinculo[area].responsable}` : ""}
                                   </p>
                                   {vinculo[area].observaciones ? (
-                                    <p className="rounded border border-warning/30 bg-warning/5 p-2 text-[10px] leading-relaxed text-foreground">
+                                    <p className="whitespace-pre-wrap rounded border border-warning/30 bg-warning/5 p-2 text-[10px] leading-relaxed text-foreground [overflow-wrap:anywhere]">
                                       {vinculo[area].observaciones}
                                     </p>
                                   ) : null}
@@ -684,7 +685,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                           {caso.revisor ? ` · Revisor: ${caso.revisor}` : ""}
                           {caso.fechaCierre ? ` · Cierre: ${dateUtils.format(caso.fechaCierre)}` : ""}
                         </p>
-                        {caso.comentario ? <p className="mt-1 text-[11px] text-foreground">{caso.comentario}</p> : null}
+                        {caso.comentario ? <p className="mt-1 whitespace-pre-wrap text-[11px] text-foreground [overflow-wrap:anywhere]">{caso.comentario}</p> : null}
                         {caso.linkHallazgos ? (
                           <a
                             href={caso.linkHallazgos}

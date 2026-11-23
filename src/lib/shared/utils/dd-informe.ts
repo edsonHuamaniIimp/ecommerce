@@ -1,6 +1,8 @@
 import {
   DD_MATRIZ_CONCLUSIONES,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_RESULTADOS,
+  DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_RESULTADOS,
@@ -168,6 +170,24 @@ export function evidenciasInforme(detalles: DdMatrizEvaluacionDetalleDTO[]): DdM
   const porId = new Map<string, DdMatrizAdjuntoDTO>();
   for (const detalle of detalles) {
     for (const adjunto of detalle.adjuntos) porId.set(adjunto.id, adjunto);
+  }
+  return [...porId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+
+/**
+ * Anexos del PDF: solo las evidencias de criterios donde el resultado del vinculo fue SI
+ * (se encontro algo). Las de criterios en NO o NA, y los sustentos generales, no se anexan.
+ */
+export function evidenciasConHallazgo(detalles: DdMatrizEvaluacionDetalleDTO[]): DdMatrizAdjuntoDTO[] {
+  const porId = new Map<string, DdMatrizAdjuntoDTO>();
+  for (const detalle of detalles) {
+    const codigosSi = new Set(
+      detalle.listas.filter((lista) => lista.valor === DD_MATRIZ_SI_NO_NA.SI).map((lista) => lista.codigo),
+    );
+    for (const adjunto of detalle.adjuntos) {
+      if (!adjunto.categoria.startsWith(DD_MATRIZ_CRITERIO_PREFIJO)) continue;
+      if (codigosSi.has(adjunto.categoria.slice(DD_MATRIZ_CRITERIO_PREFIJO.length))) porId.set(adjunto.id, adjunto);
+    }
   }
   return [...porId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
 }

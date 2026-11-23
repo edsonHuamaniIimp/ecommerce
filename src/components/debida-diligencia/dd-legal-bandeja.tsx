@@ -265,7 +265,7 @@ export function DdLegalBandeja() {
                               )}
                             </TableCell>
                             <TableCell className="hidden text-[11px] text-muted-foreground xl:table-cell">
-                              {fila.fechaEnvio ? dateUtils.format(fila.fechaEnvio) : "-"}
+                              {dateUtils.format(fila.fechaDerivacionLegal ?? fila.fechaEnvio)}
                             </TableCell>
                             <TableCell>
                               <DdEstadoBadge estado={fila.estado} />
@@ -408,7 +408,7 @@ export function DdLegalBandeja() {
                       : (seleccionado.motivoRechazo ?? "Sin motivo registrado.")}
                   </p>
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                    <span>Derivado: {seleccionado.fechaEnvio ? dateUtils.format(seleccionado.fechaEnvio) : "-"}</span>
+                    <span>Derivado: {dateUtils.formatDateTime(seleccionado.fechaDerivacionLegal ?? seleccionado.fechaEnvio)}</span>
                     <span>Vence: {seleccionado.fechaVencimiento ? dateUtils.format(seleccionado.fechaVencimiento) : "-"}</span>
                   </div>
                 </div>

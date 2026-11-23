@@ -44,6 +44,7 @@ export interface DdBandejaRowDTO {
   decisionLegal: string | null;
   motivoLegal: string | null;
   fechaLegal: string | null;
+  fechaDerivacionLegal: string | null;
 }
 
 export interface DdBandejaResumenDTO {

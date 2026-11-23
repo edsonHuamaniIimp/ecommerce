@@ -269,6 +269,20 @@ body {
     color-adjust: exact;
   }
 
+  /* Textos libres (observaciones, comentarios, URLs) deben partirse y no desbordar su celda. */
+  .informe-pdf,
+  .informe-pdf td,
+  .informe-pdf li,
+  .informe-pdf p {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  .informe-pdf table {
+    max-width: 100%;
+  }
+
   .informe-pdf .pdf-keep {
     break-inside: avoid;
     page-break-inside: avoid;

@@ -141,9 +141,11 @@ export const dateUtils = {
   /** Fecha (dd MMM yyyy) según el idioma. */
   format(iso: string | Date | null | undefined, opciones?: OpcionesFecha): string {
     if (!iso) return SIN_VALOR;
-    /* Las fechas ISO (con o sin hora) se muestran por su dia calendario, sin desfase UTC. */
+    /* Fechas puras (YYYY-MM-DD o medianoche UTC de columnas @db.Date) se muestran por su dia
+     * calendario, sin desfase UTC. Un instante real (con hora) se convierte a Peru: de lo
+     * contrario, lo derivado despues de las 7 p. m. se veia con el dia siguiente. */
     if (typeof iso === "string") {
-      const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+      const match = /^(\d{4})-(\d{2})-(\d{2})(?:T00:00:00(?:\.0+)?Z)?$/.exec(iso);
       if (match) {
         const [, anio = "0", mes = "1", dia = "1"] = match;
         return new Date(+anio, +mes - 1, +dia).toLocaleDateString(localeDeIdioma(opciones?.idioma), {

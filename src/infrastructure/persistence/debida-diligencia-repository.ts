@@ -1375,6 +1375,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
         decisionLegal: (row.decisionLegal as DdAccionLegal | null) ?? null,
         motivoLegal: row.motivoLegal ?? null,
         fechaLegal: row.fechaLegal ?? null,
+        fechaDerivacionLegal: row.fechaDerivacionLegal ?? null,
         };
       }),
       total: totalVisibles,

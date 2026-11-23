@@ -410,6 +410,7 @@ export function mapDdBandejaRowToDTO(row: DdBandejaResult["data"][number]): DdBa
     decisionLegal: row.decisionLegal,
     motivoLegal: row.motivoLegal,
     fechaLegal: fecha(row.fechaLegal),
+    fechaDerivacionLegal: fecha(row.fechaDerivacionLegal),
   };
 }
 

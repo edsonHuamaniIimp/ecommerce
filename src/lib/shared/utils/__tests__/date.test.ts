@@ -7,6 +7,17 @@ describe("dateUtils.format", () => {
     expect(dateUtils.format("2026-09-30T14:35:00Z")).toMatch(/set/i);
   });
 
+  it("un instante nocturno en Peru no salta al dia siguiente (UTC)", () => {
+    /* 22 nov 21:00 Lima = 23 nov 02:00 UTC */
+    expect(dateUtils.format("2026-11-23T02:00:00.000Z")).toMatch(/22/);
+    expect(dateUtils.format(new Date("2026-11-23T02:00:00.000Z"))).toMatch(/22/);
+  });
+
+  it("una fecha pura (medianoche UTC) conserva su dia calendario", () => {
+    expect(dateUtils.format("2026-11-23T00:00:00.000Z")).toMatch(/23/);
+    expect(dateUtils.format("2026-11-23")).toMatch(/23/);
+  });
+
   it("formatea la fecha segun el idioma", () => {
     expect(dateUtils.format("2026-09-30T14:35:00Z", { idioma: "en" })).toMatch(/Sep/i);
     expect(dateUtils.format("2026-09-30T14:35:00Z", { idioma: "es" })).toMatch(/set/i);
