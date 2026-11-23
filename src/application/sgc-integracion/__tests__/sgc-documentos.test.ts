@@ -578,6 +578,108 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
     );
   });
 
+  /* Subsanacion: solo se envia lo que el SGC observo (caso ULMA: el SGC no tenia ningun anexo
+   * y el reenvio habria subido tambien los originales y una foto suelta). */
+  describe("soloObservado: la subsanacion solo envia lo observado", () => {
+    const antes = new Date("2026-10-21T01:44:00.000Z");
+    const despues = new Date("2026-11-19T21:43:00.000Z");
+    const anexo = (id: string, url: string, extra: Record<string, unknown>) => ({
+      id,
+      url,
+      nombre: `${id}.pdf`,
+      userId: "user-1",
+      uploadedBy: null,
+      categoria: "anexo",
+      requisito: null,
+      createdAt: despues,
+      ...extra,
+    });
+
+    it("grupo de piezas: sube las piezas y no los originales ni archivos sueltos", async () => {
+      const piezasSgc = [
+        { id: "p1", title: "Vigencia actualizada", acceptedDocumentId: null },
+        { id: "p2", title: "DNI del apoderado", acceptedDocumentId: null },
+        { id: "p3", title: "Ficha RUC actualizada", acceptedDocumentId: null },
+      ];
+      const grupo = {
+        observationId: "obs-grupo",
+        title: "Se solicita documentos",
+        category: "annex",
+        status: SGC_OBSERVACION_ESTADOS.OPEN,
+        expectedDocuments: 3,
+        documentsMissing: 3,
+        pieces: piezasSgc,
+      };
+      const docsLocales = [
+        anexo("orig-ruc", "/uploads/orig-ruc.pdf", { requisito: "ficha-ruc", createdAt: antes }),
+        anexo("orig-vig", "/uploads/orig-vig.pdf", { requisito: "vigencia-poder", createdAt: antes }),
+        anexo("suelto", "/uploads/suelto.jpg", { nombre: "Representante legal.jpg" }),
+        ...piezasSgc.map((p) => anexo(`pieza-${p.id}`, `/uploads/${p.id}.pdf`, { sgcObservationId: "obs-grupo", sgcPieceId: p.id, sgcTitle: p.title })),
+      ];
+      const preparar = () => {
+        const client = clientMock();
+        vi.mocked(client.consultarExpediente).mockResolvedValue({ documents: [], missingDocuments: [grupo] } as never);
+        const svc = build(
+          sgcRepoMock({
+            ...expediente(),
+            lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+            observaciones: [{ ...grupo, message: "Falta adjuntar", createdAt: "2026-11-19T16:10:00.000Z", documentId: null, requiresNewDocument: true }],
+          }),
+          client,
+          documentoOrigenMock(),
+          solicitudRepoMock(detalle({ userId: "user-1", docsAdjuntos: docsLocales })),
+        );
+        return { client, svc };
+      };
+
+      const { client, svc } = preparar();
+      await svc.subirAnexosDeSolicitud("sol-1", { soloObservado: true });
+      const reservas = vi.mocked(client.reservarSubida).mock.calls.map(([, input]) => input);
+      expect(reservas).toHaveLength(3);
+      expect(reservas.map((r) => r.pieceId).sort()).toEqual(["p1", "p2", "p3"]);
+      expect(reservas.every((r) => r.observationId === "obs-grupo")).toBe(true);
+
+      /* Sin la opcion se mantiene el comportamiento de carga completa (envio inicial). */
+      const completo = preparar();
+      await completo.svc.subirAnexosDeSolicitud("sol-1");
+      expect(vi.mocked(completo.client.reservarSubida).mock.calls.length).toBeGreaterThan(3);
+    });
+
+    it("observacion individual: versiona el documento observado y omite anexos no observados", async () => {
+      const TITULO = "Vigencia de Poder (o equivalente, en caso de empresa extranjera)";
+      const client = clientMock();
+      vi.mocked(client.consultarExpediente).mockResolvedValue({
+        documents: [{
+          documentId: "sgc-vig",
+          category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+          title: TITULO,
+          currentFileName: "vigencia-poder-aaaaaa.pdf",
+          observations: [{ observationId: "obs-vig", documentId: "sgc-vig", status: SGC_OBSERVACION_ESTADOS.OPEN, message: "Corrige" }],
+        }],
+        missingDocuments: [],
+      } as never);
+      const svc = build(
+        sgcRepoMock({
+          ...expediente(),
+          lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+          observaciones: [{ observationId: "obs-vig", documentId: "sgc-vig", title: TITULO, message: "Corrige", status: SGC_OBSERVACION_ESTADOS.OPEN, requiresDocumentChange: true, createdAt: "2026-11-19T16:10:00.000Z" }],
+        }),
+        client,
+        documentoOrigenMock(),
+        solicitudRepoMock(detalle({
+          userId: "user-1",
+          docsAdjuntos: [
+            anexo("vig-nueva", "/uploads/vig-nueva.pdf", { requisito: "vigencia-poder" }),
+            anexo("ruc-nuevo", "/uploads/ruc-nuevo.pdf", { requisito: "ficha-ruc" }),
+          ],
+        })),
+      );
+      await svc.subirAnexosDeSolicitud("sol-1", { soloObservado: true });
+      expect(client.reservarSubida).toHaveBeenCalledTimes(1);
+      expect(client.reservarSubida).toHaveBeenCalledWith("contract-1", expect.objectContaining({ documentId: "sgc-vig", title: TITULO }));
+    });
+  });
+
   /* Caso SCANIA: tras una subsanacion el original (requisito) sigue "activo" junto a la
    * correccion vinculada al SGC. En la ronda siguiente el original se subia como version
    * nueva encima de la correccion. */

@@ -810,3 +810,18 @@ from sgc_subsanacion_intento i
 where i.solicitud_id = '<solicitud>'
 order by i.created_at desc;
 ```
+
+## Actualización 24-nov-2026: la subsanación solo envía lo observado
+
+- `reenviarCorreccionAlSgc` llama `subirAnexosDeSolicitud(solicitudId, { soloObservado: true })`.
+  En una subsanación solo se suben: las piezas de grupos con observación abierta, las
+  versiones de documentos con observación abierta (por vínculo, por `documentId` o por
+  requisito/título) y los faltantes abiertos. Los demás anexos no se envían: si falta algo,
+  el SGC lo observa en la ronda siguiente.
+- El envío inicial (`enviarExpedienteAlSgc`), el outbox y `POST /api/sgc/subir-anexos`
+  mantienen la carga completa.
+- Motivo (caso ULMA): el SGC solo tenía el contrato (los anexos nunca se enviaron en la
+  recuperación del 18-nov) y el reenvío habría subido también los 3 anexos originales y una
+  foto suelta además de las 3 piezas observadas.
+- ULMA se envió con un script controlado (contrato firmado v3 + 3 piezas del grupo
+  `e3e837cb`, luego `/resend` una sola vez); quedó en `legal-review` con el grupo resuelto.

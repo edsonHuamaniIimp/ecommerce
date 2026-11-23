@@ -978,8 +978,8 @@ export class SgcIntegracionApplicationService {
 
     /* Devolucion del SGC: se versionan los anexos corregidos (el SGC exige que la
      * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
-     * cuando el lifecycle es rejected/observed). */
-    await this.subirAnexosDeSolicitud(solicitudId);
+     * cuando el lifecycle es rejected/observed). Solo se envia lo que el SGC observo. */
+    await this.subirAnexosDeSolicitud(solicitudId, { soloObservado: true });
 
     let documento: SgcDocumentoEntity | null = null;
     if (requiereContrato && pieza && contratoSgc) {
@@ -1041,7 +1041,17 @@ export class SgcIntegracionApplicationService {
   }
 
   /** Empuja los documentos **del cliente** (`userId` no nulo) como anexos del SGC. */
-  async subirAnexosDeSolicitud(solicitudId: string): Promise<SgcDocumentoEntity[]> {
+  async subirAnexosDeSolicitud(
+    solicitudId: string,
+    opciones: {
+      /**
+       * Subsanacion (reenvio tras una devolucion): sube SOLO lo que el SGC tiene observado
+       * (piezas de grupos abiertos, versiones de documentos con observacion abierta y faltantes
+       * abiertos). El resto de anexos no se envia: si falta algo, el SGC lo observa.
+       */
+      soloObservado?: boolean;
+    } = {},
+  ): Promise<SgcDocumentoEntity[]> {
     if (!this.config.enabled) return [];
     const detalle = await this.solicitudRepo.detalle(solicitudId);
     if (!detalle) return [];
@@ -1071,6 +1081,31 @@ export class SgcIntegracionApplicationService {
     for (const doc of sgcGrupos?.documents ?? []) {
       for (const o of doc.observations ?? []) {
         if (o.observationId && o.status === SGC_OBSERVACION_ESTADOS.RESOLVED) observacionesResueltas.add(o.observationId);
+      }
+    }
+    /* Observaciones abiertas segun el SGC (fresco) o, si la consulta fallo, segun la copia local. */
+    const observacionesAbiertasIds = new Set<string>();
+    const documentosObservadosIds = new Set<string>();
+    if (sgcGrupos) {
+      for (const doc of sgcGrupos.documents ?? []) {
+        for (const o of doc.observations ?? []) {
+          if (o.observationId && o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED) {
+            observacionesAbiertasIds.add(o.observationId);
+            documentosObservadosIds.add(o.documentId ?? doc.documentId);
+          }
+        }
+      }
+      for (const m of sgcGrupos.missingDocuments ?? []) {
+        if (m.observationId && m.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && !observacionesResueltas.has(m.observationId)) {
+          observacionesAbiertasIds.add(m.observationId);
+        }
+      }
+    } else {
+      for (const o of expedienteGrupos?.observaciones ?? []) {
+        if (o.observationId && o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED) {
+          observacionesAbiertasIds.add(o.observationId);
+          if (o.documentId) documentosObservadosIds.add(o.documentId);
+        }
       }
     }
     const gruposPorObservacion = new Map<string, { piezas: Set<string>; sinPiezas: boolean }>();
@@ -1273,7 +1308,7 @@ export class SgcIntegracionApplicationService {
         continue;
       }
       vistos.add(clave);
-      const esFaltante = observacionesFaltantes.some((o) => {
+      const coincideFaltante = (o: SgcObservacionDocumento): boolean => {
         /* Vinculo explicito del archivo con la observacion: manda sobre fechas/titulos. */
         if (doc.sgcObservationId && o.observationId) {
           return doc.sgcObservationId === o.observationId;
@@ -1283,7 +1318,19 @@ export class SgcIntegracionApplicationService {
         if (obsMs === null || docMs === null || docMs <= obsMs) return false;
         if (o.title && (titulo === o.title || doc.nombre === o.title)) return true;
         return !o.title;
-      });
+      };
+      const esFaltante = observacionesFaltantes.some(coincideFaltante);
+      /* Subsanacion: solo se envia lo que el SGC observo; si falta algo mas, el SGC lo observa
+       * en la siguiente ronda. Un documento es "observado" si esta vinculado a una observacion
+       * abierta, versiona un documento con observacion abierta o responde a un faltante abierto. */
+      if (opciones.soloObservado) {
+        const vinculadoAbierta = Boolean(doc.sgcObservationId && observacionesAbiertasIds.has(doc.sgcObservationId));
+        const versionaObservado = Boolean(documentIdObjetivo && documentosObservadosIds.has(documentIdObjetivo));
+        const respondeFaltanteAbierto = observacionesFaltantes
+          .filter((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (!o.observationId || observacionesAbiertasIds.has(o.observationId)))
+          .some(coincideFaltante);
+        if (!vinculadoAbierta && !versionaObservado && !respondeFaltanteAbierto) continue;
+      }
       const documentIdCandidato = (!esFaltante || esVersionPorTitulo) && puedeVersionarAnexos
         ? documentIdObjetivo
         : undefined;
