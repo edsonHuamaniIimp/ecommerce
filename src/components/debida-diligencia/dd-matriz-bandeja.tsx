@@ -1439,9 +1439,9 @@ export function DdMatrizBandeja() {
                 <Skeleton className="h-16 w-full rounded-lg" />
               </div>
             ) : hayPendientesLegal ? (
-              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3" role="alert">
-                <p className="flex items-start gap-1.5 text-xs font-semibold text-amber-200">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-500/40 dark:bg-amber-500/10" role="alert">
+                <p className="flex items-start gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-300" />
                   <span>
                     {legalNoVerificado
                       ? "No se pudo verificar si todos los vínculos tienen conclusión final."
