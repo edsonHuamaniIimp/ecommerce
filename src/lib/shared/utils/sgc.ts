@@ -178,6 +178,12 @@ export interface DocumentoUrl {
   sgcDocumentId?: string | null;
   sgcTitle?: string | null;
   sgcPieceId?: string | null;
+  /**
+   * El archivo corrige una observacion que el SGC ya marco resuelta: no se reenvia, pero
+   * sigue siendo "la version mas nueva" de su documento y evita que un archivo anterior
+   * (p. ej. el original, aun activo) se suba encima como version nueva.
+   */
+  observacionResuelta?: boolean;
 }
 
 /**

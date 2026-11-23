@@ -18,10 +18,11 @@ import {
   SGC_ESTADO_ENVIO,
   SGC_MOTIVO_CARGA_INICIAL,
   SGC_LIFECYCLE_STATUSES,
+  SGC_OBSERVACION_ESTADOS,
   SGC_TITULOS_DOCUMENTO,
   ESTADOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
-import { sha256Hex } from "@/lib/shared/utils/sgc";
+import { nombreArchivoSgc, sha256Hex } from "@/lib/shared/utils/sgc";
 const CONFIG: SgcIntegracionConfig = {
   enabled: true,
   areaCode: "EVENTOS",
@@ -575,6 +576,78 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
         replacementReason: expect.any(String),
       }),
     );
+  });
+
+  /* Caso SCANIA: tras una subsanacion el original (requisito) sigue "activo" junto a la
+   * correccion vinculada al SGC. En la ronda siguiente el original se subia como version
+   * nueva encima de la correccion. */
+  describe("no regresa un documento corregido al original", () => {
+    const TITULO = "Vigencia de Poder (o equivalente, en caso de empresa extranjera)";
+    const urlOriginal = "/uploads/original-vigencia.pdf";
+    const urlCorregida = "/uploads/corregida-vigencia.pdf";
+    const original = {
+      id: "orig",
+      url: urlOriginal,
+      nombre: "original-vigencia.pdf",
+      userId: "user-1",
+      uploadedBy: null,
+      categoria: "anexo",
+      requisito: "vigencia-poder",
+      createdAt: new Date("2026-10-23T00:42:00.000Z"),
+    };
+    const corregida = {
+      id: "corr",
+      url: urlCorregida,
+      nombre: "corregida-vigencia.pdf",
+      userId: "user-1",
+      uploadedBy: null,
+      categoria: "anexo",
+      requisito: null,
+      sgcObservationId: "obs-vigencia",
+      sgcDocumentId: "sgc-doc-1",
+      sgcTitle: TITULO,
+      createdAt: new Date("2026-11-19T23:29:14.000Z"),
+    };
+
+    async function ejecutar(observaciones: Array<Record<string, unknown>>, nombreVigenteEnSgc: string) {
+      const client = clientMock();
+      vi.mocked(client.consultarExpediente).mockResolvedValue({
+        documents: [{
+          documentId: "sgc-doc-1",
+          category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+          title: TITULO,
+          currentFileName: nombreVigenteEnSgc,
+          observations: observaciones,
+        }],
+        missingDocuments: [],
+      } as never);
+      const row = detalle({ userId: "user-1", docsAdjuntos: [original, corregida] });
+      const svc = build(
+        sgcRepoMock({ ...expediente(), lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED }),
+        client,
+        documentoOrigenMock(),
+        solicitudRepoMock(row),
+      );
+      await svc.subirAnexosDeSolicitud("sol-1");
+      return client;
+    }
+
+    it("con la observacion resuelta, ninguno de los dos se reenvia", async () => {
+      const client = await ejecutar(
+        [{ observationId: "obs-vigencia", status: SGC_OBSERVACION_ESTADOS.RESOLVED, message: "Corrige", requiresDocumentChange: true }],
+        "vigencia-de-poder-corregida-aaaaaa.pdf",
+      );
+      expect(client.reservarSubida).not.toHaveBeenCalled();
+    });
+
+    it("con la correccion ya vigente en el SGC, el original no se sube como version nueva", async () => {
+      const hash = (await sha256Hex(new TextEncoder().encode(urlCorregida))).slice(0, 6);
+      const client = await ejecutar(
+        [],
+        nombreArchivoSgc({ titulo: TITULO, nombreOriginal: corregida.nombre, identificador: "STAND-1", hash }),
+      );
+      expect(client.reservarSubida).not.toHaveBeenCalled();
+    });
   });
 
   it("versiona un anexo arbitrario por documentId aunque el titulo coincida", async () => {

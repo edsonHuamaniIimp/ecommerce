@@ -1066,6 +1066,13 @@ export class SgcIntegracionApplicationService {
         observacionesResueltas.add(o.observationId);
       }
     }
+    /* Las observaciones individuales (por documento) tambien cuentan: `observacionesGrupo`
+     * solo trae los faltantes/grupos cuando el SGC los informa. */
+    for (const doc of sgcGrupos?.documents ?? []) {
+      for (const o of doc.observations ?? []) {
+        if (o.observationId && o.status === SGC_OBSERVACION_ESTADOS.RESOLVED) observacionesResueltas.add(o.observationId);
+      }
+    }
     const gruposPorObservacion = new Map<string, { piezas: Set<string>; sinPiezas: boolean }>();
     const piezasPorTitulo = new Map<string, { observationId: string; pieceId: string }>();
     for (const o of observacionesGrupo ?? []) {
@@ -1104,7 +1111,9 @@ export class SgcIntegracionApplicationService {
           /* En un grupo v11 solo se envian las piezas nuevas; los archivos
            * historicos sin pieceId no deben consumir una pieza del SGC. */
           const { observationId, pieceId, grupo } = datosGrupoDocumento(d);
-          if (observationId && observacionesResueltas.has(observationId)) return false;
+          /* Una observacion resuelta no se reenvia, pero su archivo se conserva como candidato
+           * "ya cubierto": ver `observacionResuelta`. */
+          if (observationId && observacionesResueltas.has(observationId)) return true;
           if (!grupo || grupo.sinPiezas) return true;
           return Boolean(pieceId && grupo.piezas.has(pieceId));
         })
@@ -1118,6 +1127,7 @@ export class SgcIntegracionApplicationService {
             sgcDocumentId: d.sgcDocumentId ?? null,
             sgcTitle: d.sgcTitle ?? null,
             sgcPieceId: pieceId,
+            observacionResuelta: Boolean(observationId && observacionesResueltas.has(observationId)),
           };
         }),
       ...extraerDocumentosLegacy(detalle.documentos),
@@ -1194,6 +1204,16 @@ export class SgcIntegracionApplicationService {
     const enviadosPorGrupo = new Set<string>();
     const resultados: SgcDocumentoEntity[] = [];
     for (const doc of candidatos) {
+      /* Version ya aceptada por el SGC (observacion resuelta): nunca se reenvia, pero reserva
+       * su documento. Los candidatos van del mas nuevo al mas viejo, asi un original que sigue
+       * "activo" localmente no se sube como version nueva encima de la correccion (caso SCANIA:
+       * la vigencia y el DNI corregidos volvieron a ser los originales). */
+      if (doc.observacionResuelta) {
+        const objetivoResuelto =
+          doc.sgcDocumentId ?? (doc.sgcTitle ? documentIdPorTitulo.get(doc.sgcTitle.trim()) : undefined);
+        if (objetivoResuelto) documentIdsUsados.add(objetivoResuelto);
+        continue;
+      }
       const clave = doc.nombre || doc.url;
       const claveGrupo = doc.sgcObservationId
         ? `${doc.sgcObservationId}:${doc.sgcPieceId ?? normalizarTituloSgc(doc.sgcTitle ?? doc.nombre)}`
@@ -1232,18 +1252,23 @@ export class SgcIntegracionApplicationService {
         documentIdPorTitulo.get(titulo) ??
         documentIdPorTituloObservado.get(titulo) ??
         (doc.requisito ? documentIdPorRequisito.get(doc.requisito) : undefined);
-      if (
-        vistos.has(clave) ||
-        Boolean(documentIdObjetivo && documentIdsUsados.has(documentIdObjetivo)) ||
-        doc.url === contratoUrl ||
-        clave === contratoClave ||
+      const yaEnSgc =
         (!doc.sgcObservationId &&
           !esVersionPorTitulo &&
           (doc.requisito ? titulosEnSgc.has(doc.nombre) : titulosEnSgc.has(doc.nombre) || titulosEnSgc.has(titulo))) ||
         (!esDocumentoAgrupado &&
           (nombresEnSgc.has(doc.nombre) ||
             nombresEnSgc.has(fileNameLegacy) ||
-            nombresEnSgc.has(fileName)))
+            nombresEnSgc.has(fileName)));
+      /* Un archivo ya presente como version vigente reserva su documento: los mas viejos que
+       * apuntan al mismo documento no deben reenviarse como version nueva (regresion). */
+      if (yaEnSgc && documentIdObjetivo) documentIdsUsados.add(documentIdObjetivo);
+      if (
+        vistos.has(clave) ||
+        Boolean(documentIdObjetivo && documentIdsUsados.has(documentIdObjetivo)) ||
+        doc.url === contratoUrl ||
+        clave === contratoClave ||
+        yaEnSgc
       ) {
         continue;
       }
