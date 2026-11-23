@@ -1,5 +1,6 @@
 "use client";
 
+import { etiquetaTipoVinculo } from "@/lib/shared/utils/dd-matriz-vinculo-vista";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -43,10 +44,8 @@ import {
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_SI_NO_NA_LABELS,
-  DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_RUTAS,
-  type DdMatrizTipoVinculo,
   DD_MATRIZ_LISTA_DESCRIPCIONES,
   DD_MATRIZ_LISTA_OTROS,
 } from "@/lib/shared/constants";
@@ -177,7 +176,7 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
 
   if (loading || !detalle || detalle.id !== id) return <DdVinculoSkeleton modo="lectura" />;
 
-  const tipo = DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo;
+  const tipo = etiquetaTipoVinculo(detalle);
   const esEmpresa = detalle.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA;
   const criterios = detalle.listas.filter((lista) => lista.codigo !== DD_MATRIZ_LISTA_OTROS);
   const aplicables = criterios.length;

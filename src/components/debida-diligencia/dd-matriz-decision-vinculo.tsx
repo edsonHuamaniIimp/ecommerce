@@ -1,5 +1,6 @@
 "use client";
 
+import { etiquetaTipoVinculo } from "@/lib/shared/utils/dd-matriz-vinculo-vista";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
@@ -54,10 +55,8 @@ import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_SI_NO_NA_LABELS,
-  DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_REPUTACION_RESULTADO_LABELS,
   DD_RUTAS,
-  type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 
@@ -323,7 +322,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
 
   if (loading || !detalle || detalle.id !== id) return <DdVinculoSkeleton modo="edicion" />;
 
-  const tipo = DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo;
+  const tipo = etiquetaTipoVinculo(detalle);
   const hayObservados = Object.values(decisiones).some((decision) => decision === "si");
   const criteriosEvaluables = detalle.listas.filter((lista) => lista.codigo !== DD_MATRIZ_LISTA_OTROS);
   const totalCriterios = criteriosEvaluables.length;

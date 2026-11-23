@@ -1,5 +1,8 @@
 "use client";
 
+import { esVinculoEmpresa, etiquetaTipoVinculo } from "@/lib/shared/utils/dd-matriz-vinculo-vista";
+import { pendientesPorExpediente } from "@/lib/shared/utils/dd-matriz-conclusiones";
+import type { DdVinculoSinConclusion } from "@/lib/shared/utils/dd-matriz-conclusiones";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import {
@@ -9,6 +12,7 @@ import {
   CardContent,
   CardHeader,
   Checkbox,
+  Skeleton,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -87,8 +91,9 @@ import {
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
+  DD_MATRIZ_AREA_CONCLUSION_LABELS,
+  DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
-  DD_MATRIZ_TIPOS_VINCULO,
   DD_REPUTACION_RESULTADO_LABELS,
   DD_REPUTACION_RESULTADOS,
   DD_RUTAS,
@@ -142,8 +147,6 @@ interface GrupoEmpresa {
   filas: DdMatrizEvaluacionFilaDTO[];
 }
 
-const etiqueta = (catalogo: Record<string, string>, valor: string | null): string =>
-  valor ? (catalogo[valor] ?? valor) : "";
 
 function filtrosComunes(filtros: Filtros): DdMatrizEvaluacionExportarRequestDTO {
   const sinEvaluar = filtros.resultadoFinal === DD_MATRIZ_FILTRO_SIN_EVALUAR;
@@ -418,6 +421,12 @@ export function DdMatrizBandeja() {
   const [legalAbierto, setLegalAbierto] = useState(false);
   const [legalMotivo, setLegalMotivo] = useState("");
   const [legalInforme, setLegalInforme] = useState("");
+  const [legalVerificando, setLegalVerificando] = useState(false);
+  const [legalPendientes, setLegalPendientes] = useState<
+    { expedienteId: string; codigo: string; empresa: string; vinculos: DdVinculoSinConclusion[] }[]
+  >([]);
+  const [legalNoVerificado, setLegalNoVerificado] = useState(false);
+  const [legalAcepta, setLegalAcepta] = useState(false);
   const filtrosRef = useRef(filtros);
   const { confirm, confirmDialog } = useConfirm();
 
@@ -659,18 +668,42 @@ export function DdMatrizBandeja() {
     if (expedientesSeleccionados.length === 0) return;
     setLegalMotivo("");
     setLegalInforme("");
+    setLegalPendientes([]);
+    setLegalNoVerificado(false);
+    setLegalAcepta(false);
+    setLegalVerificando(true);
     setLegalAbierto(true);
+    /* Se revisan todos los vinculos de cada expediente (no solo los seleccionados): Legal recibe el expediente completo. */
+    const resumenes = new Map(filasSeleccionadas.map((fila) => [fila.expedienteId, fila]));
+    void Promise.all(
+      expedientesSeleccionados.map((expedienteId) =>
+        ddMatrizEvaluacionService.listar({ expedienteId, perPage: DD_MATRIZ_EVAL_PER_PAGE_MAX }),
+      ),
+    )
+      .then((respuestas) => {
+        const pendientes = pendientesPorExpediente(respuestas.flatMap((respuesta) => respuesta.data));
+        setLegalPendientes(
+          [...pendientes].map(([expedienteId, vinculos]) => ({
+            expedienteId,
+            codigo: resumenes.get(expedienteId)?.codigo ?? "",
+            empresa: resumenes.get(expedienteId)?.empresaRazonSocial ?? "",
+            vinculos,
+          })),
+        );
+      })
+      .catch(() => setLegalNoVerificado(true))
+      .finally(() => setLegalVerificando(false));
   };
+
+  const hayPendientesLegal = legalNoVerificado || legalPendientes.length > 0;
+  const legalListoParaDerivar = !legalVerificando && (!hayPendientesLegal || legalAcepta);
 
   const asignarLegal = async () => {
     if (!legalMotivo.trim()) {
       toast.error("Indica el motivo de la derivación a Legal");
       return;
     }
-    if (!legalInforme.trim()) {
-      toast.error("Adjunta el link del informe de Logística");
-      return;
-    }
+    if (!legalListoParaDerivar) return;
     setProcesando("legal");
     try {
       for (const expedienteId of expedientesSeleccionados) {
@@ -678,7 +711,7 @@ export function DdMatrizBandeja() {
           expedienteId,
           accion: DD_ACCIONES_REVISION.RECHAZAR,
           motivo: legalMotivo.trim(),
-          informeLogisticaUrl: legalInforme.trim(),
+          informeLogisticaUrl: legalInforme.trim() || null,
           documentosObservados: [],
           observaciones: [],
         });
@@ -1022,7 +1055,7 @@ export function DdMatrizBandeja() {
                               />
                               <div className="flex min-w-0 flex-1 items-center gap-1.5">
                                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-primary/10 text-primary" aria-hidden="true">
-                                  {fila.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA ? <Building2 className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}
+                                  {esVinculoEmpresa(fila) ? <Building2 className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}
                                 </span>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex min-w-0 items-center gap-1.5">
@@ -1032,7 +1065,7 @@ export function DdMatrizBandeja() {
                                     </Link>
                                   </div>
                                   <p className="text-[10px] text-muted-foreground">
-                                    {etiqueta(DD_MATRIZ_TIPO_VINCULO_LABELS, fila.tipo)}
+                                    {etiquetaTipoVinculo(fila)}
                                     {fila.cargo ? ` · ${fila.cargo}` : ""}
                                   </p>
                                 </div>
@@ -1193,13 +1226,13 @@ export function DdMatrizBandeja() {
                             <TableCell className="align-top">
                               <div className="flex min-w-0 items-center gap-1.5">
                                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-primary/10 text-primary" aria-hidden="true">
-                                  {fila.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA ? <Building2 className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}
+                                  {esVinculoEmpresa(fila) ? <Building2 className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}
                                 </span>
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-xs font-semibold text-foreground">{fila.nombre}</p>
                                   <div className="mt-0.5 flex flex-wrap items-center gap-1">
                                     <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}>
-                                      <span>{etiqueta(DD_MATRIZ_TIPO_VINCULO_LABELS, fila.tipo)}</span>
+                                      <span>{etiquetaTipoVinculo(fila)}</span>
                                     </Badge>
                                     {fila.origen === DD_MATRIZ_ORIGENES.MANUAL ? (
                                       <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}>
@@ -1375,7 +1408,7 @@ export function DdMatrizBandeja() {
               <span>Derivar a Legal</span>
             </DialogTitle>
             <p className="text-[11px] text-muted-foreground">
-              Se derivarán {expedientesSeleccionados.length} expediente(s) con el informe de Logística.
+              Se derivarán {expedientesSeleccionados.length} expediente(s) a Legal.
             </p>
           </DialogHeader>
           <div className="space-y-3">
@@ -1390,7 +1423,7 @@ export function DdMatrizBandeja() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="mxb-legal-informe">Link del informe de Logística</Label>
+              <Label htmlFor="mxb-legal-informe">Link del informe de Logística (opcional)</Label>
               <Input
                 id="mxb-legal-informe"
                 type="url"
@@ -1400,11 +1433,58 @@ export function DdMatrizBandeja() {
                 className="h-9 text-sm"
               />
             </div>
+            {legalVerificando ? (
+              <div className="space-y-2" aria-label="Verificando conclusiones de los vínculos">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-16 w-full rounded-lg" />
+              </div>
+            ) : hayPendientesLegal ? (
+              <div className="space-y-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3" role="alert">
+                <p className="flex items-start gap-1.5 text-xs font-semibold text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {legalNoVerificado
+                      ? "No se pudo verificar si todos los vínculos tienen conclusión final."
+                      : "Se está derivando a Legal, pero aún no todos los vínculos tienen resultado y conclusión final de SIG y Reputacional."}
+                  </span>
+                </p>
+                {legalPendientes.length > 0 ? (
+                  <ul className="max-h-40 space-y-2 overflow-y-auto pr-1 text-[11px]">
+                    {legalPendientes.map((grupo) => (
+                      <li key={grupo.expedienteId}>
+                        <p className="font-semibold text-foreground">
+                          {grupo.empresa}
+                          {grupo.codigo ? ` · ${grupo.codigo}` : ""}
+                        </p>
+                        <ul className="mt-0.5 space-y-0.5 text-muted-foreground">
+                          {grupo.vinculos.map((vinculo) => (
+                            <li key={vinculo.id} className="flex flex-wrap items-center gap-x-1.5">
+                              <span className="font-medium text-foreground">{vinculo.nombre}</span>
+                              <span>({etiquetaTipoVinculo(vinculo)})</span>
+                              <span>· falta {vinculo.faltan.map((area) => DD_MATRIZ_AREA_CONCLUSION_LABELS[area]).join(" y ")}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <label className="flex cursor-pointer items-start gap-2 text-[11px] text-foreground">
+                  <Checkbox
+                    checked={legalAcepta}
+                    onCheckedChange={(valor) => setLegalAcepta(valor === true)}
+                    aria-label="Derivar a Legal aunque falten conclusiones finales"
+                    className="mt-0.5"
+                  />
+                  <span>Entiendo que la revisión de estos vínculos no ha culminado y aun así deseo derivar a Legal.</span>
+                </label>
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setLegalAbierto(false)} disabled={procesando === "legal"}>
                 Cancelar
               </Button>
-              <Button type="button" size="sm" onClick={() => { void asignarLegal(); }} disabled={procesando === "legal"}>
+              <Button type="button" size="sm" onClick={() => { void asignarLegal(); }} disabled={procesando === "legal" || !legalListoParaDerivar}>
                 <Scale className="mr-1.5 h-3.5 w-3.5" />
                 <span>{procesando === "legal" ? "Derivando..." : "Derivar a Legal"}</span>
               </Button>

@@ -69,6 +69,7 @@ const include = {
       createdAt: true,
       revisadoPor: true,
       fechaRevision: true,
+      decisionLegal: true,
       evento: { select: { id: true, tipoEvento: true, codigoEvento: true, anio: true } },
       empresa: { select: { razonSocial: true, ruc: true, direccionFiscal: true, pais: true, actividadEconomica: true } },
     },
@@ -128,6 +129,7 @@ function mapContexto(row: VinculoRow["expediente"]): DdMatrizExpedienteContexto 
     fechaIngreso: row.fechaEnvio ?? row.createdAt,
     revisadoPor: row.revisadoPor ?? null,
     fechaRevision: row.fechaRevision ?? null,
+    decisionLegal: row.decisionLegal ?? null,
   };
 }
 

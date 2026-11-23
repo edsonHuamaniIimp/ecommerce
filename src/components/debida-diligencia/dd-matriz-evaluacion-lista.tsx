@@ -1,5 +1,6 @@
 "use client";
 
+import { etiquetaTipoVinculo } from "@/lib/shared/utils/dd-matriz-vinculo-vista";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
@@ -53,7 +54,6 @@ import {
   DD_RUTAS,
   PER_PAGE_OPCIONES,
   REGEX_PAIS,
-  type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
@@ -102,8 +102,6 @@ function consultaDe(filtros: Filtros, porEmpresa: boolean) {
   return { ...filtrosComunes(filtros), page: filtros.page, perPage: filtros.perPage, ...(porEmpresa ? { porEmpresa: true } : {}) };
 }
 
-const etiqueta = <T extends string>(catalogo: Record<T, string>, valor: string | null): string =>
-  valor ? (catalogo[valor as T] ?? valor) : "";
 
 function EstadoAreaExtendido({
   resultado,
@@ -409,7 +407,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
                         <TableCell className="max-w-[260px]">
                           <p className="truncate text-xs font-semibold text-foreground">{fila.nombre}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            {etiqueta<DdMatrizTipoVinculo>(DD_MATRIZ_TIPO_VINCULO_LABELS, fila.tipo)}
+                            {etiquetaTipoVinculo(fila)}
                             {fila.cargo ? ` � ${fila.cargo}` : ""}
                           </p>
                         </TableCell>

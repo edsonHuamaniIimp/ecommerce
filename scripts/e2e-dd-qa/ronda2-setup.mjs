@@ -4,7 +4,7 @@ import { randomUUID, randomBytes, scryptSync } from "node:crypto";
 
 const EVENTO_ID = "c0a354e0-4c79-4b38-b88d-ff824cd28964"; // Perumin 2027
 const PASSWORD = "E2eTest#2026";
-const TOTAL = 30;
+const TOTAL = Number(process.env.E2E_TOTAL || 30);
 
 function hash(plano) {
   const salt = randomBytes(16);

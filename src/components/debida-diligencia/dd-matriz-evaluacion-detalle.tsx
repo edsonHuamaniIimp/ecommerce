@@ -1,5 +1,6 @@
 "use client";
 
+import { etiquetaTipoVinculo } from "@/lib/shared/utils/dd-matriz-vinculo-vista";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -60,7 +61,6 @@ import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_SIN_VALOR,
-  DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_IMPORTACION_REVISOR,
   DD_IMPORTACION_REVISOR_LABEL,
   DD_MATRIZ_TIPOS_VINCULO,
@@ -68,7 +68,6 @@ import {
   type DdMatrizAdjuntoCategoria,
   type DdMatrizArea,
   type DdMatrizColor,
-  type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { evaluarBloqueArea, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
@@ -535,7 +534,7 @@ export function DdMatrizEvaluacionDetalle({
               <span className="truncate">{detalle.nombre}</span>
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}><span>{DD_MATRIZ_TIPO_VINCULO_LABELS[detalle.tipo as DdMatrizTipoVinculo] ?? detalle.tipo}</span></Badge>
+              <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.INDIGO}`}><span>{etiquetaTipoVinculo(detalle)}</span></Badge>
               <DdMatrizAmbitoBadge valor={detalle.ambito} />
               {detalle.origen === DD_MATRIZ_ORIGENES.MANUAL ? <Badge className={`pointer-events-none text-[9px] ${BADGE_STYLES.NEUTRAL}`}><span>Manual</span></Badge> : null}
               <span className="truncate">{detalle.expediente.empresaRazonSocial} · {detalle.expediente.codigo}</span>

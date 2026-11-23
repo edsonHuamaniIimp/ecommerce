@@ -28,6 +28,39 @@ const CHROME_CANDIDATES = [
 export const CHROMIUM_ENV = { ...process.env, HOME: process.env.CHROMIUM_HOME ?? "/tmp" };
 export const CHROMIUM_ARGS_BASE = ["--no-sandbox", "--disable-dev-shm-usage", "--crash-dumps-dir=/tmp"];
 
+/**
+ * Textos con los que los portales (o su firewall) avisan que bloquearon la consulta automatica.
+ * Indecopi, por ejemplo, bloquea las IP de nube con "Web Page Blocked" o deja su pantalla de
+ * inicio con el aviso "Cargando las opciones de busqueda"; capturarlo como evidencia seria guardar
+ * una pagina de error.
+ */
+const TEXTOS_PAGINA_BLOQUEADA = [
+  "web page blocked",
+  "the page cannot be displayed",
+  "access denied",
+  "request blocked",
+  "you have been blocked",
+  "attention required! | cloudflare",
+  "cargando las opciones de busqueda",
+  "cargando las opciones de búsqueda",
+];
+
+/** Indica si el texto visible de una pagina es un bloqueo o un error del portal y no un resultado. */
+export function esPaginaBloqueada(texto: string): boolean {
+  const normalizado = texto.toLowerCase().replace(/\s+/g, " ");
+  return TEXTOS_PAGINA_BLOQUEADA.some((patron) => normalizado.includes(patron));
+}
+
+const MENSAJE_FUENTE_BLOQUEADA =
+  "La fuente oficial bloqueó la consulta automática desde este servidor. Consulta el portal manualmente y adjunta la evidencia.";
+
+async function exigirPaginaDisponible(page: import("playwright-core").Page): Promise<void> {
+  const texto = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+  if (esPaginaBloqueada(texto)) {
+    throw new DomainError(MENSAJE_FUENTE_BLOQUEADA, API_ERROR_CODES.VALIDATION, 502);
+  }
+}
+
 /** Tiempo maximo para descargar una lista oficial (ms). */
 export const DESCARGA_TIMEOUT_MS = 60_000;
 
@@ -661,6 +694,7 @@ export async function capturarEvidenciaPdf(
       }
     }
     await page.waitForTimeout(1500);
+    await exigirPaginaDisponible(page);
 
     /* Lista consolidada sin buscador propio (ONU): la evidencia es la captura
        de la búsqueda (Ctrl+F) del término, no el listado completo. */
@@ -685,6 +719,7 @@ export async function capturarEvidenciaPdf(
       return await capturarBusquedaEnLista(page, nombre, termino, page.url());
     }
 
+    await exigirPaginaDisponible(page);
     const bytes = await page.pdf({
       format: "A4",
       printBackground: true,

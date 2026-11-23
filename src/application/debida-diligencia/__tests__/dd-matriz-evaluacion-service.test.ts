@@ -396,6 +396,40 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  describe("APTO con hallazgos de Comunicaciones", () => {
+    const REP_OBSERVADA = {
+      ...BLOQUE_VACIO,
+      resultado: DD_MATRIZ_RESULTADOS.OBSERVADO,
+      conclusion: DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA,
+    };
+    const guardarApto = (servicio: ReturnType<typeof crear>["servicio"]) =>
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        resultadoFinal: DD_MATRIZ_RESULTADOS_FINALES.APTO,
+        finalComentario: "Sustento interno",
+      });
+
+    it("sin dictamen de Legal el APTO se bloquea (409)", async () => {
+      const { servicio } = crear(vinculo({ reputacional: REP_OBSERVADA }));
+      await expect(guardarApto(servicio)).rejects.toMatchObject({ status: 409 });
+    });
+
+    it("si Legal observo o rechazo el APTO sigue bloqueado", async () => {
+      for (const decisionLegal of ["observar", "rechazar"]) {
+        const base = vinculo({ reputacional: REP_OBSERVADA });
+        const { servicio } = crear({ ...base, expediente: { ...base.expediente, decisionLegal } });
+        await expect(guardarApto(servicio)).rejects.toMatchObject({ status: 409 });
+      }
+    });
+
+    it("si Legal aprobo, SIG puede declarar APTO aunque Comunicaciones tenga hallazgos", async () => {
+      const base = vinculo({ reputacional: REP_OBSERVADA });
+      const { servicio, repo } = crear({ ...base, expediente: { ...base.expediente, decisionLegal: "aprobar" } });
+      await guardarApto(servicio);
+      expect(repo.actualizarVinculo.mock.calls[0]?.[1].resultadoFinal).toBe(DD_MATRIZ_RESULTADOS_FINALES.APTO);
+    });
+  });
+
   it("no permite registrar un final sobre un expediente legacy ya aprobado", async () => {
     const base = vinculo({ resultadoFinal: null });
     const { servicio } = crear({

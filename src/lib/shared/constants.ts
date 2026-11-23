@@ -2113,6 +2113,21 @@ export const DD_MATRIZ_TIPO_VINCULO_LABELS: Record<DdMatrizTipoVinculo, string> 
   [DD_MATRIZ_TIPOS_VINCULO.VINCULADO]: "Persona / empresa vinculada",
 };
 
+/** Etiquetas del vinculo "vinculado" segun el documento declarado (RUC = empresa, DNI/CE/pasaporte = persona). */
+export const DD_MATRIZ_TIPO_VINCULO_EMPRESA_VINCULADA_LABEL = "Empresa vinculada";
+export const DD_MATRIZ_TIPO_VINCULO_PERSONA_VINCULADA_LABEL = "Persona vinculada";
+
+/** Areas cuya conclusion debe estar completa en cada vinculo antes de derivar a Legal. */
+export const DD_MATRIZ_AREAS_CONCLUSION = {
+  SIG: "sig",
+  REPUTACIONAL: "reputacional",
+} as const;
+export type DdMatrizAreaConclusion = (typeof DD_MATRIZ_AREAS_CONCLUSION)[keyof typeof DD_MATRIZ_AREAS_CONCLUSION];
+export const DD_MATRIZ_AREA_CONCLUSION_LABELS: Record<DdMatrizAreaConclusion, string> = {
+  [DD_MATRIZ_AREAS_CONCLUSION.SIG]: "SIG",
+  [DD_MATRIZ_AREAS_CONCLUSION.REPUTACIONAL]: "Reputacional",
+};
+
 /** Origen de la fila: calculada desde el expediente o agregada a mano. */
 export const DD_MATRIZ_ORIGENES = {
   AUTOMATICO: "automatico",

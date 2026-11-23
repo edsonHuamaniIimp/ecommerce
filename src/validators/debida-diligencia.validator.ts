@@ -122,7 +122,14 @@ export const ddRevisarSchema = z
     alcance: z.enum(valores(DD_ALCANCES_REVISION)).default(DD_ALCANCES_REVISION.EXPEDIENTE),
     accion: z.enum(valores(DD_ACCIONES_REVISION)),
     motivo: textoNullable(1000),
-    informeLogisticaUrl: z.string().trim().url("Ingrese un link válido").max(500).nullable().default(null),
+    informeLogisticaUrl: z
+      .string()
+      .trim()
+      .url("Ingrese un link válido")
+      .max(500)
+      .refine((valor) => /^https?:\/\//i.test(valor), "El link debe empezar con http:// o https://")
+      .nullable()
+      .default(null),
     documentosObservados: z.array(z.enum(valores(DD_DOCUMENTOS))).default([]),
     observaciones: z
       .array(
@@ -150,13 +157,6 @@ export const ddRevisarSchema = z
         code: "custom",
         path: ["motivo"],
         message: "El motivo del rechazo es obligatorio",
-      });
-    }
-    if (valor.accion === DD_ACCIONES_REVISION.RECHAZAR && !valor.informeLogisticaUrl?.trim()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["informeLogisticaUrl"],
-        message: "El link del informe de Logística es obligatorio para derivar a Legal",
       });
     }
   });

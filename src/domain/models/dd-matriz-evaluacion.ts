@@ -61,6 +61,8 @@ export interface DdMatrizExpedienteContexto {
   fechaIngreso: Date;
   revisadoPor: string | null;
   fechaRevision: Date | null;
+  /** Decision de Legal sobre el expediente (aprobar / observar / rechazar), si ya dictamino. */
+  decisionLegal?: string | null;
 }
 
 export interface DdMatrizVinculoEntity extends DdMatrizGenerales {

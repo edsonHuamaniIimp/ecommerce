@@ -36,6 +36,7 @@ import {
   type DdMatrizAdjuntoCategoria,
   type DdMatrizAmbito,
   type DdMatrizTipoVinculo,
+  DD_ACCIONES_LEGAL,
 } from "@/lib/shared/constants";
 import {
   comunicacionesAprobadas,
@@ -515,6 +516,8 @@ export class DdMatrizEvaluacionApplicationService {
    * En la fila de empresa se exige el veredicto de todos los vínculos.
    */
   private async validarComunicacionesParaApto(vinculo: DdMatrizVinculoEntity): Promise<void> {
+    /* El dictamen de Legal (aprobar) prevalece sobre los hallazgos de Comunicaciones: SIG puede cerrar APTO. */
+    if (vinculo.expediente.decisionLegal === DD_ACCIONES_LEGAL.APROBAR) return;
     const vinculos =
       vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
         ? await this.repo.listarVinculosExpediente(vinculo.expediente.expedienteId)
