@@ -416,6 +416,28 @@ Operaciones hacia el SGC con reintentos y backoff. Ver `docs/05-integraciones/in
 
 Índice: `(estado, programadoAt)`.
 
+### 4.18.1 `sgc_subsanacion_intento` (Log · intentos de reenvío al SGC)
+
+Bitácora de cada intento de "Solicitar nueva revisión" (cliente en Mis solicitudes o admin
+en el panel SGC), con éxito o error. Sirve para diagnosticar los casos en que el cliente
+subsana y el envío no prospera. Migración `20261123200000_add_sgc_subsanacion_intento`.
+
+| Campo | Tipo | Nulo | Descripción |
+| --- | --- | --- | --- |
+| id | id/uuid | No | PK. |
+| solicitudId | FK solicitud | No | Solicitud sobre la que se intentó el reenvío. |
+| origen | string(20) | No | `cliente` \| `admin` (`SGC_INTENTO_ORIGENES`). |
+| actor | string(200) | Sí | Correo de quien pulsó el reenvío. |
+| resultado | string(20) | No | `exito` \| `validacion` \| `error_sgc` \| `error` (`SGC_INTENTO_RESULTADOS`). |
+| httpStatus | int | Sí | 409 local o código del SGC; null en éxito. |
+| mensaje | string(1000) | Sí | Mensaje mostrado al cliente o devuelto por el SGC. |
+| sgcLifecycle / sgcStage | string | Sí | Estado del expediente al momento del intento. |
+| requeridos / cubiertos | int | Sí | Archivos pedidos y cubiertos (`estadoCorreccionSgc`). |
+| detalle | json | Sí | Faltantes, observaciones abiertas y `contractId`. |
+| createdAt | datetime | No | Fecha del intento. |
+
+Índices: `solicitudId`, `(resultado, createdAt)`.
+
 ### 4.19 `solicitud_cuenta` (Transaccional · acceso)
 
 Solicitud de cuenta de nuevo exhibidor enviada desde el portal publico

@@ -19,6 +19,7 @@ import {
   estadoCorreccionSgc,
   esObservacionSgcContrato,
   observacionesSgcSubsanadas,
+  piezasObservacionSgc,
   sgcObservacionesAbiertas,
   tieneObservacionSgcAnexos,
   tieneObservacionSgcContrato,
@@ -672,6 +673,97 @@ describe("estadoCorreccionSgc (v7: una observacion = un archivo)", () => {
     expect(completo.requeridos).toBe(2);
     expect(completo.cubiertos).toBe(2);
     expect(completo.faltantes).toHaveLength(0);
+  });
+
+  /* Caso real (MOLY-COP): seis archivos de un lote quedaron con el mismo pieceId. */
+  const grupoCuatro = obs("grupo-4", {
+    documentId: null,
+    requisito: null,
+    title: "Se solicita documentos",
+    requiresNewDocument: true,
+    expectedDocuments: 4,
+    pieces: [
+      { id: "p1", title: "Vigencia A", acceptedDocumentId: null },
+      { id: "p2", title: "DNI A", acceptedDocumentId: null },
+      { id: "p3", title: "Vigencia B", acceptedDocumentId: null },
+      { id: "p4", title: "DNI B", acceptedDocumentId: null },
+    ],
+  });
+  const dePieza = (id: string, pieza: string, createdAt: string) => ({
+    ...doc(id, "", createdAt),
+    requisito: null,
+    sgcObservationId: "grupo-4",
+    sgcPieceId: pieza,
+  });
+
+  it("varios archivos en la misma pieza cubren una sola pieza", () => {
+    const docs = Array.from({ length: 6 }, (_, i) =>
+      dePieza(`lote-${i}`, "p1", `2026-11-23T19:17:0${i}.000Z`));
+    const r = estadoCorreccionSgc({ ...devuelto, sgcObservaciones: [grupoCuatro], docsAdjuntos: docs });
+    expect(r).toMatchObject({ requeridos: 4, cubiertos: 1 });
+    expect(r.faltantes.map((f) => f.pieceId)).toEqual(["p2", "p3", "p4"]);
+  });
+
+  it("cada archivo vinculado a su pieza completa el grupo", () => {
+    const docs = ["p1", "p2", "p3", "p4"].map((p, i) => dePieza(`d-${p}`, p, `2026-11-23T19:17:0${i}.000Z`));
+    const r = estadoCorreccionSgc({ ...devuelto, sgcObservaciones: [grupoCuatro], docsAdjuntos: docs });
+    expect(r).toMatchObject({ requeridos: 4, cubiertos: 4, faltantes: [] });
+  });
+});
+
+describe("piezasObservacionSgc", () => {
+  const observacion = {
+    observationId: "g",
+    title: "Grupo",
+    message: "Falta adjuntar",
+    status: "open",
+    createdAt: "2026-11-20T17:57:22.000Z",
+    pieces: [
+      { id: "p1", title: "Vigencia", acceptedDocumentId: null },
+      { id: "p2", title: "DNI", acceptedDocumentId: "acc-2" },
+      { id: "p3", title: "Otro", acceptedDocumentId: null },
+    ],
+  };
+  const archivo = (id: string, extra: Record<string, unknown>) => ({
+    id,
+    userId: CLIENTE,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt: "2026-11-23T19:00:00.000Z",
+    ...extra,
+  });
+
+  it("vincula solo por sgcPieceId y elige el archivo mas reciente", () => {
+    const piezas = piezasObservacionSgc({
+      userId: CLIENTE,
+      docsAdjuntos: [
+        archivo("viejo", { sgcPieceId: "p1", createdAt: "2026-11-23T19:00:00.000Z" }),
+        archivo("nuevo", { sgcPieceId: "p1", createdAt: "2026-11-23T19:05:00.000Z" }),
+        /* Mismo titulo que la pieza 3 pero sin vinculo: no cuenta. */
+        archivo("por-titulo", { sgcTitle: "Otro" }),
+      ],
+    }, observacion);
+    expect(piezas.map((p) => [p.id, p.aceptada, p.documento?.id ?? null])).toEqual([
+      ["p1", false, "nuevo"],
+      ["p2", true, null],
+      ["p3", false, null],
+    ]);
+  });
+
+  it("ignora archivos anteriores a la observacion, inactivos o de otro usuario", () => {
+    const piezas = piezasObservacionSgc({
+      userId: CLIENTE,
+      docsAdjuntos: [
+        archivo("anterior", { sgcPieceId: "p1", createdAt: "2026-11-19T00:00:00.000Z" }),
+        archivo("reemplazado", { sgcPieceId: "p1", estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO }),
+        archivo("admin", { sgcPieceId: "p3", userId: null }),
+      ],
+    }, observacion);
+    expect(piezas.every((p) => p.documento === null)).toBe(true);
+  });
+
+  it("devuelve vacio si la observacion no trae piezas", () => {
+    expect(piezasObservacionSgc({ userId: CLIENTE, docsAdjuntos: [] }, { ...observacion, pieces: null })).toEqual([]);
   });
 });
 describe("esObservacionSgcContrato", () => {

@@ -3,6 +3,8 @@ import type {
   SgcDocumentCategory,
   SgcDocumentoEstado,
   SgcEstadoEnvio,
+  SgcIntentoOrigen,
+  SgcIntentoResultado,
   SgcLifecycleStatus,
   SgcStage,
 } from "@/lib/shared/constants";
@@ -84,10 +86,29 @@ export interface ActualizarSgcDocumentoData {
   sizeBytes?: number | null;
 }
 
+/** Un intento de solicitar nueva revision al SGC (ver `sgc_subsanacion_intento`). */
+export interface RegistrarIntentoSubsanacionData {
+  solicitudId: string;
+  origen: SgcIntentoOrigen;
+  actor: string | null;
+  resultado: SgcIntentoResultado;
+  httpStatus: number | null;
+  mensaje: string | null;
+  sgcLifecycle: string | null;
+  sgcStage: string | null;
+  requeridos: number | null;
+  cubiertos: number | null;
+  detalle: Record<string, unknown> | null;
+}
+
 export interface ISgcRepository {
   findExpedientePorSolicitud(solicitudId: string): Promise<SgcExpedienteEntity | null>;
   findExpedientePorContractId(contractId: string): Promise<SgcExpedienteEntity | null>;
   listarConContractId(): Promise<SgcExpedienteEntity[]>;
+  /** Correlacion local de una pieza por `documentId` del SGC (checksum de la ultima version subida). */
+  buscarDocumento?(documentId: string): Promise<SgcDocumentoEntity | null>;
+  /** Bitacora de intentos de reenvio/subsanacion (exitos y errores). Best-effort. */
+  registrarIntentoSubsanacion?(data: RegistrarIntentoSubsanacionData): Promise<void>;
   listarConEstadoEnvio(estado: SgcEstadoEnvio): Promise<SgcExpedienteEntity[]>;
   crearExpediente(data: CrearSgcExpedienteData): Promise<SgcExpedienteEntity>;
   actualizarExpediente(id: string, data: ActualizarSgcExpedienteData): Promise<SgcExpedienteEntity>;

@@ -2,7 +2,7 @@
 import type { SolicitudRow, RevisionEntity } from "@/domain/models/entities";
 import { createHash } from "node:crypto";
 import type { StorageAdapter } from "@/lib/server/storage";
-import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, ROLES_REVISION_ASOCIADO, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, SGC_LIFECYCLE_STATUSES, SGC_SYNC_ON_READ_TTL_MS, CONTRATO_FIRMADO_EXTENSIONES, ORIGENES_DOCUMENTO, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
+import { REVISION_AREAS, RESULTADOS_APROBACION, ROLES, ROLES_REVISION_ASOCIADO, PERMISSIONS, API_ERROR_CODES, REVISION_AREA_NEXT_ROLE, SGC_TRIGGER_REVISION_AREA, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, ALERTA_TIPOS, ANEXOS_REQUERIDOS, ESTADOS_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD, MONEDAS, SGC_INTENTO_ORIGENES, SGC_LIFECYCLE_STATUSES, SGC_SYNC_ON_READ_TTL_MS, CONTRATO_FIRMADO_EXTENSIONES, ORIGENES_DOCUMENTO, extensionesPermitidasAnexo, type TipoDocumentoSolicitud } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { DomainError } from "@/lib/server/router";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
@@ -590,6 +590,9 @@ export class SolicitudesApplicationService {
      * version nueva firmada) y reabre la ronda en el SGC. NO se toca la revision local.
      */
     if (enVentanaDocumentosSgc(detalle)) {
+      /* Bitacora: cada intento (exito o error) queda en `sgc_subsanacion_intento` para
+       * diagnosticar los casos en que el cliente subsana y el envio no prospera. */
+      const ejecutarReenvioSgc = async (detalle: SolicitudRow): Promise<void> => {
       if (esperandoContratoCorregidoSgc(detalle)) {
         throw new DomainError(
           "El area revisora aun no ha regenerado el contrato corregido. Espera esa version para reenviar.",
@@ -651,6 +654,14 @@ export class SolicitudesApplicationService {
             409,
           );
         }
+        /* §8.1/§8.2: el SGC exige una version nueva del documento principal. */
+        if (err instanceof SgcApiError && err.status === 422 && /versi[oó]n nueva|new version/i.test(err.message)) {
+          throw new DomainError(
+            "El área legal pide una versión nueva del contrato firmado. Firma nuevamente el contrato y vuelve a solicitar la revisión.",
+            API_ERROR_CODES.CONFLICT,
+            409,
+          );
+        }
         throw err;
       }
       if (!resultadoReenvio?.reenviado) {
@@ -660,6 +671,23 @@ export class SolicitudesApplicationService {
           409,
         );
       }
+      };
+      try {
+        await ejecutarReenvioSgc(detalle);
+      } catch (err) {
+        await this.sgcIntegracion?.registrarIntentoSubsanacion({
+          solicitudId,
+          origen: SGC_INTENTO_ORIGENES.CLIENTE,
+          actor: userEmail,
+          error: err,
+        });
+        throw err;
+      }
+      await this.sgcIntegracion?.registrarIntentoSubsanacion({
+        solicitudId,
+        origen: SGC_INTENTO_ORIGENES.CLIENTE,
+        actor: userEmail,
+      });
       return;
     }
 
@@ -1062,7 +1090,11 @@ export class SolicitudesApplicationService {
      */
     /* Una correccion vinculada a una observacion SGC no debe reemplazar todos
      * los anexos del mismo tipo: la observacion identifica el archivo exacto. */
-    if (!isAdmin && !esCargaFirmaAsociado && !esCargaAnexoAsociado && categoria && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
+    /* Un anexo sin requisito ("Otros documentos") no reemplaza a nada: varios archivos
+     * adicionales conviven, y antes uno nuevo dejaba como reemplazados a los anteriores
+     * (incluidas las piezas de un grupo SGC). */
+    const esOtroDocumento = categoria === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && !requisito;
+    if (!isAdmin && !esCargaFirmaAsociado && !esCargaAnexoAsociado && categoria && !esOtroDocumento && !sgcObservationId && !sgcDocumentId && !sgcTitle) {
       await this.repo.marcarDocumentosReemplazados(params.solicitudId, params.userSub, categoria, requisito);
     }
 

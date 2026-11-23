@@ -766,3 +766,47 @@ Objetivo: corregir anexos arbitrarios y múltiples documentos sin inferir por fe
 - El código queda persistido en `sgc_expediente.area_code` y
   `sgc_expediente.contract_type_code` para auditoría.
 - Las claves de API, Idempotency-Key y webhooks no cambian.
+## Actualización 23-nov-2026: robustez sin webhooks, avisos y bitácora de reenvíos
+
+Contexto: desde el 12-nov no llegó ningún webhook del SGC a `sgc_webhook_evento`, y el
+estado local dependía solo del cron y del sync al abrir la bandeja. La revisión de los 44
+expedientes abiertos en prod dejó estas correcciones (guía v11 sin cambios; la copia en
+`PABELLONES EXTERNOS` es idéntica):
+
+- **Cron de reconciliación** (`reconciliar`): un error también actualiza `lastSyncedAt`
+  (antes los expedientes con 404 quedaban siempre primeros y agotaban los 40 s de cada
+  corrida); los expedientes en curso van primero y los terminales (`active`/`finalized`)
+  solo se consultan si llevan más de 24 h sin sincronizar
+  (`SGC_RECONCILIAR_TERMINALES_CADA_MS`, helper `ordenarParaReconciliar`).
+- **Avisos de devolución** (`debeNotificarDevolucionSgc`): se avisa al entrar en devolución
+  o cuando aparecen observaciones abiertas nuevas por `observationId`. Antes se comparaba
+  `observations[0].message` con `devolucionMotivo` (el `reason` del webhook), que nunca
+  coinciden: cada sync reenviaba campana + correo (hasta 729 alertas a un mismo usuario).
+- **Reemplazo de documentos**: un anexo sin requisito ("Otros documentos") ya no deja
+  como reemplazados a los demás, y `marcarDocumentosReemplazados` nunca toca archivos
+  vinculados al SGC (`sgc_observation_id`/`sgc_document_id`/`sgc_title`/`sgc_piece_id`).
+  Caso ULMA: subir un anexo suelto había marcado como reemplazadas las 3 piezas del grupo.
+- **Reenvío sin observaciones abiertas o rechazo** (§8, §8.2, escenarios E/F): exige y
+  sube una versión nueva del contrato. Se usan las observaciones frescas del SGC (no la
+  copia local con observaciones resueltas). Antes de subir anexos se compara el checksum
+  del contrato a enviar con la última versión subida: si es el mismo, se avisa al cliente
+  que debe firmar de nuevo, sin dejar versiones sueltas en el SGC (caso COMISUB). Un 422
+  "versión nueva" del SGC se traduce a un mensaje claro.
+- **Webhooks**: el receptor registra en consola y en `error_log` cada rechazo de firma con
+  su motivo (`sin_secreto`, `sin_header`, `header_invalido`, `fuera_de_ventana`,
+  `firma_no_coincide`), los payload inválidos y los errores de procesamiento; y en consola
+  cada recepción válida. Prefijo de búsqueda: `[sgc-webhook]`.
+- **Bitácora de reenvíos** (`sgc_subsanacion_intento`): cada "Solicitar nueva revisión"
+  del cliente (`reenviarObservacion`) y del admin (`POST /api/sgc/reenviar`) registra el
+  resultado (`exito`/`validacion`/`error_sgc`/`error`), el código HTTP, el mensaje, el
+  estado del expediente, archivos requeridos/cubiertos, faltantes y observaciones abiertas.
+
+Consulta de diagnóstico:
+
+```sql
+select i.created_at, i.origen, i.actor, i.resultado, i.http_status, i.mensaje,
+       i.sgc_lifecycle, i.requeridos, i.cubiertos, i.detalle
+from sgc_subsanacion_intento i
+where i.solicitud_id = '<solicitud>'
+order by i.created_at desc;
+```

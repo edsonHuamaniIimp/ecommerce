@@ -603,6 +603,8 @@ model Solicitud {
   stands         SolicitudStand[]
   facturaciones  Facturacion[]
   sgcExpediente  SgcExpediente?
+  /// Bitacora de intentos de reenvio/subsanacion al SGC (exitos y errores).
+  sgcIntentos    SgcSubsanacionIntento[]
 
   @@index([gessStandId])
   @@index([initialUserId])
@@ -1184,6 +1186,40 @@ model SgcSubsanacion {
 
   @@index([sgcExpedienteId])
   @@map("sgc_subsanacion")
+}
+
+/// Bitacora de cada intento de solicitar una nueva revision al SGC (subsanacion):
+/// registra exitos y errores con el estado del expediente y lo que faltaba, para
+/// diagnosticar casos en los que el cliente 'subsana' y el envio no prospera.
+model SgcSubsanacionIntento {
+  id            String   @id @default(uuid())
+  /// Solicitud de stand sobre la que se intento el reenvio.
+  solicitudId   String   @map("solicitud_id")
+  /// Quien lo ejecuto: `cliente` (Mis solicitudes) | `admin` (panel SGC).
+  origen        String   @db.VarChar(20)
+  /// Correo del actor que pulso el reenvio.
+  actor         String?  @db.VarChar(200)
+  /// `exito` | `validacion` (bloqueado por reglas locales) | `error_sgc` | `error`.
+  resultado     String   @db.VarChar(20)
+  /// Codigo HTTP del error (409 local, 4xx/5xx del SGC); null en exito.
+  httpStatus    Int?     @map("http_status")
+  /// Mensaje mostrado al cliente o devuelto por el SGC (sin secretos).
+  mensaje       String?  @db.VarChar(1000)
+  /// Ciclo de vida y etapa del expediente en el SGC al momento del intento.
+  sgcLifecycle  String?  @map("sgc_lifecycle") @db.VarChar(20)
+  sgcStage      String?  @map("sgc_stage") @db.VarChar(40)
+  /// Archivos que pedia el SGC y cuantos estaban cubiertos (estadoCorreccionSgc).
+  requeridos    Int?
+  cubiertos     Int?
+  /// Faltantes, observaciones abiertas y datos de diagnostico (JSON).
+  detalle       Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
+
+  @@index([solicitudId])
+  @@index([resultado, createdAt])
+  @@map("sgc_subsanacion_intento")
 }
 
 model SgcDocumento {

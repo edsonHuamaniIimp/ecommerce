@@ -3344,6 +3344,27 @@ export const SGC_ESTADO_ENVIO = {
   ERROR: "error",
 } as const;
 
+/** Origen de un intento de reenvio/subsanacion al SGC (`sgc_subsanacion_intento.origen`). */
+export const SGC_INTENTO_ORIGENES = {
+  CLIENTE: "cliente",
+  ADMIN: "admin",
+} as const;
+
+export type SgcIntentoOrigen = (typeof SGC_INTENTO_ORIGENES)[keyof typeof SGC_INTENTO_ORIGENES];
+
+/** Resultado de un intento de reenvio/subsanacion (`sgc_subsanacion_intento.resultado`). */
+export const SGC_INTENTO_RESULTADOS = {
+  EXITO: "exito",
+  /** Bloqueado por una regla local (faltan archivos, firma pendiente, ...). */
+  VALIDACION: "validacion",
+  /** El SGC respondio con error (4xx/5xx). */
+  ERROR_SGC: "error_sgc",
+  /** Error interno inesperado. */
+  ERROR: "error",
+} as const;
+
+export type SgcIntentoResultado = (typeof SGC_INTENTO_RESULTADOS)[keyof typeof SGC_INTENTO_RESULTADOS];
+
 export type SgcEstadoEnvio = (typeof SGC_ESTADO_ENVIO)[keyof typeof SGC_ESTADO_ENVIO];
 
 export const SGC_DOCUMENTO_ESTADO = {
@@ -3417,6 +3438,13 @@ export const SGC_RECONCILIAR_MAX_POR_CORRIDA = 50;
  * sincronizaciones completadas y continuar el resto en la siguiente corrida.
  */
 export const SGC_RECONCILIAR_TIME_BUDGET_MS = 40_000;
+
+/**
+ * Un expediente terminal (vigente/finalizado) solo se vuelve a consultar en el cron
+ * cada 24 h: no cambia salvo un retroceso administrativo, y consultarlo en cada corrida
+ * consumia el presupuesto que necesitan los expedientes en curso.
+ */
+export const SGC_RECONCILIAR_TERMINALES_CADA_MS = 24 * 60 * 60 * 1000;
 
 /** TTL del sync-on-read para no consultar el SGC en cada apertura de detalle. */
 export const SGC_SYNC_ON_READ_TTL_MS = 2 * 60 * 1000;

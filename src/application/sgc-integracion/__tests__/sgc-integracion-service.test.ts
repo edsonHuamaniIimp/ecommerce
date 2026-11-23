@@ -6,8 +6,14 @@ import type { ISgcClient } from "@/domain/ports/sgc-client";
 import type { IDocumentoOrigen } from "@/domain/ports/documento-origen";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { SgcExpedienteEntity } from "@/domain/models/sgc";
+import { SgcApiError } from "@/domain/models/sgc";
+import { DomainError } from "@/domain/errors/domain-error";
+import { sha256Hex } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import {
+  API_ERROR_CODES,
+  SGC_INTENTO_ORIGENES,
+  SGC_INTENTO_RESULTADOS,
   ESTADOS_DOCUMENTO_SOLICITUD,
   ESTADOS_SOLICITUD,
   SGC_CREATE_STATUS,
@@ -422,6 +428,112 @@ describe("SgcIntegracionApplicationService.reenviarCorreccionAlSgc", () => {
         documentId: "sgc-contract-1",
       }),
     );
+  });
+
+  /* Devolucion sin observations[] abiertas (casos ESAN/COMISUB): la copia local solo
+   * trae observaciones resueltas de rondas previas. Guia §8: exige version del contrato. */
+  const firmadoCliente = {
+    id: "firmado",
+    url: "/uploads/contrato-firmado.pdf",
+    nombre: "contrato-firmado.pdf",
+    userId: "user-1",
+    uploadedBy: "cliente@x.pe",
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt: new Date("2026-11-23T13:19:00.000Z"),
+  };
+  const resuelta = {
+    observationId: "obs-vieja",
+    documentId: "sgc-vigencia",
+    category: "annex",
+    title: "Vigencia de Poder",
+    message: "Corrige el adjunto",
+    status: SGC_OBSERVACION_ESTADOS.RESOLVED,
+    requiresDocumentChange: true,
+    createdAt: "2026-11-19T17:11:00.000Z",
+  };
+  const armarDevolucionSinObservaciones = (checksumPrevio: string | null) => {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      documents: [{ documentId: "sgc-contract-1", category: "contract", title: "Contrato", currentVersionId: "v3" }],
+      version: 7,
+    } as never);
+    const repo = sgcRepoMock(expediente({
+      contractId: "contract-1",
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      observaciones: [resuelta],
+    }));
+    vi.mocked(repo.crearSubsanacion).mockResolvedValue(null as never);
+    repo.buscarDocumento = vi.fn().mockResolvedValue(
+      checksumPrevio ? { documentId: "sgc-contract-1", checksumSha256: checksumPrevio } : null,
+    );
+    const origen = documentoOrigenMock();
+    vi.mocked(origen.leer).mockResolvedValue({
+      bytes: new TextEncoder().encode("contrato firmado"),
+      fileName: "contrato-firmado.pdf",
+      mimeType: "application/pdf",
+    } as never);
+    const svc = new SgcIntegracionApplicationService(
+      solicitudRepoMock(detalle({ sgcObservaciones: [resuelta], docsAdjuntos: [firmadoCliente] })),
+      repo,
+      client,
+      origen,
+      CONFIG,
+    );
+    const anexos = vi.spyOn(svc, "subirAnexosDeSolicitud").mockResolvedValue([]);
+    const subir = vi.spyOn(svc, "subirDocumentoDesdeUrl").mockResolvedValue({
+      documentId: "sgc-contract-1",
+      currentVersionId: "version-new",
+    } as never);
+    return { svc, client, anexos, subir };
+  };
+
+  it("sin observaciones abiertas exige y sube una version nueva del contrato", async () => {
+    const { svc, client, subir } = armarDevolucionSinObservaciones(null);
+
+    await svc.reenviarCorreccionAlSgc("sol-1", "cliente@x.pe");
+
+    expect(subir).toHaveBeenCalledWith("sol-1", expect.objectContaining({ category: "contract", documentId: "sgc-contract-1" }));
+    expect(client.reabrirExpediente).toHaveBeenCalledTimes(1);
+  });
+
+  it("si el contrato es el mismo que ya reviso el SGC, avisa sin subir anexos ni reenviar", async () => {
+    const checksum = await sha256Hex(new TextEncoder().encode("contrato firmado"));
+    const { svc, client, anexos, subir } = armarDevolucionSinObservaciones(checksum);
+
+    await expect(svc.reenviarCorreccionAlSgc("sol-1", "cliente@x.pe")).rejects.toThrow(/versión nueva del contrato/);
+    expect(anexos).not.toHaveBeenCalled();
+    expect(subir).not.toHaveBeenCalled();
+    expect(client.reabrirExpediente).not.toHaveBeenCalled();
+  });
+});
+
+describe("SgcIntegracionApplicationService.registrarIntentoSubsanacion", () => {
+  it("clasifica exito, bloqueo local y error del SGC con el estado del expediente", async () => {
+    const repo = sgcRepoMock(expediente({ lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED }));
+    repo.registrarIntentoSubsanacion = vi.fn().mockResolvedValue(undefined);
+    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, clientMock(), documentoOrigenMock(), CONFIG);
+    const base = { solicitudId: "sol-1", origen: SGC_INTENTO_ORIGENES.CLIENTE, actor: "c@x.pe" } as const;
+
+    await svc.registrarIntentoSubsanacion(base);
+    await svc.registrarIntentoSubsanacion({ ...base, error: new DomainError("Falta firmar", API_ERROR_CODES.CONFLICT, 409) });
+    await svc.registrarIntentoSubsanacion({ ...base, error: new SgcApiError("SGC 422: Sube una versión nueva", 422) });
+
+    const llamadas = vi.mocked(repo.registrarIntentoSubsanacion!).mock.calls.map(([d]) => [d.resultado, d.httpStatus, d.sgcLifecycle]);
+    expect(llamadas).toEqual([
+      [SGC_INTENTO_RESULTADOS.EXITO, null, SGC_LIFECYCLE_STATUSES.OBSERVED],
+      [SGC_INTENTO_RESULTADOS.VALIDACION, 409, SGC_LIFECYCLE_STATUSES.OBSERVED],
+      [SGC_INTENTO_RESULTADOS.ERROR_SGC, 422, SGC_LIFECYCLE_STATUSES.OBSERVED],
+    ]);
+  });
+
+  it("nunca rompe el flujo si el registro falla", async () => {
+    const repo = sgcRepoMock(expediente());
+    repo.registrarIntentoSubsanacion = vi.fn().mockRejectedValue(new Error("db caida"));
+    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, clientMock(), documentoOrigenMock(), CONFIG);
+    await expect(svc.registrarIntentoSubsanacion({ solicitudId: "sol-1", origen: SGC_INTENTO_ORIGENES.ADMIN, actor: null })).resolves.toBeUndefined();
   });
 });
 

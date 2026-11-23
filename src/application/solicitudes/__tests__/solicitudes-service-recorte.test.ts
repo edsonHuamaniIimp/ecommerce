@@ -367,6 +367,24 @@ describe("SolicitudesApplicationService.uploadDocumento (ventanas del cliente)",
     );
   });
 
+  /* Caso ULMA: un "otro documento" (anexo sin requisito) dejaba como reemplazados a
+   * todos los anexos sin requisito del cliente, incluidas las piezas de un grupo SGC. */
+  it("un anexo sin requisito no reemplaza a otros documentos", async () => {
+    const repo = repoMock();
+    vi.mocked(repo.detalle).mockResolvedValue(detalleReserva());
+    const service = svc(repo);
+
+    await service.uploadDocumento({
+      ...base,
+      url: "/uploads/otro.pdf",
+      tipo: TIPOS_DOCUMENTO_SOLICITUD.ANEXO,
+      requisito: null,
+    });
+
+    expect(repo.crearDocumentoAdjunto).toHaveBeenCalled();
+    expect(repo.marcarDocumentosReemplazados).not.toHaveBeenCalled();
+  });
+
   it("adjunta el contrato firmado en la misma ventana", async () => {
     const repo = repoMock();
     vi.mocked(repo.detalle).mockResolvedValue(detalleReserva());

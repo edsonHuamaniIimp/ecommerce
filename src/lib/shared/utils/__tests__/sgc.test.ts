@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   comparacionTiempoConstante,
   construirIdempotencyKey,
+  debeNotificarDevolucionSgc,
+  diagnosticarFirmaSgc,
+  ordenarParaReconciliar,
   hmacSha256Hex,
   mimeDesdeNombre,
   nombreArchivoSgc,
@@ -11,7 +14,7 @@ import {
   sha256Hex,
   verificarFirmaSgc,
 } from "../sgc";
-import { SGC_IDEMPOTENCY_PREFIX, SGC_MIME_TYPE_DEFAULT } from "@/lib/shared/constants";
+import { SGC_IDEMPOTENCY_PREFIX, SGC_LIFECYCLE_STATUSES, SGC_MIME_TYPE_DEFAULT, SGC_OBSERVACION_ESTADOS } from "@/lib/shared/constants";
 
 const SECRETO = "sgc_webhook_secret";
 
@@ -175,5 +178,69 @@ describe("normalizarObservacionesSgc (campo OPCIONAL del SGC)", () => {
 
   it("devuelve arreglo vacio si viene como arreglo sin observaciones validas", () => {
     expect(normalizarObservacionesSgc([])).toEqual([]);
+  });
+});
+
+describe("ordenarParaReconciliar", () => {
+  const ahora = Date.parse("2026-11-23T20:00:00.000Z");
+  const exp = (id: string, lifecycleStatus: string | null, sync: string | null) => ({
+    id,
+    lifecycleStatus,
+    lastSyncedAt: sync ? new Date(sync) : null,
+  });
+
+  it("prioriza expedientes en curso y solo incluye terminales con mas de 24 h sin consultar", () => {
+    const orden = ordenarParaReconciliar([
+      exp("terminal-reciente", SGC_LIFECYCLE_STATUSES.FINALIZED, "2026-11-23T10:00:00.000Z"),
+      exp("terminal-viejo", SGC_LIFECYCLE_STATUSES.ACTIVE, "2026-11-20T10:00:00.000Z"),
+      exp("observado", SGC_LIFECYCLE_STATUSES.OBSERVED, "2026-11-23T19:00:00.000Z"),
+      exp("nunca", null, null),
+      exp("revision", "legal-review", "2026-11-22T11:54:00.000Z"),
+    ], ahora);
+    expect(orden.map((e) => e.id)).toEqual(["nunca", "revision", "observado", "terminal-viejo"]);
+  });
+});
+
+describe("debeNotificarDevolucionSgc", () => {
+  const obs = (id: string, message = "Corrige el contrato") => ({
+    observationId: id,
+    message,
+    status: SGC_OBSERVACION_ESTADOS.OPEN,
+    requiresDocumentChange: true,
+  });
+  const base = { preservar: false, esDevolucion: true, estabaDevuelto: true };
+
+  it("no reenvia el aviso en cada sincronizacion de la misma devolucion", () => {
+    expect(debeNotificarDevolucionSgc({ ...base, observacionesAbiertas: [obs("a")], observacionesPrevias: [obs("a")] })).toBe(false);
+  });
+
+  it("avisa al entrar en devolucion y cuando aparecen observaciones nuevas", () => {
+    expect(debeNotificarDevolucionSgc({ ...base, estabaDevuelto: false, observacionesAbiertas: [obs("a")], observacionesPrevias: [] })).toBe(true);
+    expect(debeNotificarDevolucionSgc({ ...base, observacionesAbiertas: [obs("a"), obs("b")], observacionesPrevias: [obs("a")] })).toBe(true);
+  });
+
+  it("no avisa con bypass ni cuando la devolucion no exige cambio documental", () => {
+    expect(debeNotificarDevolucionSgc({ ...base, preservar: true, estabaDevuelto: false, observacionesAbiertas: [], observacionesPrevias: [] })).toBe(false);
+    expect(debeNotificarDevolucionSgc({
+      ...base,
+      estabaDevuelto: false,
+      observacionesAbiertas: [{ ...obs("a"), requiresDocumentChange: false }],
+      observacionesPrevias: [],
+    })).toBe(false);
+  });
+});
+
+describe("diagnosticarFirmaSgc", () => {
+  it("informa el motivo del rechazo sin exponer el secreto", async () => {
+    const ahora = 1_800_000_000;
+    const payload = '{"eventId":"e1"}';
+    const firma = await hmacSha256Hex(SECRETO, `${ahora}.${payload}`);
+    const header = `t=${ahora},v1=${firma}`;
+    expect(await diagnosticarFirmaSgc({ secret: SECRETO, header, payload, ahoraSegundos: ahora })).toBeNull();
+    expect(await diagnosticarFirmaSgc({ secret: "", header, payload, ahoraSegundos: ahora })).toBe("sin_secreto");
+    expect(await diagnosticarFirmaSgc({ secret: SECRETO, header: null, payload, ahoraSegundos: ahora })).toBe("sin_header");
+    expect(await diagnosticarFirmaSgc({ secret: SECRETO, header: "basura", payload, ahoraSegundos: ahora })).toBe("header_invalido");
+    expect(await diagnosticarFirmaSgc({ secret: SECRETO, header, payload, ahoraSegundos: ahora + 3600 })).toBe("fuera_de_ventana");
+    expect(await diagnosticarFirmaSgc({ secret: "otro", header, payload, ahoraSegundos: ahora })).toBe("firma_no_coincide");
   });
 });

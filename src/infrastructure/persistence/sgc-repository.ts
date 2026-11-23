@@ -6,6 +6,7 @@ import type {
   CrearSgcDocumentoData,
   CrearSgcExpedienteData,
   ISgcRepository,
+  RegistrarIntentoSubsanacionData,
   SgcSubsanacionEntity,
 } from "@/domain/ports/sgc-repository";
 import type { SgcDocumentoEntity, SgcExpedienteEntity } from "@/domain/models/sgc";
@@ -153,6 +154,21 @@ export class SgcPrismaRepository implements ISgcRepository {
       },
     });
     return mapDocumento(row);
+  }
+
+  async registrarIntentoSubsanacion(data: RegistrarIntentoSubsanacionData): Promise<void> {
+    await prisma.sgcSubsanacionIntento.create({
+      data: {
+        ...data,
+        mensaje: data.mensaje?.slice(0, 1000) ?? null,
+        detalle: (data.detalle ?? undefined) as Prisma.InputJsonValue | undefined,
+      },
+    });
+  }
+
+  async buscarDocumento(documentId: string): Promise<SgcDocumentoEntity | null> {
+    const row = await prisma.sgcDocumento.findUnique({ where: { documentId } });
+    return row ? mapDocumento(row) : null;
   }
 
   async actualizarDocumento(documentId: string, data: ActualizarSgcDocumentoData): Promise<void> {

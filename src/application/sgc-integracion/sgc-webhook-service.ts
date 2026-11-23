@@ -3,13 +3,13 @@ import type { ISgcWebhookRepository } from "@/domain/ports/sgc-webhook-repositor
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { SgcObservacionDocumento, SgcWebhookPayload } from "@/domain/models/sgc";
-import { SGC_EVENT_TYPES, SGC_FINALIZATION, SGC_LIFECYCLE_STATUSES, SGC_STAGES } from "@/lib/shared/constants";
+import { SGC_EVENT_TYPES, SGC_FINALIZATION, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, SGC_STAGES } from "@/lib/shared/constants";
 import type { SgcStage } from "@/lib/shared/constants";
 import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-integracion-service";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
-import { normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
+import { debeNotificarDevolucionSgc, normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
 import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
 import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
@@ -149,10 +149,23 @@ export class SgcWebhookApplicationService {
       cambios.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
       cambios.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
     const motivoNuevo = cambios.devolucionMotivo ?? null;
+    const abiertasEvento = (cambios.observaciones ?? []).filter(
+      (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
+    );
+    /* Mismo criterio que la sincronizacion: transicion u observaciones nuevas por id.
+     * El `reason` solo se compara contra el guardado (mismo campo) cuando la devolucion
+     * no trae observaciones por documento (otra ronda sin `observations[]`). */
     const notificarDevolucion =
       esDevolucion &&
       cambios.devolucionRequiereCambio !== false &&
-      (!estadoPrevioDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo));
+      (debeNotificarDevolucionSgc({
+        preservar: false,
+        esDevolucion,
+        estabaDevuelto: estadoPrevioDevuelto,
+        observacionesAbiertas: abiertasEvento,
+        observacionesPrevias: expediente.observaciones,
+      }) ||
+        (abiertasEvento.length === 0 && motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo));
     /*
      * Regeneracion idempotente aunque la notificacion ya se haya enviado: si la
      * regeneracion fallo en una entrega anterior, el cliente no tendria boton de firma.

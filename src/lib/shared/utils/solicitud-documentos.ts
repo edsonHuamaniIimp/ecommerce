@@ -150,6 +150,41 @@ export interface EstadoCorreccionSgc {
   faltantes: FaltanteCorreccionSgc[];
 }
 
+/** Estado de una pieza de un grupo v11 del SGC (`missingDocuments[].pieces[]`). */
+export interface EstadoPiezaSgc<D extends DocumentoLike = DocumentoLike> {
+  id: string;
+  title: string;
+  /** El SGC ya acepto un archivo para la pieza. */
+  aceptada: boolean;
+  /** Archivo vigente del cliente vinculado a la pieza (el mas reciente), posterior a la observacion. */
+  documento: D | null;
+}
+
+/**
+ * Estado por pieza de una observacion agrupada v11. Un archivo cubre una pieza solo
+ * por vinculo explicito (`sgcPieceId`); nunca por nombre, titulo u orden.
+ * Devuelve `[]` si la observacion no trae piezas.
+ */
+export function piezasObservacionSgc<D extends DocumentoLike>(
+  s: { userId?: string | null; docsAdjuntos?: D[] | null },
+  o: SgcObservacionLike,
+): EstadoPiezaSgc<D>[] {
+  const piezas = o.pieces?.filter((piece) => Boolean(piece?.id && piece?.title)) ?? [];
+  if (piezas.length === 0) return [];
+  const obsMs = dateUtils.toMs(o.createdAt ?? null);
+  const docs = (s.docsAdjuntos ?? [])
+    .filter((d) => !d.estado || d.estado === ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO)
+    .filter((d) => (d.userId ?? null) === (s.userId ?? null))
+    .filter((d) => obsMs === null || fechaDoc(d) > obsMs)
+    .sort(porFechaDesc);
+  return piezas.map((piece) => ({
+    id: piece.id,
+    title: piece.title,
+    aceptada: Boolean(piece.acceptedDocumentId),
+    documento: docs.find((d) => d.sgcPieceId === piece.id) ?? null,
+  }));
+}
+
 /**
  * Calcula cuantas correcciones pide el SGC y cuantas estan cubiertas.
  * Regla v7: una observacion abierta = un archivo (version o archivo nuevo).
@@ -176,20 +211,16 @@ export function estadoCorreccionSgc(s: SolicitudDocumentosGate): EstadoCorreccio
   for (const o of observaciones) {
     const obsMs = dateUtils.toMs(o.createdAt ?? null);
     const esNuevo = !o.documentId || o.requiresNewDocument === true;
-    const piezas = o.pieces?.filter((piece) => Boolean(piece?.id && piece?.title)) ?? null;
-    if (piezas && piezas.length > 0) {
+    const piezas = piezasObservacionSgc(s, o);
+    if (piezas.length > 0) {
       requeridos += piezas.length;
       for (const piece of piezas) {
-        if (piece.acceptedDocumentId) {
-          cubiertos += 1;
-          continue;
+        if (piece.documento) {
+          /* El archivo de la pieza no puede cubrir otra observacion. */
+          const idx = docs.indexOf(piece.documento);
+          if (idx >= 0) usados.add(claveDoc(piece.documento, idx));
         }
-        const local = docs.find((d, i) => {
-          if (d.sgcPieceId !== piece.id || !esCliente(d) || usados.has(claveDoc(d, i))) return false;
-          return obsMs === null || (dateUtils.toMs(d.createdAt ?? null) ?? 0) > obsMs;
-        });
-        if (local) {
-          usados.add(claveDoc(local, docs.indexOf(local)));
+        if (piece.aceptada || piece.documento) {
           cubiertos += 1;
         } else {
           faltantes.push({

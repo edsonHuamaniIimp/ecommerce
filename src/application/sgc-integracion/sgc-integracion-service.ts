@@ -16,7 +16,10 @@ import type {
   SgcUrlDescarga,
 } from "@/domain/models/sgc";
 import { SgcApiError } from "@/domain/models/sgc";
+import { DomainError } from "@/domain/errors/domain-error";
 import {
+  API_ERROR_CODES,
+  SGC_INTENTO_RESULTADOS,
   SGC_APPROVAL_RESULT,
   SGC_DOCUMENT_CATEGORIES,
   SGC_DOCUMENTO_ESTADO,
@@ -36,8 +39,8 @@ import {
   ESTADOS_DOCUMENTO_SOLICITUD,
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
-import type { SgcDocumentCategory } from "@/lib/shared/constants";
-import { construirIdempotencyKey, extensionArchivo, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
+import type { SgcDocumentCategory, SgcIntentoOrigen } from "@/lib/shared/constants";
+import { construirIdempotencyKey, debeNotificarDevolucionSgc, extensionArchivo, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, ordenarParaReconciliar, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
@@ -46,7 +49,7 @@ import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
 import { esAprobadoSgc } from "@/lib/shared/utils/estado-stand";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { esObservacionSgcContrato } from "@/lib/shared/utils/solicitud-documentos";
+import { esObservacionSgcContrato, estadoCorreccionSgc } from "@/lib/shared/utils/solicitud-documentos";
 
 export interface SgcIntegracionConfig {
   enabled: boolean;
@@ -389,20 +392,16 @@ export class SgcIntegracionApplicationService {
         expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
       const motivoNuevo = observacionesAbiertas[0]?.message ?? null;
-      const clavesPrevias = new Set(
-        (expediente.observaciones ?? []).map((o) => o.observationId ?? `${o.title ?? ""}|${o.message}`),
-      );
-      const nuevas = observacionesAbiertas.filter(
-        (o) => !clavesPrevias.has(o.observationId ?? `${o.title ?? ""}|${o.message}`),
-      );
       const requiereCambio =
         observacionesAbiertas.length === 0 ||
         observacionesAbiertas.some((o) => o.requiresDocumentChange !== false);
-      const notificar =
-        !preservar &&
-        requiereCambio &&
-        ((esDevolucion && (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))) ||
-          (!esDevolucion && nuevas.length > 0));
+      const notificar = debeNotificarDevolucionSgc({
+        preservar: Boolean(preservar),
+        esDevolucion,
+        estabaDevuelto,
+        observacionesAbiertas,
+        observacionesPrevias: expediente.observaciones,
+      });
       /* La regeneracion se reintenta en cada sync aunque la notificacion ya se haya
        * enviado: si fallo en la primera pasada, el cliente nunca veria el boton de firma. */
       const resultadoContrato =
@@ -447,8 +446,7 @@ export class SgcIntegracionApplicationService {
 
     /* Acotado por corrida (limite del SGC: 120 solicitudes/min por clave, guia Â§1.1);
      * rotacion por `lastSyncedAt` ascendente (nunca sincronizados primero). */
-    const expedientes = [...(await this.repo.listarConContractId())]
-      .sort((a, b) => (a.lastSyncedAt?.getTime() ?? 0) - (b.lastSyncedAt?.getTime() ?? 0))
+    const expedientes = ordenarParaReconciliar(await this.repo.listarConContractId(), Date.now())
       .slice(0, SGC_RECONCILIAR_MAX_POR_CORRIDA);
     let sincronizados = 0;
     const inicio = Date.now();
@@ -508,20 +506,16 @@ export class SgcIntegracionApplicationService {
           expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
           expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
         const motivoNuevo = observacionesAbiertas[0]?.message ?? null;
-        const clavesPrevias = new Set(
-          (expediente.observaciones ?? []).map((o) => o.observationId ?? `${o.title ?? ""}|${o.message}`),
-        );
-        const nuevas = observacionesAbiertas.filter(
-          (o) => !clavesPrevias.has(o.observationId ?? `${o.title ?? ""}|${o.message}`),
-        );
         const requiereCambio =
           observacionesAbiertas.length === 0 ||
           observacionesAbiertas.some((o) => o.requiresDocumentChange !== false);
-        const notificar =
-          !expediente.bypassAprobado &&
-          requiereCambio &&
-          ((esDevolucion && (!estabaDevuelto || (motivoNuevo !== null && motivoNuevo !== expediente.devolucionMotivo))) ||
-            (!esDevolucion && nuevas.length > 0));
+        const notificar = debeNotificarDevolucionSgc({
+          preservar: Boolean(expediente.bypassAprobado),
+          esDevolucion,
+          estabaDevuelto,
+          observacionesAbiertas,
+          observacionesPrevias: expediente.observaciones,
+        });
         /* Reintento idempotente: cubre un fallo de regeneracion en el webhook/lectura previa. */
         const resultadoContrato =
           !expediente.bypassAprobado && esDevolucion && requiereCambio
@@ -555,7 +549,12 @@ export class SgcIntegracionApplicationService {
         sincronizados += 1;
       } catch (err) {
         const mensaje = err instanceof Error ? err.message : "Error desconocido al reconciliar";
-        await this.repo.actualizarExpediente(expediente.id, { lastError: mensaje.slice(0, MAX_ERROR_LENGTH) });
+        /* `lastSyncedAt` tambien avanza en el error: si no, el expediente fallido
+         * (p. ej. un 404 de un contrato inexistente) quedaba primero en cada corrida
+         * y consumia todo el presupuesto del cron. */
+        await this.repo
+          .actualizarExpediente(expediente.id, { lastError: mensaje.slice(0, MAX_ERROR_LENGTH), lastSyncedAt: new Date() })
+          .catch(() => undefined);
       }
     }
     return sincronizados;
@@ -829,6 +828,70 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
+   * Registra un intento de solicitar nueva revision al SGC (exito o error) con el estado
+   * del expediente y lo que faltaba. Best-effort: nunca rompe el flujo del usuario.
+   * `error` ausente = exito; `DomainError` = bloqueo local; `SgcApiError` = error del SGC.
+   */
+  async registrarIntentoSubsanacion(params: {
+    solicitudId: string;
+    origen: SgcIntentoOrigen;
+    actor: string | null;
+    error?: unknown;
+    extra?: Record<string, unknown>;
+  }): Promise<void> {
+    if (typeof this.repo.registrarIntentoSubsanacion !== "function") return;
+    try {
+      const err = params.error;
+      const resultado = err === undefined
+        ? SGC_INTENTO_RESULTADOS.EXITO
+        : err instanceof DomainError
+          ? SGC_INTENTO_RESULTADOS.VALIDACION
+          : err instanceof SgcApiError
+            ? SGC_INTENTO_RESULTADOS.ERROR_SGC
+            : SGC_INTENTO_RESULTADOS.ERROR;
+      const httpStatus = err instanceof DomainError || err instanceof SgcApiError ? err.status : null;
+      const mensaje = err === undefined ? null : err instanceof Error ? err.message : String(err);
+      const [detalle, expediente] = await Promise.all([
+        this.solicitudRepo.detalle(params.solicitudId).catch(() => null),
+        this.repo.findExpedientePorSolicitud(params.solicitudId).catch(() => null),
+      ]);
+      const correccion = detalle ? estadoCorreccionSgc(detalle) : null;
+      const abiertas = (expediente?.observaciones ?? [])
+        .filter((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED)
+        .map((o) => ({
+          observationId: o.observationId ?? null,
+          category: o.category ?? null,
+          title: o.title ?? null,
+          documentId: o.documentId ?? null,
+          piezas: o.pieces?.length ?? 0,
+        }));
+      await this.repo.registrarIntentoSubsanacion({
+        solicitudId: params.solicitudId,
+        origen: params.origen,
+        actor: params.actor,
+        resultado,
+        httpStatus,
+        mensaje,
+        sgcLifecycle: expediente?.lifecycleStatus ?? null,
+        sgcStage: expediente?.stage ?? null,
+        requeridos: correccion?.requeridos ?? null,
+        cubiertos: correccion?.cubiertos ?? null,
+        detalle: {
+          faltantes: correccion?.faltantes ?? [],
+          observacionesAbiertas: abiertas,
+          contractId: expediente?.contractId ?? null,
+          ...(params.extra ?? {}),
+        },
+      });
+    } catch (registroError) {
+      console.warn("[sgc] No se pudo registrar el intento de subsanacion", {
+        solicitudId: params.solicitudId,
+        mensaje: registroError instanceof Error ? registroError.message : String(registroError),
+      });
+    }
+  }
+
+  /**
    * Reenvía el trámite al SGC tras una devolución: sube el contrato firmado **solo si la
    * observación es del contrato** (v7: si solo observaron anexos, no hace falta otra versión
    * del principal), versiona los anexos corregidos y reabre la ronda con `/resend`.
@@ -870,29 +933,56 @@ export class SgcIntegracionApplicationService {
       return { reenviado: true, documento: null };
     }
 
-    /* Devolucion del SGC: primero se versionan los anexos corregidos (el SGC exige que la
-     * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
-     * cuando el lifecycle es rejected/observed). */
-    await this.subirAnexosDeSolicitud(solicitudId);
-
-    const observaciones = detalle.sgcObservaciones ?? [];
+    /* Guia §8/§8.2 y escenarios E/F: el contrato puede quedar igual SOLO si la devolucion
+     * trae observaciones por documento y ninguna apunta al contrato. Una devolucion con
+     * cambio documental sin `observations[]` abiertas, o un rechazo, exige una version
+     * nueva del documento principal antes de `/resend` (si no, el SGC responde 422).
+     * Se usan las observaciones frescas del SGC: la copia local puede traer solo
+     * observaciones ya resueltas de rondas anteriores. */
+    const observacionesFrescas =
+      this.observacionesDesdeDetalle(actual, expediente.observaciones) ?? detalle.sgcObservaciones ?? [];
+    const abiertas = observacionesFrescas.filter(
+      (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
+    );
     const requiereContrato =
-      observaciones.length === 0 ||
-      observaciones.some(
-        (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && esObservacionSgcContrato(o),
-      );
+      actual.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED ||
+      abiertas.length === 0 ||
+      abiertas.some(esObservacionSgcContrato);
 
-    let documento: SgcDocumentoEntity | null = null;
+    /* Contrato a versionar (si aplica). Se resuelve y valida ANTES de subir anexos: si el
+     * reenvio va a fallar porque el contrato no cambio, no se dejan versiones sueltas en
+     * el SGC (caso COMISUB: anexo versionado y luego 422 en /resend). */
+    let pieza: { url: string; nombre: string } | null = null;
+    const contratoSgc = actual.documents.find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT) ?? null;
     if (requiereContrato) {
       /* Contrato firmado mas reciente (activo) del cliente, o el contrato disponible. */
       const firmado = this.ultimoDocumento(detalle.docsAdjuntos, (d) =>
         this.documentoVigente(d) && d.categoria === TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO);
-      const pieza = firmado
+      pieza = firmado
         ? { url: firmado.url, nombre: firmado.nombre }
         : this.seleccionarContrato(detalle);
-      if (!pieza) return sinDocumento;
-      const contratoSgc = actual.documents.find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT);
-      if (!contratoSgc) return sinDocumento;
+      if (!pieza || !contratoSgc) return sinDocumento;
+      const previo = await this.repo.buscarDocumento?.(contratoSgc.documentId).catch(() => null);
+      if (previo?.checksumSha256) {
+        const contenido = await this.documentoOrigen.leer(pieza.url).catch(() => null);
+        const checksum = contenido ? await sha256Hex(contenido.bytes) : null;
+        if (checksum && checksum === previo.checksumSha256) {
+          throw new DomainError(
+            "El área legal pide una versión nueva del contrato firmado. El contrato vigente es el mismo que ya revisó: firma nuevamente el contrato y vuelve a solicitar la revisión.",
+            API_ERROR_CODES.CONFLICT,
+            409,
+          );
+        }
+      }
+    }
+
+    /* Devolucion del SGC: se versionan los anexos corregidos (el SGC exige que la
+     * correccion incluya las piezas actualizadas; `subirAnexosDeSolicitud` solo versiona
+     * cuando el lifecycle es rejected/observed). */
+    await this.subirAnexosDeSolicitud(solicitudId);
+
+    let documento: SgcDocumentoEntity | null = null;
+    if (requiereContrato && pieza && contratoSgc) {
       const stands = detalle.standCode || detalle.standCodes.join("-") || solicitudId.slice(0, 8);
       documento = await this.subirDocumentoDesdeUrl(solicitudId, {
         category: SGC_DOCUMENT_CATEGORIES.CONTRACT,

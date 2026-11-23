@@ -12,7 +12,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, type SgcObservacionLike } from "@/lib/shared/utils/solicitud-documentos";
+import { esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, piezasObservacionSgc, type SgcObservacionLike } from "@/lib/shared/utils/solicitud-documentos";
 import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
@@ -178,11 +178,14 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
       return true;
     });
     if (validos.length === 0) return;
+    /* Una pieza del SGC recibe exactamente un archivo: nunca se reparte un lote. */
+    const piezaDestino = piezaRef.current;
+    const aSubir = piezaDestino ? validos.slice(0, 1) : validos;
     setUploading(true);
     setError(null);
     try {
       const subidos: Pendiente[] = [];
-      for (const file of validos) {
+      for (const file of aSubir) {
         const url = await solicitudesService.subirArchivo(file);
         subidos.push({
           url,
@@ -194,7 +197,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           piezaId: piezaRef.current,
         });
       }
-      setPendientes(prev => [...prev, ...subidos]);
+      /* Elegir otro archivo para la misma pieza reemplaza el anterior aun no enviado. */
+      setPendientes(prev => [
+        ...(piezaDestino ? prev.filter((p) => p.piezaId !== piezaDestino) : prev),
+        ...subidos,
+      ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al subir");
     }
@@ -217,6 +224,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     if (!input) return;
     const extensiones = requisito ? extensionesPermitidasAnexo(requisito) : ANEXOS_OTROS_EXTENSIONES;
     input.accept = extensiones.map((extension) => `.${extension}`).join(",");
+    /* Para una pieza del SGC se elige un solo archivo; el resto admite varios. */
+    input.multiple = !piezaId;
     input.click();
   };
 
@@ -513,7 +522,15 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
       if (d.sgcTitle && (d.sgcTitle === o.title || titulos.includes(d.sgcTitle))) return true;
       return Boolean(o.requisito && d.requisito === o.requisito);
     });
+  /* Piezas v11 que aun no tienen archivo (ni aceptado, ni guardado, ni listo para enviar). */
+  const piezasFaltantes = new Set(
+    correccionSgcAnexos.faltantes.map((f) => f.pieceId).filter((id): id is string => Boolean(id)),
+  );
   const piezasSinArchivo = observacionesSgcAnexos.some((o) => {
+    if (o.pieces?.length) {
+      return piezasObservacionSgc(solicitud, o).some((pieza) =>
+        piezasFaltantes.has(pieza.id) && !pendientes.some((p) => p.piezaId === pieza.id));
+    }
     const tieneFaltante = correccionSgcAnexos.faltantes.some((f) =>
       o.observationId
         ? f.observationId === o.observationId
@@ -522,8 +539,11 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
     if (!tieneFaltante) return false;
     return aceptadosObservacion(o) + pendientesDeObservacion(o).length < totalEsperadoObservacion(o);
   });
-  const pendientesSgcAnexos = pendientes.filter(
-    (p) => Boolean(p.observacionId || p.observacionTitulo || p.requisito),
+  /* Solo suma lo que cubre algo aun faltante: reemplazar una pieza ya cubierta no avanza el contador. */
+  const pendientesSgcAnexos = pendientes.filter((p) =>
+    p.piezaId
+      ? piezasFaltantes.has(p.piezaId)
+      : Boolean(p.observacionId || p.observacionTitulo || p.requisito),
   ).length;
   const cubiertosSgcAnexos = Math.min(
     correccionSgcAnexos.requeridos,
@@ -853,6 +873,83 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                     ? f.observationId === o.observationId
                     : f.title === (o.title ?? o.nombre ?? "Documento"),
                 );
+                /* Grupo v11 con piezas: cada pieza tiene su propio boton y recibe un solo
+                 * archivo con su pieceId fijo. El estado sale de los archivos guardados
+                 * (vinculo explicito), no del orden de carga. */
+                const estadoPiezas = piezasObservacionSgc(solicitud, o);
+                if (estadoPiezas.length > 0) {
+                  return (
+                    <div
+                      key={o.observationId ?? `obs-sgc-piezas-${i}`}
+                      className={`rounded-lg border px-3 py-2.5 text-xs ${corregida ? "border-border/70 bg-background" : "border-warning/50 bg-warning/5"}`}
+                    >
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        {o.title ?? o.nombre ?? "Documentos adicionales"}
+                        <Badge className="pointer-events-none border-primary/20 bg-primary/10 text-[9px] text-primary">
+                          <span>Archivo nuevo</span>
+                        </Badge>
+                      </span>
+                      <span className="mt-1 block text-[10px] text-muted-foreground">
+                        El SGC pide {estadoPiezas.length} archivo{estadoPiezas.length === 1 ? "" : "s"} para este grupo. Adjunta uno en cada fila.
+                      </span>
+                      <div className="mt-2 space-y-1.5">
+                        {estadoPiezas.map((pieza) => {
+                          const idxPieza = pendientes.findIndex((p) => p.piezaId === pieza.id);
+                          const enEspera = idxPieza >= 0 ? pendientes[idxPieza] : null;
+                          const estado = pieza.aceptada
+                            ? "Recibido"
+                            : enEspera
+                              ? "Listo para enviar"
+                              : pieza.documento
+                                ? "Adjuntado"
+                                : "Pendiente";
+                          const completa = pieza.aceptada || Boolean(pieza.documento) || Boolean(enEspera);
+                          return (
+                            <div key={pieza.id} className="flex items-center gap-2 rounded-md border border-border/60 bg-background px-2 py-1.5">
+                              {completa
+                                ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                                : <Clock className="h-3.5 w-3.5 shrink-0 text-warning" />}
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[11px]" title={pieza.title}>{pieza.title}</span>
+                                <span className={`block truncate text-[10px] ${completa ? "text-emerald-600" : "text-muted-foreground"}`}>
+                                  {estado}{enEspera ? ` · ${enEspera.nombre}` : ""}
+                                </span>
+                              </span>
+                              {pieza.documento?.url && !enEspera && (
+                                <a href={pieza.documento.url} target="_blank" rel="noreferrer" className="shrink-0 text-primary hover:underline">Ver</a>
+                              )}
+                              {!pieza.aceptada && (enEspera ? (
+                                <button
+                                  type="button"
+                                  className="shrink-0 text-red-500 hover:text-destructive"
+                                  aria-label={`Quitar archivo de ${pieza.title}`}
+                                  onClick={() => handleRemove(idxPieza)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 shrink-0 gap-1.5 rounded-full px-2.5 text-[11px]"
+                                  disabled={uploading}
+                                  onClick={() => abrirSelector(null, o.observationId ?? null, pieza.title, null, pieza.id)}
+                                >
+                                  <Upload className="h-3 w-3" />
+                                  <span>{pieza.documento ? "Reemplazar" : "Adjuntar"}</span>
+                                </Button>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {corregida
+                        ? <span className="mt-1.5 block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
+                        : <span className="mt-1.5 block text-[10px] text-destructive">Area legal: {o.message}</span>}
+                    </div>
+                  );
+                }
                 const pendientesObs = pendientesDeObservacion(o);
                 const idxPendiente = pendientes.findIndex(coincidePendienteObservacion(o));
                 const pendiente = idxPendiente >= 0 ? pendientes[idxPendiente] : null;
@@ -862,28 +959,13 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                   Math.max(aceptadosObservacion(o), documentosObservacion(o).length),
                 );
                 const siguienteIndice = aceptados + pendientesObs.length;
-                const siguientePieza = o.pieces?.find((piece) =>
-                  !piece.acceptedDocumentId && !pendientes.some((p) => p.piezaId === piece.id),
-                );
-                const tituloSiguiente = o.pieces?.length
-                  ? siguientePieza?.title ?? null
-                  : siguienteIndice < totalEsperados
-                    ? o.expectedDocumentTitles?.[siguienteIndice] ?? o.title ?? o.nombre ?? `Archivo ${siguienteIndice + 1}`
-                    : null;
-                const piezaId = siguientePieza?.id ?? null;
+                /* Las observaciones con piezas se resuelven arriba; aqui solo grupos sin piezas. */
+                const tituloSiguiente = siguienteIndice < totalEsperados
+                  ? o.expectedDocumentTitles?.[siguienteIndice] ?? o.title ?? o.nombre ?? `Archivo ${siguienteIndice + 1}`
+                  : null;
+                const piezaId = null;
                 const numeroSiguiente = Math.min(totalEsperados, siguienteIndice + 1);
-                const piezasVisibles = o.pieces?.length
-                  ? o.pieces.map((piece) => ({
-                      key: piece.id,
-                      title: piece.title,
-                      estado: piece.acceptedDocumentId
-                        ? "Recibido"
-                        : pendientes.some((p) => p.piezaId === piece.id) ||
-                            documentosObservacion(o).some((d) => d.sgcPieceId === piece.id)
-                          ? "Listo para enviar"
-                          : "Pendiente",
-                    }))
-                  : Array.from({ length: totalEsperados }, (_, idx) => ({
+                const piezasVisibles = Array.from({ length: totalEsperados }, (_, idx) => ({
                       key: `esperado-${idx}`,
                       title: o.expectedDocumentTitles?.[idx] ?? `Archivo ${idx + 1}`,
                       estado: idx < aceptados

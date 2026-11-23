@@ -1,11 +1,65 @@
 import {
   ANEXOS_REQUERIDOS,
   SGC_IDEMPOTENCY_PREFIX,
+  SGC_LIFECYCLE_STATUSES,
   SGC_MIME_TYPES,
   SGC_MIME_TYPE_DEFAULT,
+  SGC_OBSERVACION_ESTADOS,
+  SGC_RECONCILIAR_TERMINALES_CADA_MS,
   SGC_WEBHOOK_TOLERANCE_SECONDS,
 } from "@/lib/shared/constants";
 import type { SgcObservacionDocumento } from "@/domain/models/sgc";
+
+/** Expediente con aprobacion final (vigente o finalizado). */
+export function esLifecycleTerminalSgc(lifecycle: string | null | undefined): boolean {
+  return lifecycle === SGC_LIFECYCLE_STATUSES.ACTIVE || lifecycle === SGC_LIFECYCLE_STATUSES.FINALIZED;
+}
+
+/**
+ * Orden de consulta del cron de reconciliacion:
+ * 1. expedientes en curso, del menos recientemente sincronizado al mas reciente;
+ * 2. terminales, solo si llevan mas de 24 h sin consultar.
+ * Un expediente que fallo tambien actualiza `lastSyncedAt`, asi que no se queda
+ * primero en la cola para siempre.
+ */
+export function ordenarParaReconciliar<T extends { lifecycleStatus?: string | null; lastSyncedAt?: Date | null }>(
+  expedientes: readonly T[],
+  ahora: number,
+): T[] {
+  const ms = (e: T) => e.lastSyncedAt?.getTime() ?? 0;
+  const enCurso = expedientes.filter((e) => !esLifecycleTerminalSgc(e.lifecycleStatus));
+  const terminales = expedientes.filter(
+    (e) => esLifecycleTerminalSgc(e.lifecycleStatus) && ahora - ms(e) >= SGC_RECONCILIAR_TERMINALES_CADA_MS,
+  );
+  return [...enCurso.sort((a, b) => ms(a) - ms(b)), ...terminales.sort((a, b) => ms(a) - ms(b))];
+}
+
+/**
+ * Decide si una sincronizacion (lectura/cron) debe avisar al cliente de una devolucion.
+ * Solo avisa al entrar en devolucion o cuando aparecen observaciones abiertas nuevas
+ * (por `observationId`). Nunca compara textos: el motivo del webhook (`reason`) y el
+ * mensaje de la observacion son distintos y la comparacion reenviaba el aviso en cada
+ * sincronizacion.
+ */
+export function debeNotificarDevolucionSgc(params: {
+  preservar: boolean;
+  esDevolucion: boolean;
+  estabaDevuelto: boolean;
+  observacionesAbiertas: readonly SgcObservacionDocumento[];
+  observacionesPrevias: readonly SgcObservacionDocumento[] | null | undefined;
+}): boolean {
+  if (params.preservar) return false;
+  const abiertas = params.observacionesAbiertas;
+  const requiereCambio = abiertas.length === 0 || abiertas.some((o) => o.requiresDocumentChange !== false);
+  if (!requiereCambio) return false;
+  const clave = (o: SgcObservacionDocumento) => o.observationId ?? `${o.title ?? ""}|${o.message}`;
+  /* Una observacion que antes estaba abierta no es nueva; una que estaba resuelta y
+   * vuelve a abrirse con el mismo id tampoco se reavisa (el SGC crea ids nuevos por ronda). */
+  const previas = new Set((params.observacionesPrevias ?? []).map(clave));
+  const nuevas = abiertas.filter((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && !previas.has(clave(o)));
+  if (params.esDevolucion && !params.estabaDevuelto) return true;
+  return nuevas.length > 0;
+}
 
 /**
  * Construye la Idempotency-Key determinista para crear un expediente en el SGC
@@ -84,6 +138,24 @@ export async function verificarFirmaSgc(params: {
   if (Math.abs(params.ahoraSegundos - parsed.timestamp) > SGC_WEBHOOK_TOLERANCE_SECONDS) return false;
   const esperada = await hmacSha256Hex(params.secret, `${parsed.timestamp}.${params.payload}`);
   return comparacionTiempoConstante(esperada, parsed.firma.toLowerCase());
+}
+
+/** Motivo por el que un webhook del SGC no pasa la verificacion (diagnostico sin secretos). */
+export type MotivoFirmaSgcInvalida = "sin_secreto" | "sin_header" | "header_invalido" | "fuera_de_ventana" | "firma_no_coincide";
+
+/** Igual que `verificarFirmaSgc`, pero informa el motivo del rechazo (null = valida). */
+export async function diagnosticarFirmaSgc(params: {
+  secret: string;
+  header: string | null;
+  payload: string;
+  ahoraSegundos: number;
+}): Promise<MotivoFirmaSgcInvalida | null> {
+  if (!params.secret) return "sin_secreto";
+  if (!params.header) return "sin_header";
+  const parsed = parsearFirmaSgc(params.header);
+  if (!parsed) return "header_invalido";
+  if (Math.abs(params.ahoraSegundos - parsed.timestamp) > SGC_WEBHOOK_TOLERANCE_SECONDS) return "fuera_de_ventana";
+  return (await verificarFirmaSgc(params)) ? null : "firma_no_coincide";
 }
 
 /** Mime declarado exacto segun la extension del archivo (formatos admitidos por el SGC). */

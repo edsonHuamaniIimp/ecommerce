@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { services } from "@/lib/server/services";
 import { success, error } from "@/lib/server/api-response";
-import { API_ERROR_CODES, PERMISSIONS, SGC_DOCUMENT_CATEGORIES, SGC_OUTBOX_OPERACION, SGC_SUBSANACION_MODOS } from "@/lib/shared/constants";
+import { API_ERROR_CODES, PERMISSIONS, SGC_DOCUMENT_CATEGORIES, SGC_INTENTO_ORIGENES, SGC_OUTBOX_OPERACION, SGC_SUBSANACION_MODOS } from "@/lib/shared/constants";
+import { DomainError } from "@/domain/errors/domain-error";
 import type { SgcDocumentCategory, SgcSubsanacionModo } from "@/lib/shared/constants";
 import { getSession } from "@/lib/server/auth";
 import { esErrorRevisionEnCurso } from "@/lib/shared/utils/sgc";
@@ -197,14 +198,27 @@ export const sgcController = {
     const body = (await request.json()) as { solicitudId?: string };
     if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
 
-    const resultado = await services.sgc.reenviarCorreccionAlSgc(body.solicitudId, session.email);
-    if (!resultado.reenviado) {
-      return error(
-        API_ERROR_CODES.VALIDATION,
-        "Falta el contrato firmado del cliente (o el expediente no tiene contrato en el SGC).",
-        400,
-      );
+    const solicitudId = body.solicitudId;
+    const registrar = (errorIntento?: unknown) =>
+      services.sgc.registrarIntentoSubsanacion({
+        solicitudId,
+        origen: SGC_INTENTO_ORIGENES.ADMIN,
+        actor: session.email,
+        error: errorIntento,
+      });
+    let resultado: Awaited<ReturnType<typeof services.sgc.reenviarCorreccionAlSgc>>;
+    try {
+      resultado = await services.sgc.reenviarCorreccionAlSgc(solicitudId, session.email);
+    } catch (err) {
+      await registrar(err);
+      throw err;
     }
+    if (!resultado.reenviado) {
+      const mensaje = "Falta el contrato firmado del cliente (o el expediente no tiene contrato en el SGC).";
+      await registrar(new DomainError(mensaje, API_ERROR_CODES.VALIDATION, 400));
+      return error(API_ERROR_CODES.VALIDATION, mensaje, 400);
+    }
+    await registrar();
     return success(resultado);
   },
 };

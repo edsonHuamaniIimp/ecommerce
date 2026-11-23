@@ -1231,7 +1231,11 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     return r.count;
   }
 
-  /** Marca como reemplazados los documentos ACTIVOS del cliente con la misma categoria/requisito. */
+  /**
+   * Marca como reemplazados los documentos ACTIVOS del cliente con la misma categoria/requisito.
+   * Nunca toca archivos vinculados a una observacion o pieza del SGC: esos solo se
+   * reemplazan por otra correccion de la misma observacion/pieza.
+   */
   async marcarDocumentosReemplazados(solicitudId: string, userId: string, categoria: string | null, requisito: string | null): Promise<void> {
     await prisma.solicitudDocumento.updateMany({
       where: {
@@ -1241,6 +1245,10 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
         categoria: categoria ?? null,
         requisito: requisito ?? null,
+        sgcObservationId: null,
+        sgcDocumentId: null,
+        sgcTitle: null,
+        sgcPieceId: null,
       },
       data: { estado: ESTADOS_DOCUMENTO_SOLICITUD.REEMPLAZADO },
     });
