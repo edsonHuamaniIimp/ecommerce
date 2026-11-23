@@ -18,6 +18,8 @@ import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@
 import { BADGE_STYLES, COMPROBANTE_FISCAL_ACCEPT, ESTADO_CUOTA_LABELS, ESTADOS_FACTURACION, ESTADOS_CUOTA, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD_LABELS, PERMISSIONS, REQUERIMIENTOS_FACTURACION, SOLICITUDES_FILTRO_TIPO, TIPOS_DOCUMENTO_EMPRESA_LABELS, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD_LABELS, TIPO_COMPROBANTE_LABELS, TIPOS_FACTURACION, TIPOS_COMPROBANTE, TIPOS_SOLICITUD, NIUBIZ_HABILITADO, type EstadoSolicitud } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "@/components/pagos/form-archivo-iimp";
 import { numberUtils } from "@/lib/shared/utils/number";
+import { ConfiguracionPabellonPanel } from "@/components/facturacion/configuracion-pabellon-panel";
+import type { PlanCuotasSolicitud } from "@/domain/models/entities";
 
 interface ComprobanteFiscalItem {
   tipo: string;
@@ -886,7 +888,19 @@ export default function FacturacionPage() {
                     <TabsTrigger value="contacto" className="text-[11px]"><span>Contacto y facturación</span></TabsTrigger>
                     <TabsTrigger value="empresa" className="text-[11px]"><span>Empresa</span></TabsTrigger>
                     <TabsTrigger value="solicitud" className="text-[11px]"><span>Solicitud y anexos</span></TabsTrigger>
+                    {detailRow.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA && (
+                      <TabsTrigger value="configuracion-pabellon" className="text-[11px]"><span>Configuración pabellones internacionales</span></TabsTrigger>
+                    )}
                   </TabsList>
+
+                  {detailRow.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA && (
+                    <TabsContent value="configuracion-pabellon" className="pt-2">
+                      <ConfiguracionPabellonPanel
+                        plan={expediente.planCuotas as PlanCuotasSolicitud | null}
+                        moneda={expediente.moneda}
+                      />
+                    </TabsContent>
+                  )}
 
                   <TabsContent value="cuotas" className="space-y-3 pt-2">
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
