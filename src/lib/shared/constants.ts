@@ -1314,6 +1314,21 @@ export const TIPOS_SOLICITUD = {
 
 export type TipoSolicitud = (typeof TIPOS_SOLICITUD)[keyof typeof TIPOS_SOLICITUD];
 
+/** Estados de la solicitud de factura programada (solicitudes internas). */
+export const ESTADOS_FACTURACION_PROGRAMADA = {
+  PENDIENTE: "pendiente",
+  PROCESANDO: "procesando",
+  EJECUTADA: "ejecutada",
+  ERROR: "error",
+  CANCELADA: "cancelada",
+} as const;
+
+export type EstadoFacturacionProgramada =
+  (typeof ESTADOS_FACTURACION_PROGRAMADA)[keyof typeof ESTADOS_FACTURACION_PROGRAMADA];
+
+/** Tope de tareas programadas que el cron ejecuta por corrida. */
+export const MAX_FACTURACION_PROGRAMADA_POR_CORRIDA = 20;
+
 /**
  * Catalogo canonico de tipos de stand para la imagen referencial (RF-08).
  * `key` = clave normalizada que se persiste en `tipo_stand_imagen`; `alias` agrupa
@@ -2344,11 +2359,18 @@ export interface DdMatrizListaDef {
  */
 export const DD_MATRIZ_LISTA_OTROS = "otros";
 
+/**
+ * Criterio "Registros de OSCE" (sanciones del Tribunal de Contrataciones del Estado). Esta en
+ * el informe FRM-LOG-104 pero no es una columna de la matriz oficial: no se exporta al Excel.
+ */
+export const DD_MATRIZ_LISTA_OSCE = "osce";
+
 /** Listas restrictivas de la matriz oficial (columnas Q-V, AA-AE y AF-AP). */
 export const DD_MATRIZ_LISTAS: readonly DdMatrizListaDef[] = [
   { codigo: "indecopi", label: "Quejas o reporte desde INDECOPI", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "corrupcion_empresa", label: "Reporte corrupción / soborno / lavado", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "oefa", label: "Reportes infracciones OEFA", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: DD_MATRIZ_LISTA_OSCE, label: "Registros de OSCE (sanciones TCE)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "peps_prp_empresa", label: "Reportes listas PEPs / PRP", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "central_riesgo_empresa", label: "Cumple en central de riesgo (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "bancarizado_empresa", label: "Bancarizado (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
@@ -2376,6 +2398,7 @@ export const DD_MATRIZ_LISTA_DESCRIPCIONES: Record<string, string> = {
   indecopi: "Quejas o reclamos registrados en INDECOPI.",
   corrupcion_empresa: "Noticias o procesos por corrupción, soborno o lavado.",
   oefa: "Infracciones ambientales sancionadas por el OEFA.",
+  [DD_MATRIZ_LISTA_OSCE]: "Sanciones o inhabilitaciones ante el OSCE / TCE.",
   peps_prp_empresa: "Empresa o socios en listas de PEP / PRP.",
   central_riesgo_empresa: "Calificación de la empresa en centrales de riesgo.",
   bancarizado_empresa: "La empresa opera con cuentas bancarias.",
@@ -2413,6 +2436,7 @@ export const DD_MATRIZ_LISTA_URLS: Record<
     url: "https://sanctionssearch.ofac.treas.gov/Default.aspx",
     inputSelector: "#ctl00_MainContent_txtLastName",
   },
+  [DD_MATRIZ_LISTA_OSCE]: { url: "https://www.osce.gob.pe/consultasenlinea/inhabilitados/" },
   naciones_unidas: { url: "https://scsanctions.un.org/consolidated" },
   opensanctions: {
     url: "https://www.opensanctions.org/search/",
@@ -2448,6 +2472,20 @@ export const DD_MATRIZ_LISTA_URLS: Record<
   },
 };
 
+/**
+ * Filas de "6. Observaciones y Conclusiones" del informe: cada una reune las observaciones de
+ * las evidencias de sus criterios (codigos de lista).
+ */
+export const DD_INFORME_GRUPOS_OBSERVACION = {
+  PEP: ["peps_prp_empresa", "peps_prp_persona"],
+  OEFA: ["oefa"],
+  OSCE: [DD_MATRIZ_LISTA_OSCE],
+  INDECOPI: ["indecopi"],
+  LAVADO: ["corrupcion_empresa", "corrupcion_persona"],
+  OTROS: [DD_MATRIZ_LISTA_OTROS],
+} as const satisfies Record<string, readonly string[]>;
+export type DdInformeGrupoObservacion = keyof typeof DD_INFORME_GRUPOS_OBSERVACION;
+
 /** Limites de la matriz. */
 export const DD_MATRIZ_OBSERVACION_MAX = 2000;
 export const DD_MATRIZ_FINAL_COMENTARIO_MAX = 1000;
@@ -2457,6 +2495,7 @@ export const DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX = 20000;
 /** Criterios (codigo de lista) cuya observacion por evidencia admite el limite ampliado: OEFA, INDECOPI, lavado/corrupcion y Otros. */
 export const DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA: readonly string[] = [
   "oefa",
+  DD_MATRIZ_LISTA_OSCE,
   "indecopi",
   "corrupcion_empresa",
   "corrupcion_persona",

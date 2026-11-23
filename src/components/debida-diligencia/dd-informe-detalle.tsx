@@ -40,6 +40,7 @@ import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS,
+  DD_INFORME_GRUPOS_OBSERVACION,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_RESULTADOS,
@@ -52,6 +53,7 @@ import {
   DD_RUTAS,
   DD_VINCULO_LABELS,
   type DdMatrizAdjuntoCategoria,
+  type DdInformeGrupoObservacion,
   type DdMatrizResultadoFinal,
   type DdMatrizTipoVinculo,
   DD_MATRIZ_LISTA_OTROS,
@@ -62,6 +64,8 @@ import {
   evidenciasConHallazgo,
   evidenciasInforme,
   observacionesInforme,
+  notasEvidenciaPorCriterios,
+  type DdInformeNotaEvidencia,
   vinculosConObservaciones,
   resumenInforme,
 } from "@/lib/shared/utils/dd-informe";
@@ -135,6 +139,21 @@ function responsableArea(
     .map((detalle) => detalle[campo].responsable)
     .filter((valor): valor is string => Boolean(valor));
   return responsables.length > 0 ? [...new Set(responsables)].join(", ") : null;
+}
+
+/** Observaciones de evidencias dentro del informe; no desborda con textos largos. */
+function NotasEvidencia({ notas }: { notas: DdInformeNotaEvidencia[] }) {
+  if (notas.length === 0) return null;
+  return (
+    <ol className="list-decimal space-y-1 pl-4">
+      {notas.map((nota) => (
+        <li key={nota.id} className="whitespace-pre-wrap break-words">
+          {nota.esTitular ? null : <strong>{nota.vinculo}: </strong>}
+          {nota.texto}
+        </li>
+      ))}
+    </ol>
+  );
 }
 
 function valorSiNo(valor: string | null): string | null {
@@ -245,6 +264,8 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const vinculosPdf = useMemo(() => vinculosConObservaciones(vinculos), [vinculos]);
   const anexosPdf = useMemo(() => evidenciasConHallazgo(vinculosPdf), [vinculosPdf]);
   const vinculosVista = soloObservados ? vinculosPdf : vinculos;
+  const notasPor = (grupo: DdInformeGrupoObservacion) =>
+    notasEvidenciaPorCriterios(vinculosPdf, DD_INFORME_GRUPOS_OBSERVACION[grupo]);
 
   if (loading) {
     return (
@@ -335,7 +356,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
       <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center print:hidden">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Informe de Debida Diligencia</h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Evaluación Debida Diligencia</h1>
             <Badge className="pointer-events-none border-primary/20 bg-primary/10 text-[10px] text-primary">
               <FileText className="mr-1 h-3 w-3" />
               <span>Vista previa</span>
@@ -777,6 +798,11 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                             {" · "}
                             {dateUtils.format(anexo.createdAt)}
                           </p>
+                          {anexo.observacion ? (
+                            <p className="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground">
+                              {anexo.observacion}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-[10px]">
@@ -905,6 +931,9 @@ export function DdInformeDetalle({ expedienteId }: Props) {
             <div className="flex items-center gap-3">
               <Image src="/iimp-logo.png" alt="IIMP" width={202} height={65} className="h-10 w-auto" />
             </div>
+            <h1 className="flex-1 self-center text-center text-sm font-bold uppercase tracking-wide">
+              Evaluación Debida Diligencia
+            </h1>
             <table className="w-40 border-collapse text-[8px]">
               <tbody>
                 <tr><td className="border border-slate-800 px-1 py-0.5 font-semibold">Código</td><td className="border border-slate-800 px-1 py-0.5">FRM-LOG-104</td></tr>
@@ -980,6 +1009,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
           <h3 className="pdf-section border border-slate-800 mt-3 px-2 py-1 text-[10px] font-bold">3.1 Detalle de Hallazgo</h3>
           <div className="mt-1 border border-slate-800 p-2 text-[9px]">
             <p className="pdf-detail border border-slate-800 px-2 py-1 font-semibold">Registros de corrupción, soborno o lavado de activos u otros</p>
+            <NotasEvidencia notas={notasPor("LAVADO")} />
             {observaciones.length > 0 ? (
               <ol className="mt-1 list-decimal space-y-1 pl-4">
                 {observaciones.map((observacion) => (
@@ -988,7 +1018,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                   </li>
                 ))}
               </ol>
-            ) : (
+            ) : notasPor("LAVADO").length > 0 ? null : (
               <p className="mt-1">No se registran hallazgos en las listas restrictivas consultadas.</p>
             )}
           </div>
@@ -1046,18 +1076,25 @@ export function DdInformeDetalle({ expedienteId }: Props) {
               <tbody>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">Registros de PEP</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
-                  {listaValor("peps_prp_empresa") === "si" ? "Registra antecedentes" : "No hay antecedentes"}
+                  {notasPor("PEP").length > 0 ? (
+                    <NotasEvidencia notas={notasPor("PEP")} />
+                  ) : listaValor("peps_prp_empresa") === "si" ? "Registra antecedentes" : "No hay antecedentes"}
                 </td></tr>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">OEFA</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
-                  {listaValor("oefa") === "si" ? "Registra antecedentes" : "No hay antecedentes"}
+                  {notasPor("OEFA").length > 0 ? (
+                    <NotasEvidencia notas={notasPor("OEFA")} />
+                  ) : listaValor("oefa") === "si" ? "Registra antecedentes" : "No hay antecedentes"}
                 </td></tr>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">OSCE</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
-                  {listaValor("osce") === "si" ? "Registra antecedentes" : "No hay antecedentes"}
+                  {notasPor("OSCE").length > 0 ? (
+                    <NotasEvidencia notas={notasPor("OSCE")} />
+                  ) : listaValor("osce") === "si" ? "Registra antecedentes" : "No hay antecedentes"}
                 </td></tr>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">INDECOPI</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
+                  {notasPor("INDECOPI").length > 0 ? <NotasEvidencia notas={notasPor("INDECOPI")} /> : null}
                   {casosReputacionPdf.length > 0 ? (
                     <ol className="list-decimal space-y-1 pl-4">
                       {casosReputacionPdf.map((caso) => {
@@ -1080,9 +1117,10 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 </td></tr>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">OTROS</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
+                  <NotasEvidencia notas={notasPor("OTROS")} />
                   {tieneLegal
                     ? `${expediente?.decisionLegal ?? "Pendiente"}${expediente?.motivoLegal ? ` · ${expediente.motivoLegal}` : ""}`
-                    : "No hay antecedentes"}
+                    : notasPor("OTROS").length > 0 ? null : "No hay antecedentes"}
                 </td></tr>
               </tbody>
             </table>

@@ -44,6 +44,10 @@ const CATEGORIA_POR_PALABRA: { claves: string[]; categoria: string }[] = [
     categoria: categoriaCriterio("oefa"),
   },
   {
+    claves: ["osce", "tribunal de contrataciones"],
+    categoria: categoriaCriterio("osce"),
+  },
+  {
     claves: ["ofac"],
     categoria: categoriaCriterio("ofac"),
   },

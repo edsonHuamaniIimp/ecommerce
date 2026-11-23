@@ -197,9 +197,9 @@ describe("listasAplicables", () => {
   const sinAdicionales = (listas: ReturnType<typeof listasAplicables>) =>
     listas.filter((x) => x.grupo !== DD_MATRIZ_GRUPOS_LISTA.ADICIONAL);
 
-  it("empresa nacional: 6 listas de empresa nacional", () => {
+  it("empresa nacional: 7 listas de empresa nacional (incluye OSCE)", () => {
     const l = sinAdicionales(listasAplicables(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, DD_MATRIZ_AMBITOS.NACIONAL));
-    expect(l).toHaveLength(6);
+    expect(l).toHaveLength(7);
     expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL)).toBe(true);
   });
 
@@ -241,7 +241,7 @@ describe("listasAplicables", () => {
     const l = sinAdicionales(
       listasAplicables(DD_MATRIZ_TIPOS_VINCULO.VINCULADO, DD_MATRIZ_AMBITOS.NACIONAL, "RUC"),
     );
-    expect(l).toHaveLength(6);
+    expect(l).toHaveLength(7);
     expect(l.every((x) => x.grupo === DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL)).toBe(true);
     expect(l.map((x) => x.codigo)).not.toContain("conflicto_interes");
   });

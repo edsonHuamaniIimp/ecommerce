@@ -7,6 +7,7 @@ import {
   DD_MATRIZ_CONCLUSION_COMPLIANCE_LABELS,
   DD_MATRIZ_CONCLUSION_LABELS,
   DD_MATRIZ_LISTAS,
+  DD_MATRIZ_LISTA_OSCE,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_SI_NO_NA_LABELS,
@@ -104,7 +105,9 @@ function columnasLista(
 const bloque = (fila: DdMatrizEvaluacionExportFilaDTO, area: "sig" | "reputacional" | "compliance"): DdMatrizBloqueDTO =>
   fila.vinculo[area];
 
-const CODIGOS_EMPRESA_NACIONAL = DD_MATRIZ_LISTAS.filter((l) => l.grupo === "empresa_nacional").map((l) => l.codigo);
+const CODIGOS_EMPRESA_NACIONAL = DD_MATRIZ_LISTAS.filter(
+  (l) => l.grupo === "empresa_nacional" && l.codigo !== DD_MATRIZ_LISTA_OSCE,
+).map((l) => l.codigo);
 const CODIGOS_PERSONA = DD_MATRIZ_LISTAS.filter((l) => l.grupo === "persona_vinculada").map((l) => l.codigo);
 const CODIGOS_EXTRANJERA = DD_MATRIZ_LISTAS.filter((l) => l.grupo === "extranjera").map((l) => l.codigo);
 

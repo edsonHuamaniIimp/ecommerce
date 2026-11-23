@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DD_INFORME_GRUPOS_OBSERVACION,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
@@ -12,6 +13,7 @@ import {
   casosReputacionConObservacion,
   detalleTieneObservacion,
   evidenciasConHallazgo,
+  notasEvidenciaPorCriterios,
   vinculosConObservaciones,
 } from "@/lib/shared/utils/dd-informe";
 import type {
@@ -174,5 +176,58 @@ describe("anexos del PDF: solo criterios con SI", () => {
       adjuntos: [adj("a", "criterio_oefa"), adj("b", "criterio_indecopi"), adj("c", "criterio_ofac"), adj("d", "sig_sustento")],
     } as unknown as Parameters<typeof evidenciasConHallazgo>[0][number];
     expect(evidenciasConHallazgo([detalle]).map((x) => x.id)).toEqual(["a"]);
+  });
+});
+
+describe("observaciones por evidencia en el informe", () => {
+  const adj = (id: string, categoria: string, observacion: string | null, createdAt = "2026-01-01T00:00:00.000Z") => ({
+    id, categoria, nombre: `${id}.pdf`, url: `/u/${id}`, mimeType: "application/pdf", tamano: 1, creadoPor: "x", observacion, createdAt,
+  });
+  const detalle = (tipo: string, nombre: string, listas: [string, string][], adjuntos: ReturnType<typeof adj>[]) =>
+    ({
+      id: nombre,
+      tipo,
+      nombre,
+      listas: listas.map(([codigo, valor]) => ({ codigo, label: codigo, color: "", valor })),
+      adjuntos,
+      sig: { resultado: null, observaciones: null, conclusion: null },
+      reputacional: { resultado: null, observaciones: null, conclusion: null },
+      compliance: { resultado: null, observaciones: null, conclusion: null },
+    }) as unknown as DdMatrizEvaluacionDetalleDTO;
+
+  it("toma las notas de las evidencias de criterios en SI y deja a la empresa titular primero", () => {
+    const persona = detalle(DD_MATRIZ_TIPOS_VINCULO.BENEFICIARIO, "Ana Pérez", [["peps_prp_persona", "si"]], [
+      adj("p1", "criterio_peps_prp_persona", "Fue regidora hasta 2022."),
+    ]);
+    const empresa = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "Empresa Uno S.A.C.", [["peps_prp_empresa", "si"]], [
+      adj("e1", "criterio_peps_prp_empresa", "Socio PEP declarado."),
+    ]);
+    const notas = notasEvidenciaPorCriterios([persona, empresa], DD_INFORME_GRUPOS_OBSERVACION.PEP);
+    expect(notas.map((n) => n.id)).toEqual(["e1", "p1"]);
+    expect(notas[0]?.esTitular).toBe(true);
+    expect(notas[1]?.vinculo).toBe("Ana Pérez");
+  });
+
+  it("ignora criterios en NO/NA, notas vacias y otros criterios", () => {
+    const empresa = detalle(
+      DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
+      "Empresa Uno S.A.C.",
+      [["oefa", "no"], ["osce", "si"], ["indecopi", "si"]],
+      [
+        adj("a", "criterio_oefa", "no debe salir"),
+        adj("b", "criterio_osce", "   "),
+        adj("c", "criterio_osce", "Multa firme del TCE."),
+        adj("d", "criterio_indecopi", "otro grupo"),
+      ],
+    );
+    expect(notasEvidenciaPorCriterios([empresa], DD_INFORME_GRUPOS_OBSERVACION.OSCE).map((n) => n.id)).toEqual(["c"]);
+    expect(notasEvidenciaPorCriterios([empresa], DD_INFORME_GRUPOS_OBSERVACION.OEFA)).toEqual([]);
+  });
+
+  it("un vinculo con una observacion de evidencia entra al informe", () => {
+    const con = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "A", [], [adj("x", "criterio_osce", "algo")]);
+    const sin = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "B", [], [adj("y", "criterio_osce", null)]);
+    expect(detalleTieneObservacion(con)).toBe(true);
+    expect(detalleTieneObservacion(sin)).toBe(false);
   });
 });
