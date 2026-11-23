@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { CuotasEditor, crearCuotaFilaInicial, validarFilasCuotas, type CuotaFila } from "@/components/shared/cuotas-editor";
 import { planCuotasConFechas } from "@/lib/shared/utils/cuotas";
+import { MultiSelectBuscable } from "@/components/shared/multi-select-buscable";
 import { EmpresaPicker } from "@/components/shared/empresa-picker";
 import { Plano2D as Plano2DVista, PLANO_2D_ZOOM_MAX, PLANO_2D_ZOOM_MIN, PLANO_2D_ZOOM_PASO } from "@/components/plano/plano-2d";
 import { EmpresaFormModal } from "@/components/empresas/empresa-form-modal";
@@ -164,7 +165,7 @@ export function ReservarEmpresaPanel() {
   const [cargandoStands, setCargandoStands] = useState(true);
   const [search, setSearch] = useState("");
   const [pabellon, setPabellon] = useState<string>(UI_SENTINEL.TODOS);
-  const [empresaPreReserva, setEmpresaPreReserva] = useState<string>(UI_SENTINEL.TODOS);
+  const [empresaPreReserva, setEmpresaPreReserva] = useState<string[]>([]);
   const [tipo, setTipo] = useState<string>(UI_SENTINEL.TODOS);
   const [estadoFiltro, setEstadoFiltro] = useState<string>(ESTADOS_STAND.PRE_RESERVADO);
   const [page, setPage] = useState(1);
@@ -320,22 +321,23 @@ export function ReservarEmpresaPanel() {
     }
     return Array.from(etiquetas.values()).sort((a, b) => a.localeCompare(b, "es"));
   }, [pabellon, stands]);
-  const empresaPreReservaActiva =
-    empresaPreReserva === UI_SENTINEL.TODOS || empresasPreReserva.includes(empresaPreReserva)
-      ? empresaPreReserva
-      : UI_SENTINEL.TODOS;
+  /* Solo cuentan las empresas aun disponibles para el pabellon elegido. */
+  const empresaPreReservaActiva = useMemo(
+    () => empresaPreReserva.filter((item) => empresasPreReserva.includes(item)),
+    [empresaPreReserva, empresasPreReserva],
+  );
   const filtrados = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const empresaFiltro = normalizarTexto(empresaPreReservaActiva);
+    const empresasFiltro = new Set(empresaPreReservaActiva.map((item) => normalizarTexto(item)));
     return stands.filter((stand) => {
       const pabellonStand = normalizarPabellon(stand.pabellon);
       if (estadoFiltro !== UI_SENTINEL.TODOS && stand.estado !== estadoFiltro) return false;
       if (pabellon !== UI_SENTINEL.TODOS && pabellonStand !== pabellon) return false;
       if (tipo !== UI_SENTINEL.TODOS && normalizarTipoStand(stand.tipoStand) !== tipo) return false;
-      if (empresaPreReservaActiva !== UI_SENTINEL.TODOS) {
+      if (empresasFiltro.size > 0) {
         if (stand.estado !== ESTADOS_STAND.PRE_RESERVADO) return false;
         const etiqueta = etiquetaPreReservaStand(stand);
-        if (!etiqueta || normalizarTexto(etiqueta) !== empresaFiltro) return false;
+        if (!etiqueta || !empresasFiltro.has(normalizarTexto(etiqueta))) return false;
       }
       if (!term) return true;
       return [stand.standCode, normalizarTipoStand(stand.tipoStand), pabellonStand]
@@ -354,7 +356,7 @@ export function ReservarEmpresaPanel() {
   const hayFiltros =
     search.trim().length > 0 ||
     pabellon !== UI_SENTINEL.TODOS ||
-    empresaPreReservaActiva !== UI_SENTINEL.TODOS ||
+    empresaPreReservaActiva.length > 0 ||
     tipo !== UI_SENTINEL.TODOS ||
     estadoFiltro !== ESTADOS_STAND.PRE_RESERVADO;
 
@@ -627,11 +629,11 @@ export function ReservarEmpresaPanel() {
     toast.success(`Descuento quitado a ${objetivo.length} stand(s)`);
   };
 
-  const cambiarFiltro = (cambios: Partial<{ search: string; pabellon: string; empresaPreReserva: string; tipo: string; estado: string }>) => {
+  const cambiarFiltro = (cambios: Partial<{ search: string; pabellon: string; empresaPreReserva: string[]; tipo: string; estado: string }>) => {
     if (cambios.search !== undefined) setSearch(cambios.search);
     if (cambios.pabellon !== undefined) {
       setPabellon(cambios.pabellon);
-      setEmpresaPreReserva(UI_SENTINEL.TODOS);
+      setEmpresaPreReserva([]);
     }
     if (cambios.empresaPreReserva !== undefined) setEmpresaPreReserva(cambios.empresaPreReserva);
     if (cambios.tipo !== undefined) setTipo(cambios.tipo);
@@ -642,7 +644,7 @@ export function ReservarEmpresaPanel() {
   const limpiarFiltros = () => {
     setSearch("");
     setPabellon(UI_SENTINEL.TODOS);
-    setEmpresaPreReserva(UI_SENTINEL.TODOS);
+    setEmpresaPreReserva([]);
     setTipo(UI_SENTINEL.TODOS);
     setEstadoFiltro(ESTADOS_STAND.PRE_RESERVADO);
     setPage(1);
@@ -954,21 +956,16 @@ export function ReservarEmpresaPanel() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground"><span>Empresa / titulo</span></Label>
-                <Select
+                <MultiSelectBuscable
+                  opciones={empresasPreReserva}
                   value={empresaPreReservaActiva}
-                  onValueChange={(value) => cambiarFiltro({ empresaPreReserva: value })}
+                  onChange={(value) => cambiarFiltro({ empresaPreReserva: value })}
                   disabled={empresasPreReserva.length === 0}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder={empresasPreReserva.length === 0 ? "Sin pre-reservas" : "Todas las empresas"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={UI_SENTINEL.TODOS}><span>Todas las empresas</span></SelectItem>
-                    {empresasPreReserva.map((item) => (
-                      <SelectItem key={item} value={item}><span>{item}</span></SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholderTodos="Todas las empresas"
+                  placeholderVacio="Sin pre-reservas"
+                  placeholderBusqueda="Buscar empresa o título..."
+                  ariaLabel="Empresa / título"
+                />
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground"><span>Pabellon</span></Label>
