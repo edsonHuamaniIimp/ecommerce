@@ -8,7 +8,10 @@ export interface DdMatrizEvaluacionExportarRequestDTO {
   search?: string;
   tipo?: string;
   ambito?: string;
+  /** Uno o varios paises ISO separados por coma. */
   pais?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
   sinPais?: boolean;
   resultadoFinal?: string;
   sinEvaluar?: boolean;

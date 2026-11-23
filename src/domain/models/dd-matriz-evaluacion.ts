@@ -148,8 +148,11 @@ export interface DdMatrizListarParams {
   search?: string;
   tipo?: DdMatrizTipoVinculo;
   ambito?: DdMatrizAmbito;
-  /** Pais ISO alpha-2 exacto. */
+  /** Pais ISO alpha-2; varios separados por coma. */
   pais?: string;
+  /** Fecha de ingreso desde/hasta (AAAA-MM-DD, hora de Peru, ambos inclusive). */
+  fechaDesde?: string;
+  fechaHasta?: string;
   /** Solo vinculos sin pais conocido. */
   sinPais?: boolean;
   resultadoFinal?: string;

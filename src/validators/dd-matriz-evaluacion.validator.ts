@@ -14,7 +14,6 @@ import {
   DD_OBSERVACION_VINCULO_TIPOS,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_TIPOS_VINCULO,
-  REGEX_PAIS,
 } from "@/lib/shared/constants";
 
 /** Convierte los valores de un catalogo en tupla literal para Zod. */
@@ -46,6 +45,10 @@ const bloqueSchema = z
   })
   .optional();
 
+/** Uno o varios codigos ISO alpha-2 separados por coma (maximo 60). */
+const REGEX_PAISES_LISTA = /^[A-Za-z]{2}(,[A-Za-z]{2}){0,59}$/;
+const REGEX_FECHA_ISO = /^d{4}-d{2}-d{2}$/;
+
 /** Consulta de la lista de la matriz. */
 export const ddMatrizEvaluacionQuerySchema = z.object({
   eventoId: z.string().trim().max(64).optional(),
@@ -59,8 +62,10 @@ export const ddMatrizEvaluacionQuerySchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(REGEX_PAIS, "País inválido: usa el código ISO de 2 letras")
+    .regex(REGEX_PAISES_LISTA, "País inválido: usa códigos ISO de 2 letras separados por coma")
     .optional(),
+  fechaDesde: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
+  fechaHasta: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
   sinPais: z
     .enum(["true", "false"])
     .transform((v) => v === "true")
@@ -83,7 +88,14 @@ export const ddMatrizEvaluacionExportarSchema = z.object({
   search: z.string().trim().max(200).optional(),
   tipo: z.enum(valores(DD_MATRIZ_TIPOS_VINCULO)).optional(),
   ambito: z.enum(valores(DD_MATRIZ_AMBITOS)).optional(),
-  pais: z.string().trim().toUpperCase().regex(REGEX_PAIS, "País inválido: usa el código ISO de 2 letras").optional(),
+  pais: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(REGEX_PAISES_LISTA, "País inválido: usa códigos ISO de 2 letras separados por coma")
+    .optional(),
+  fechaDesde: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
+  fechaHasta: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
   sinPais: z.boolean().optional(),
   resultadoFinal: z.string().trim().max(40).optional(),
   sinEvaluar: z.boolean().optional(),

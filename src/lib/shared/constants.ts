@@ -2458,6 +2458,26 @@ export const DD_MATRIZ_FILTRO_TODOS = "todos";
 export const DD_MATRIZ_FILTRO_SIN_EVALUAR = "sin_evaluar";
 export const DD_MATRIZ_FILTRO_SIN_PAIS = "sin_pais";
 
+/** Atajos del filtro por fecha de ingreso de la matriz. */
+export const DD_MATRIZ_FILTRO_FECHA = {
+  TODOS: "todos",
+  HOY: "hoy",
+  AYER: "ayer",
+  SEMANA: "semana",
+  MES: "mes",
+  RANGO: "rango",
+} as const;
+export type DdMatrizFiltroFecha = (typeof DD_MATRIZ_FILTRO_FECHA)[keyof typeof DD_MATRIZ_FILTRO_FECHA];
+
+export const DD_MATRIZ_FILTRO_FECHA_LABELS: Record<DdMatrizFiltroFecha, string> = {
+  [DD_MATRIZ_FILTRO_FECHA.TODOS]: "Todas",
+  [DD_MATRIZ_FILTRO_FECHA.HOY]: "Hoy",
+  [DD_MATRIZ_FILTRO_FECHA.AYER]: "Ayer",
+  [DD_MATRIZ_FILTRO_FECHA.SEMANA]: "Últimos 7 días",
+  [DD_MATRIZ_FILTRO_FECHA.MES]: "Este mes",
+  [DD_MATRIZ_FILTRO_FECHA.RANGO]: "Rango de fechas",
+};
+
 /** Valor centinela de los Select de la matriz para "sin seleccionar" (Radix no admite ""). */
 export const DD_MATRIZ_SIN_VALOR = "__sin_valor__";
 

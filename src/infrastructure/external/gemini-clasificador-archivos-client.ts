@@ -15,6 +15,15 @@ interface RespuestaGemini {
   }[];
 }
 
+/**
+ * Clasificar nombres de archivo no requiere razonamiento profundo. Con el "thinking" por defecto del
+ * modelo 12 archivos tardaban ~50 s (mas que el timeout) y siempre se caia al clasificador por reglas.
+ * Con nivel "low" tarda ~9 s.
+ */
+const THINKING_LEVEL = "low";
+/** Margen para lotes grandes (hasta 100 archivos). */
+const TIMEOUT_MS = 45_000;
+
 function limpiarJson(texto: string): string {
   return texto.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
 }
@@ -74,9 +83,10 @@ export class GeminiClasificadorArchivosClient implements IDdClasificadorArchivos
           generationConfig: {
             temperature: 0,
             responseMimeType: "application/json",
+            thinkingConfig: { thinkingLevel: THINKING_LEVEL },
           },
         }),
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
       },
     );
 

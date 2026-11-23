@@ -31,7 +31,6 @@ import {
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_REPUTACION_ESTADOS,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
-  DD_TIPOS_DOCUMENTO_VINCULO,
   DD_TIPOS_VINCULO_PERSONA,
   DD_TIPO_VINCULO_PERSONA_LABELS,
   DD_VINCULO_LABELS,
@@ -674,15 +673,33 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     if (params.expedienteId) and.push({ expedienteId: params.expedienteId });
     if (params.tipo) and.push({ tipo: params.tipo });
     if (params.ambito) and.push({ ambito: params.ambito });
-    if (params.pais) and.push({ pais: params.pais });
-    if (params.sinPais) and.push({ pais: null });
+    const paises = (params.pais ?? "").split(",").map((p) => p.trim().toUpperCase()).filter(Boolean);
+    if (paises.length > 0 && params.sinPais) and.push({ OR: [{ pais: { in: paises } }, { pais: null }] });
+    else if (paises.length > 0) and.push({ pais: { in: paises } });
+    else if (params.sinPais) and.push({ pais: null });
+    /* Fecha de ingreso = envio de la DD (o creacion si no tiene), en dia calendario de Peru (UTC-5). */
+    const desde = params.fechaDesde ? new Date(`${params.fechaDesde}T00:00:00-05:00`) : null;
+    const hasta = params.fechaHasta ? new Date(new Date(`${params.fechaHasta}T00:00:00-05:00`).getTime() + 24 * 60 * 60 * 1000) : null;
+    if ((desde && !Number.isNaN(desde.getTime())) || (hasta && !Number.isNaN(hasta.getTime()))) {
+      const rango: Prisma.DateTimeFilter = {};
+      if (desde && !Number.isNaN(desde.getTime())) rango.gte = desde;
+      if (hasta && !Number.isNaN(hasta.getTime())) rango.lt = hasta;
+      and.push({
+        expediente: { OR: [{ fechaEnvio: rango }, { fechaEnvio: null, createdAt: rango }] },
+      });
+    }
     if (params.resultadoFinal) {
-      const estadoLegacy = estadoExpedienteDeResultadoFinal(params.resultadoFinal);
+      /* Sin resultado guardado, el efectivo sale del estado del expediente (ver resultadoFinalEfectivo):
+       * APROBADA/OBSERVADA/RECHAZADA y, para EN REVISION, tambien lo derivado a Legal. */
+      const estadosLegacy =
+        params.resultadoFinal === DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION
+          ? [DD_ESTADOS.EN_REVISION, DD_ESTADOS.EN_LEGAL]
+          : [estadoExpedienteDeResultadoFinal(params.resultadoFinal)].filter((e): e is string => e !== null);
       and.push({
         OR: [
           { resultadoFinal: params.resultadoFinal },
-          ...(estadoLegacy
-            ? [{ resultadoFinal: null, expediente: { ...expediente, estado: estadoLegacy } }]
+          ...(estadosLegacy.length > 0
+            ? [{ resultadoFinal: null, expediente: { ...expediente, estado: { in: estadosLegacy } } }]
             : []),
         ],
       });

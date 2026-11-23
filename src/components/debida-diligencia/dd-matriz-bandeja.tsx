@@ -92,6 +92,9 @@ import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_AREA_CONCLUSION_LABELS,
+  DD_MATRIZ_FILTRO_FECHA,
+  DD_MATRIZ_FILTRO_FECHA_LABELS,
+  type DdMatrizFiltroFecha,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_REPUTACION_RESULTADO_LABELS,
@@ -111,6 +114,8 @@ import {
 import { COLUMNAS_MATRIZ_CSV, exportarMatrizExcel } from "@/lib/shared/utils/dd-matriz-excel";
 import { exportarTablaCsv, nombreArchivoExport } from "@/lib/shared/utils/export-tabla";
 import { nombrePais } from "@/lib/shared/utils/pais";
+import { rangoDeFiltroFecha } from "@/lib/shared/utils/dd-matriz-filtro-fecha";
+import { DdPaisMultiSelect } from "./dd-pais-multi-select";
 
 interface Filtros {
   eventoId: string;
@@ -119,7 +124,11 @@ interface Filtros {
   search: string;
   tipo: string;
   ambito: string;
-  pais: string;
+  /** Codigos ISO elegidos (y/o "sin_pais"); vacio = todos. */
+  paises: string[];
+  fechaPreset: DdMatrizFiltroFecha;
+  fechaDesde: string;
+  fechaHasta: string;
   resultadoFinal: string;
 }
 
@@ -130,7 +139,10 @@ const FILTROS_INICIALES: Filtros = {
   search: "",
   tipo: DD_MATRIZ_FILTRO_TODOS,
   ambito: DD_MATRIZ_FILTRO_TODOS,
-  pais: DD_MATRIZ_FILTRO_TODOS,
+  paises: [],
+  fechaPreset: DD_MATRIZ_FILTRO_FECHA.TODOS,
+  fechaDesde: "",
+  fechaHasta: "",
   resultadoFinal: DD_MATRIZ_FILTRO_TODOS,
 };
 
@@ -155,8 +167,9 @@ function filtrosComunes(filtros: Filtros): DdMatrizEvaluacionExportarRequestDTO 
     search: filtros.search.trim() || undefined,
     tipo: filtros.tipo !== DD_MATRIZ_FILTRO_TODOS ? filtros.tipo : undefined,
     ambito: filtros.ambito !== DD_MATRIZ_FILTRO_TODOS ? filtros.ambito : undefined,
-    pais: REGEX_PAIS.test(filtros.pais) ? filtros.pais : undefined,
-    sinPais: filtros.pais === DD_MATRIZ_FILTRO_SIN_PAIS || undefined,
+    pais: filtros.paises.filter((pais) => REGEX_PAIS.test(pais)).join(",") || undefined,
+    sinPais: filtros.paises.includes(DD_MATRIZ_FILTRO_SIN_PAIS) || undefined,
+    ...rangoDeFiltroFecha(filtros.fechaPreset, filtros),
     resultadoFinal:
       filtros.resultadoFinal !== DD_MATRIZ_FILTRO_TODOS && !sinEvaluar ? filtros.resultadoFinal : undefined,
     sinEvaluar: sinEvaluar || undefined,
@@ -462,9 +475,12 @@ export function DdMatrizBandeja() {
     void cargar(siguientes, conResumen);
   };
 
-  const filtrosActivos = [filtros.eventoId, filtros.tipo, filtros.ambito, filtros.pais, filtros.resultadoFinal].filter(
-    (valor) => valor !== DD_MATRIZ_FILTRO_TODOS,
-  ).length;
+  const filtrosActivos =
+    [filtros.eventoId, filtros.tipo, filtros.ambito, filtros.resultadoFinal].filter(
+      (valor) => valor !== DD_MATRIZ_FILTRO_TODOS,
+    ).length +
+    (filtros.paises.length > 0 ? 1 : 0) +
+    (filtros.fechaPreset !== DD_MATRIZ_FILTRO_FECHA.TODOS ? 1 : 0);
 
   const idsPagina = data?.data.map((fila) => fila.id) ?? [];
   const marcadosPagina = idsPagina.filter((id) => seleccion.has(id)).length;
@@ -966,7 +982,7 @@ export function DdMatrizBandeja() {
           </div>
 
           {filtersOpen ? (
-            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mxb-tipo">Tipo de sujeto</label>
                 <Select value={filtros.tipo} onValueChange={(valor) => aplicar({ tipo: valor })}>
@@ -1006,21 +1022,46 @@ export function DdMatrizBandeja() {
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mxb-pais">País</label>
-                <Select value={filtros.pais} onValueChange={(valor) => aplicar({ pais: valor })}>
-                  <SelectTrigger id="mxb-pais" className="h-8 border-border text-xs"><SelectValue placeholder="País" /></SelectTrigger>
+                <DdPaisMultiSelect
+                  id="mxb-pais"
+                  opciones={data?.paises ?? []}
+                  value={filtros.paises}
+                  onChange={(paises) => aplicar({ paises })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mxb-fecha">Fecha de ingreso</label>
+                <Select
+                  value={filtros.fechaPreset}
+                  onValueChange={(valor) => aplicar({ fechaPreset: valor as DdMatrizFiltroFecha })}
+                >
+                  <SelectTrigger id="mxb-fecha" className="h-8 border-border text-xs"><SelectValue placeholder="Fecha" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={DD_MATRIZ_FILTRO_TODOS}><span>Todos</span></SelectItem>
-                    <SelectItem value={DD_MATRIZ_FILTRO_SIN_PAIS}><span>Sin país registrado</span></SelectItem>
-                    {(data?.paises ?? []).map((pais) => (
-                      <SelectItem key={pais.pais} value={pais.pais}>
-                        <span className="flex items-center gap-2">
-                          <DdPaisBandera pais={pais.pais} />
-                          <span>{nombrePais(pais.pais)} ({pais.total})</span>
-                        </span>
-                      </SelectItem>
+                    {Object.entries(DD_MATRIZ_FILTRO_FECHA_LABELS).map(([valor, label]) => (
+                      <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {filtros.fechaPreset === DD_MATRIZ_FILTRO_FECHA.RANGO ? (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Input
+                      type="date"
+                      aria-label="Desde"
+                      value={filtros.fechaDesde}
+                      max={filtros.fechaHasta || undefined}
+                      onChange={(evento) => aplicar({ fechaDesde: evento.target.value })}
+                      className="h-8 border-border px-2 text-xs"
+                    />
+                    <Input
+                      type="date"
+                      aria-label="Hasta"
+                      value={filtros.fechaHasta}
+                      min={filtros.fechaDesde || undefined}
+                      onChange={(evento) => aplicar({ fechaHasta: evento.target.value })}
+                      className="h-8 border-border px-2 text-xs"
+                    />
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-end">
                 <Button
