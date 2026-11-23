@@ -6,6 +6,7 @@ import type {
   DdMatrizAutomatizacionDTO,
   DdVinculoObservadoRequestDTO,
   DdMatrizEvaluacionAdjuntoEliminarRequestDTO,
+  DdMatrizEvaluacionAdjuntoObservacionRequestDTO,
   DdMatrizEvaluacionAdjuntoResponseDTO,
   DdMatrizEvaluacionDetalleDTO,
   DdMatrizEvaluacionExportarRequestDTO,
@@ -116,6 +117,10 @@ export const ddMatrizEvaluacionService = {
     formData.append("vinculoId", vinculoId);
     formData.append("categoria", categoria);
     return internalApi.postForm<DdMatrizEvaluacionAdjuntoResponseDTO>(`${BASE}/adjunto`, formData);
+  },
+
+  guardarObservacionAdjunto(body: DdMatrizEvaluacionAdjuntoObservacionRequestDTO) {
+    return internalApi.post<DdMatrizEvaluacionAdjuntoResponseDTO>(`${BASE}/adjunto/observacion`, body);
   },
 
   eliminarAdjunto(body: DdMatrizEvaluacionAdjuntoEliminarRequestDTO) {

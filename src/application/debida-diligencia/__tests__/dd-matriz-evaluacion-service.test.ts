@@ -4,6 +4,7 @@ import type { DdMatrizAdjuntoEntity, DdMatrizVinculoEntity } from "@/domain/mode
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_EVENTO_TODOS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_CONCLUSIONES,
@@ -92,6 +93,7 @@ function informe(): DdMatrizAdjuntoEntity {
     mimeType: "application/pdf",
     tamano: 10,
     creadoPor: "sig@iimp.org.pe",
+    observacion: null,
     createdAt: new Date(),
   };
 }
@@ -115,6 +117,7 @@ function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = [])
     findAdjunto: vi.fn(),
     crearAdjunto: vi.fn(),
     eliminarAdjunto: vi.fn(),
+    actualizarObservacionAdjunto: vi.fn().mockImplementation(async (id: string, observacion: string | null) => ({ ...informe(), id, observacion })),
     registrarAuditoria: vi.fn().mockResolvedValue(undefined),
   } satisfies IDdMatrizEvaluacionRepository;
   return { repo, servicio: new DdMatrizEvaluacionApplicationService(repo) };
@@ -732,6 +735,34 @@ describe("permisos propios de Informes DD y Centro documental DD", () => {
     const s = solo(PERMISSIONS.DD_REPOSITORIO);
     await expect(servicio.eliminarAdjunto(s, "a-propia")).resolves.toBeUndefined();
     await expect(servicio.eliminarAdjunto(s, "a-ajena")).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("observacion por evidencia: 2000 en general y 20000 en OEFA, INDECOPI, lavado y Otros", async () => {
+    const sig = sesion([PERMISSIONS.DD_REVISION]);
+    const larga = (n: number) => "a".repeat(n);
+    const caso = async (categoria: string, caracteres: number) => {
+      const adjunto = { ...informe(), id: "a-obs", categoria: categoria as DdMatrizAdjuntoEntity["categoria"] };
+      const { servicio, repo } = crear(vinculo(), [adjunto]);
+      repo.findAdjunto.mockResolvedValue(adjunto);
+      return servicio.actualizarObservacionAdjunto(sig, "a-obs", larga(caracteres));
+    };
+    await expect(caso(`${DD_MATRIZ_CRITERIO_PREFIJO}ofac`, 2000)).resolves.toBeDefined();
+    await expect(caso(`${DD_MATRIZ_CRITERIO_PREFIJO}ofac`, 2001)).rejects.toMatchObject({ status: 400 });
+    for (const codigo of ["oefa", "indecopi", "corrupcion_empresa", "corrupcion_persona", "otros"]) {
+      await expect(caso(`${DD_MATRIZ_CRITERIO_PREFIJO}${codigo}`, 20000)).resolves.toBeDefined();
+      await expect(caso(`${DD_MATRIZ_CRITERIO_PREFIJO}${codigo}`, 20001)).rejects.toMatchObject({ status: 400 });
+    }
+  });
+
+  it("observacion por evidencia: texto vacio la limpia y sin permiso se rechaza", async () => {
+    const adjunto = { ...informe(), id: "a-obs", categoria: `${DD_MATRIZ_CRITERIO_PREFIJO}ofac` as DdMatrizAdjuntoEntity["categoria"] };
+    const { servicio, repo } = crear(vinculo(), [adjunto]);
+    repo.findAdjunto.mockResolvedValue(adjunto);
+    await servicio.actualizarObservacionAdjunto(sesion([PERMISSIONS.DD_REVISION]), "a-obs", "   ");
+    expect(repo.actualizarObservacionAdjunto).toHaveBeenCalledWith("a-obs", null);
+    await expect(
+      servicio.actualizarObservacionAdjunto(solo(PERMISSIONS.DD_INFORMES), "a-obs", "nota"),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it("sin ninguno de los permisos no hay acceso", async () => {

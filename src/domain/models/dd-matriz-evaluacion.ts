@@ -26,6 +26,8 @@ export interface DdMatrizAdjuntoEntity {
   mimeType: string;
   tamano: number;
   creadoPor: string;
+  /** Observacion del analista sobre la evidencia (null si no hay). */
+  observacion: string | null;
   createdAt: Date;
 }
 

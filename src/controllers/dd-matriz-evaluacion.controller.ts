@@ -28,6 +28,7 @@ import {
   ddMatrizAutomatizarSchema,
   ddMatrizAutomatizarTodoSchema,
   ddMatrizEvaluacionAdjuntoEliminarSchema,
+  ddMatrizEvaluacionAdjuntoObservacionSchema,
   ddMatrizEvaluacionAbrirQuerySchema,
   ddMatrizEvaluacionDetalleQuerySchema,
   ddMatrizEvaluacionExportarSchema,
@@ -181,6 +182,18 @@ export const ddMatrizEvaluacionController = {
     if (!parsed.success) return error(API_ERROR_CODES.VALIDATION, "Identificador inválido", 400);
     await services.ddMatrizEvaluacion.eliminarVinculo(session, parsed.data.id);
     return success({ ok: true });
+  },
+
+  async observacionAdjunto(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddMatrizEvaluacionAdjuntoObservacionSchema.safeParse(await request.json());
+    if (!parsed.success) return error(API_ERROR_CODES.VALIDATION, "Observación inválida", 400);
+    const adjunto = await services.ddMatrizEvaluacion.actualizarObservacionAdjunto(
+      session,
+      parsed.data.id,
+      parsed.data.observacion,
+    );
+    return success(mapDdMatrizAdjuntoToDTO(adjunto));
   },
 
   async eliminarAdjunto(request: Request): Promise<NextResponse> {

@@ -2451,6 +2451,17 @@ export const DD_MATRIZ_LISTA_URLS: Record<
 /** Limites de la matriz. */
 export const DD_MATRIZ_OBSERVACION_MAX = 2000;
 export const DD_MATRIZ_FINAL_COMENTARIO_MAX = 1000;
+/** Observacion por evidencia: limite general y limite ampliado para los criterios con detalle largo. */
+export const DD_MATRIZ_ADJUNTO_OBSERVACION_MAX = 2000;
+export const DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX = 20000;
+/** Criterios (codigo de lista) cuya observacion por evidencia admite el limite ampliado: OEFA, INDECOPI, lavado/corrupcion y Otros. */
+export const DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA: readonly string[] = [
+  "oefa",
+  "indecopi",
+  "corrupcion_empresa",
+  "corrupcion_persona",
+  DD_MATRIZ_LISTA_OTROS,
+];
 export const DD_MATRIZ_ADJUNTOS_MAX = 30;
 export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
 export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;

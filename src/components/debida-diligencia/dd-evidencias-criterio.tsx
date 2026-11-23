@@ -11,6 +11,7 @@ import {
 } from "@nrivera-iimp/ui-kit-iimp";
 import { FileText, MoreHorizontal } from "lucide-react";
 import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
+import { DdEvidenciaObservacion } from "./dd-evidencia-observacion";
 import { DD_MATRIZ_EVIDENCIAS_VISIBLES } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { ddEvidenciaDetalles } from "@/lib/shared/utils/dd-evidencia-detalles";
@@ -20,26 +21,37 @@ interface Props {
   /** Nombre del criterio (titulo del modal con la lista completa). */
   criterio: string;
   evidencias: DdMatrizAdjuntoDTO[];
+  /** Guarda la observacion de una evidencia; null = solo lectura. */
+  onGuardarObservacion?: ((evidencia: DdMatrizAdjuntoDTO, observacion: string | null) => Promise<void>) | null;
 }
 
-function Fila({ evidencia }: { evidencia: DdMatrizAdjuntoDTO }) {
+function Fila({
+  evidencia,
+  onGuardarObservacion,
+}: {
+  evidencia: DdMatrizAdjuntoDTO;
+  onGuardarObservacion: Props["onGuardarObservacion"];
+}) {
   return (
-    <div className="flex items-center gap-1.5">
-      <a
-        href={evidencia.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex min-w-0 items-center gap-1 text-[10px] text-primary hover:underline"
-      >
-        <FileText className="h-3 w-3 shrink-0" />
-        <span className="max-w-[220px] truncate">{evidencia.nombre}</span>
-      </a>
-      <DdEvidenciaPreviewButton
-        url={evidencia.url}
-        nombre={evidencia.nombre}
-        mimeType={evidencia.mimeType}
-        detalles={ddEvidenciaDetalles.deAdjunto(evidencia)}
-      />
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <a
+          href={evidencia.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-w-0 items-center gap-1 text-[10px] text-primary hover:underline"
+        >
+          <FileText className="h-3 w-3 shrink-0" />
+          <span className="max-w-[220px] truncate">{evidencia.nombre}</span>
+        </a>
+        <DdEvidenciaPreviewButton
+          url={evidencia.url}
+          nombre={evidencia.nombre}
+          mimeType={evidencia.mimeType}
+          detalles={ddEvidenciaDetalles.deAdjunto(evidencia)}
+        />
+      </div>
+      <DdEvidenciaObservacion evidencia={evidencia} onGuardar={onGuardarObservacion ?? null} />
     </div>
   );
 }
@@ -48,7 +60,7 @@ function Fila({ evidencia }: { evidencia: DdMatrizAdjuntoDTO }) {
  * Evidencias de un criterio: muestra las primeras N y, si hay mas, un boton de tres
  * puntos que abre un modal con la lista completa (la mas reciente primero).
  */
-export function DdEvidenciasCriterio({ criterio, evidencias }: Props) {
+export function DdEvidenciasCriterio({ criterio, evidencias, onGuardarObservacion = null }: Props) {
   const [abierto, setAbierto] = useState(false);
 
   if (evidencias.length === 0) {
@@ -62,7 +74,7 @@ export function DdEvidenciasCriterio({ criterio, evidencias }: Props) {
   return (
     <>
       {visibles.map((evidencia) => (
-        <Fila key={evidencia.id} evidencia={evidencia} />
+        <Fila key={evidencia.id} evidencia={evidencia} onGuardarObservacion={onGuardarObservacion} />
       ))}
       {ocultas > 0 ? (
         <Button
@@ -103,6 +115,7 @@ export function DdEvidenciasCriterio({ criterio, evidencias }: Props) {
                   <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
                     {evidencia.creadoPor || "—"} · {dateUtils.formatDateTime(evidencia.createdAt)}
                   </p>
+                  <DdEvidenciaObservacion evidencia={evidencia} onGuardar={onGuardarObservacion} />
                 </div>
                 <DdEvidenciaPreviewButton
                   url={evidencia.url}

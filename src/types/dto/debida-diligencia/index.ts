@@ -90,6 +90,7 @@ export type {
 export type { DdMatrizConteoDTO, DdMatrizEvaluacionResumenDTO } from "./dd-matriz-evaluacion-resumen.dto";
 export type { DdMatrizEvaluacionVinculoRequestDTO } from "./dd-matriz-evaluacion-vinculo-request.dto";
 export type { DdMatrizEvaluacionAdjuntoEliminarRequestDTO } from "./dd-matriz-evaluacion-adjunto-request.dto";
+export type { DdMatrizEvaluacionAdjuntoObservacionRequestDTO } from "./dd-matriz-evaluacion-adjunto-observacion-request.dto";
 export type { DdMatrizEvaluacionAdjuntoResponseDTO } from "./dd-matriz-evaluacion-adjunto-response.dto";
 export type {
   DdClasificarArchivosArchivoDTO,

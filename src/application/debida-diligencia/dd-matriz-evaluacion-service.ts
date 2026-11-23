@@ -43,6 +43,7 @@ import {
   complianceDesbloqueado,
   derivarAmbito,
   evaluarBloqueArea,
+  limiteObservacionAdjunto,
   listasAplicables,
   normalizarSiNoNa,
   normalizarResultadoFinal,
@@ -706,6 +707,37 @@ export class DdMatrizEvaluacionApplicationService {
       session.email,
       `Matriz DD: se quitó ${adjunto.nombre} de ${vinculo.nombre}`,
     );
+  }
+
+  /** Guarda la observacion de una evidencia; el maximo depende de su categoria. */
+  async actualizarObservacionAdjunto(
+    session: DdSession,
+    id: string,
+    observacion: string | null,
+  ): Promise<DdMatrizAdjuntoEntity> {
+    this.exigirAcceso(session, ACCESO_ADJUNTOS);
+    const adjunto = await this.repo.findAdjunto(id);
+    if (!adjunto) throw new DomainError("Adjunto no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
+    const vinculo = await this.vinculoRequerido(adjunto.vinculoId);
+    const adjuntos = await this.repo.listarAdjuntos(adjunto.vinculoId);
+    this.exigirPermisoAdjunto(session, vinculo, adjuntos, adjunto.categoria, adjunto);
+    const texto = observacion?.trim() || null;
+    const maximo = limiteObservacionAdjunto(adjunto.categoria);
+    if (texto && texto.length > maximo) {
+      throw new DomainError(
+        `La observación admite hasta ${maximo} caracteres`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    const actualizado = await this.repo.actualizarObservacionAdjunto(id, texto);
+    await this.repo.registrarAuditoria(
+      "matriz_adjunto_observacion",
+      vinculo.expediente.codigo,
+      session.email,
+      `Matriz DD: observación de ${adjunto.nombre} en ${vinculo.nombre}`,
+    );
+    return actualizado;
   }
 
   private exigirPermisoAdjunto(

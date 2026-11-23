@@ -1802,6 +1802,8 @@ model DdMatrizAdjunto {
   mimeType   String   @map("mime_type") @db.VarChar(100)
   tamano     Int
   creadoPor  String   @map("creado_por") @db.VarChar(200)
+  /// Observacion del analista sobre esta evidencia; el maximo depende de la categoria (constants.ts).
+  observacion String? @db.Text
   createdAt  DateTime @default(now()) @map("created_at")
 
   vinculo DdMatrizVinculo @relation(fields: [vinculoId], references: [id], onDelete: Cascade)

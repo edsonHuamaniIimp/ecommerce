@@ -359,6 +359,7 @@ function mapAdjunto(row: Prisma.DdMatrizAdjuntoGetPayload<object>): DdMatrizAdju
     mimeType: row.mimeType,
     tamano: row.tamano,
     creadoPor: row.creadoPor,
+    observacion: row.observacion,
     createdAt: row.createdAt,
   };
 }
@@ -1048,6 +1049,11 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
   async crearAdjunto(data: DdMatrizAdjuntoCreacion): Promise<DdMatrizAdjuntoEntity> {
     const row = await prisma.ddMatrizAdjunto.create({ data });
+    return mapAdjunto(row);
+  }
+
+  async actualizarObservacionAdjunto(id: string, observacion: string | null): Promise<DdMatrizAdjuntoEntity> {
+    const row = await prisma.ddMatrizAdjunto.update({ where: { id }, data: { observacion } });
     return mapAdjunto(row);
   }
 

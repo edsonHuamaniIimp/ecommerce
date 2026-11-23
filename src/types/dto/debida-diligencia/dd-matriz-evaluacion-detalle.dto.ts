@@ -15,6 +15,7 @@ export interface DdMatrizAdjuntoDTO {
   mimeType: string;
   tamano: number;
   creadoPor: string;
+  observacion: string | null;
   createdAt: string;
 }
 

@@ -48,6 +48,7 @@ function adjunto(parcial: Partial<DdMatrizAdjuntoDTO>): DdMatrizAdjuntoDTO {
     mimeType: "image/png",
     tamano: 10,
     creadoPor: "sig@iimp.org.pe",
+    observacion: null,
     createdAt: dias(2),
     ...parcial,
   };

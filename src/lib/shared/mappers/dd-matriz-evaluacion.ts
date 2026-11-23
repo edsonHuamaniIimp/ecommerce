@@ -87,6 +87,7 @@ export function mapDdMatrizAdjuntoToDTO(adjunto: DdMatrizAdjuntoEntity): DdMatri
     mimeType: adjunto.mimeType,
     tamano: adjunto.tamano,
     creadoPor: adjunto.creadoPor,
+    observacion: adjunto.observacion,
     createdAt: adjunto.createdAt.toISOString(),
   };
 }

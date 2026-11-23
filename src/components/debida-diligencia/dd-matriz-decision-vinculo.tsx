@@ -31,7 +31,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
+import type { DdMatrizAdjuntoDTO, DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
 import { DdAutomatizacionGeneral } from "./dd-automatizacion-general";
 import { DdEvidenciasCriterio } from "./dd-evidencias-criterio";
 import { DdVinculoResumen } from "./dd-vinculo-resumen";
@@ -200,6 +200,16 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     } finally {
       setSubiendoCriterio(null);
     }
+  };
+
+  const guardarObservacionEvidencia = async (evidencia: DdMatrizAdjuntoDTO, observacion: string | null) => {
+    const actualizado = await ddMatrizEvaluacionService.guardarObservacionAdjunto({ id: evidencia.id, observacion });
+    setDetalle((previo) =>
+      previo
+        ? { ...previo, adjuntos: previo.adjuntos.map((adjunto) => (adjunto.id === actualizado.id ? actualizado : adjunto)) }
+        : previo,
+    );
+    toast.success("Observación guardada");
   };
 
   const automatizarEvidencia = async (codigo: string) => {
@@ -451,7 +461,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                                 <Skeleton className="h-4 w-36" />
                               </div>
                             ) : null}
-                            <DdEvidenciasCriterio criterio={lista.label} evidencias={evidencias} />
+                            <DdEvidenciasCriterio
+                              criterio={lista.label}
+                              evidencias={evidencias}
+                              onGuardarObservacion={puedeEditar ? guardarObservacionEvidencia : null}
+                            />
                             <div className="flex flex-wrap items-center gap-2">
                               {puedeEditar ? (
                                 <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] font-medium text-primary hover:underline">

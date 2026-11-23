@@ -2381,6 +2381,25 @@ paths:
       responses:
         "200":
           description: Adjunto registrado
+  /debida-diligencia/matriz-evaluacion/adjunto/observacion:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Guarda la observacion de una evidencia (2000 caracteres; 20000 en OEFA, INDECOPI, corrupcion/lavado y Otros)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, observacion]
+              properties:
+                id: { type: string }
+                observacion: { type: string, nullable: true, description: Vacio o null la limpia }
+      responses:
+        "200":
+          description: Adjunto actualizado
+        "400":
+          description: Observacion excede el maximo de la categoria
   /debida-diligencia/matriz-evaluacion/adjunto/eliminar:
     post:
       tags: [DebidaDiligencia]
