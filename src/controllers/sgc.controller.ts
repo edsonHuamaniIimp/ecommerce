@@ -199,12 +199,13 @@ export const sgcController = {
     if (!body.solicitudId) return error(API_ERROR_CODES.VALIDATION, "solicitudId requerido", 400);
 
     const solicitudId = body.solicitudId;
-    const registrar = (errorIntento?: unknown) =>
+    const registrar = (errorIntento?: unknown, sinEnvio = false) =>
       services.sgc.registrarIntentoSubsanacion({
         solicitudId,
         origen: SGC_INTENTO_ORIGENES.ADMIN,
         actor: session.email,
         error: errorIntento,
+        sinEnvio,
       });
     let resultado: Awaited<ReturnType<typeof services.sgc.reenviarCorreccionAlSgc>>;
     try {
@@ -218,7 +219,7 @@ export const sgcController = {
       await registrar(new DomainError(mensaje, API_ERROR_CODES.VALIDATION, 400));
       return error(API_ERROR_CODES.VALIDATION, mensaje, 400);
     }
-    await registrar();
+    await registrar(undefined, Boolean(resultado.sinEnvio));
     return success(resultado);
   },
 };

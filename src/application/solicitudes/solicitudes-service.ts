@@ -592,7 +592,7 @@ export class SolicitudesApplicationService {
     if (enVentanaDocumentosSgc(detalle)) {
       /* Bitacora: cada intento (exito o error) queda en `sgc_subsanacion_intento` para
        * diagnosticar los casos en que el cliente subsana y el envio no prospera. */
-      const ejecutarReenvioSgc = async (detalle: SolicitudRow): Promise<void> => {
+      const ejecutarReenvioSgc = async (detalle: SolicitudRow): Promise<boolean> => {
       if (esperandoContratoCorregidoSgc(detalle)) {
         throw new DomainError(
           "El area revisora aun no ha regenerado el contrato corregido. Espera esa version para reenviar.",
@@ -671,9 +671,12 @@ export class SolicitudesApplicationService {
           409,
         );
       }
+      /* true = no se envio nada (el SGC ya estaba en revision); solo afecta la bitacora. */
+      return Boolean(resultadoReenvio.sinEnvio);
       };
+      let sinEnvio = false;
       try {
-        await ejecutarReenvioSgc(detalle);
+        sinEnvio = await ejecutarReenvioSgc(detalle);
       } catch (err) {
         await this.sgcIntegracion?.registrarIntentoSubsanacion({
           solicitudId,
@@ -687,6 +690,7 @@ export class SolicitudesApplicationService {
         solicitudId,
         origen: SGC_INTENTO_ORIGENES.CLIENTE,
         actor: userEmail,
+        sinEnvio,
       });
       return;
     }

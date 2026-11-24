@@ -3418,6 +3418,8 @@ export const SGC_INTENTO_RESULTADOS = {
   ERROR_SGC: "error_sgc",
   /** Error interno inesperado. */
   ERROR: "error",
+  /** No se envio nada: el SGC ya estaba en revision (la pantalla del usuario estaba desactualizada). */
+  SIN_ENVIO: "sin_envio",
 } as const;
 
 export type SgcIntentoResultado = (typeof SGC_INTENTO_RESULTADOS)[keyof typeof SGC_INTENTO_RESULTADOS];

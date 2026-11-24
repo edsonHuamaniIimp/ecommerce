@@ -611,6 +611,39 @@ describe("SgcIntegracionApplicationService.registrarIntentoSubsanacion", () => {
     ]);
   });
 
+  /* Caso ULMA 24-nov: el cliente pulso reenviar con el SGC ya en revision; no se envio nada
+   * y la bitacora lo registraba como exito. */
+  it("registra sin_envio cuando el reenvio no envio nada", async () => {
+    const repo = sgcRepoMock(expediente({ lifecycleStatus: "legal-review" as never }));
+    repo.registrarIntentoSubsanacion = vi.fn().mockResolvedValue(undefined);
+    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, clientMock(), documentoOrigenMock(), CONFIG);
+    await svc.registrarIntentoSubsanacion({ solicitudId: "sol-1", origen: SGC_INTENTO_ORIGENES.CLIENTE, actor: "c@x.pe", sinEnvio: true });
+    expect(vi.mocked(repo.registrarIntentoSubsanacion!).mock.calls[0]?.[0]).toMatchObject({
+      resultado: SGC_INTENTO_RESULTADOS.SIN_ENVIO,
+      httpStatus: null,
+    });
+  });
+
+  it("el reenvio con el SGC ya en revision no sube nada y lo informa", async () => {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue({
+      lifecycleStatus: "legal-review",
+      stage: SGC_STAGES.INTERNAL_REVIEW,
+      version: 4,
+      documents: [],
+      missingDocuments: [],
+    } as never);
+    const repo = sgcRepoMock(expediente({ contractId: "contract-1", lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED }));
+    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(detalle()), repo, client, documentoOrigenMock(), CONFIG);
+    const anexos = vi.spyOn(svc, "subirAnexosDeSolicitud");
+
+    const resultado = await svc.reenviarCorreccionAlSgc("sol-1", "cliente@x.pe");
+
+    expect(resultado).toMatchObject({ reenviado: true, sinEnvio: true });
+    expect(anexos).not.toHaveBeenCalled();
+    expect(client.reabrirExpediente).not.toHaveBeenCalled();
+  });
+
   it("nunca rompe el flujo si el registro falla", async () => {
     const repo = sgcRepoMock(expediente());
     repo.registrarIntentoSubsanacion = vi.fn().mockRejectedValue(new Error("db caida"));

@@ -839,20 +839,24 @@ export class SgcIntegracionApplicationService {
     origen: SgcIntentoOrigen;
     actor: string | null;
     error?: unknown;
+    /** true = el reenvio no envio nada (el SGC ya estaba en revision). */
+    sinEnvio?: boolean;
     extra?: Record<string, unknown>;
   }): Promise<void> {
     if (typeof this.repo.registrarIntentoSubsanacion !== "function") return;
     try {
       const err = params.error;
       const resultado = err === undefined
-        ? SGC_INTENTO_RESULTADOS.EXITO
+        ? params.sinEnvio ? SGC_INTENTO_RESULTADOS.SIN_ENVIO : SGC_INTENTO_RESULTADOS.EXITO
         : err instanceof DomainError
           ? SGC_INTENTO_RESULTADOS.VALIDACION
           : err instanceof SgcApiError
             ? SGC_INTENTO_RESULTADOS.ERROR_SGC
             : SGC_INTENTO_RESULTADOS.ERROR;
       const httpStatus = err instanceof DomainError || err instanceof SgcApiError ? err.status : null;
-      const mensaje = err === undefined ? null : err instanceof Error ? err.message : String(err);
+      const mensaje = err === undefined
+        ? params.sinEnvio ? "El SGC ya estaba en revision: no se envio nada." : null
+        : err instanceof Error ? err.message : String(err);
       const [detalle, expediente] = await Promise.all([
         this.solicitudRepo.detalle(params.solicitudId).catch(() => null),
         this.repo.findExpedientePorSolicitud(params.solicitudId).catch(() => null),
@@ -901,7 +905,7 @@ export class SgcIntegracionApplicationService {
   async reenviarCorreccionAlSgc(
     solicitudId: string,
     reenviadoPor: string,
-  ): Promise<{ reenviado: boolean; documento: SgcDocumentoEntity | null }> {
+  ): Promise<{ reenviado: boolean; documento: SgcDocumentoEntity | null; sinEnvio?: boolean }> {
     const sinDocumento = { reenviado: false, documento: null } as const;
     if (!this.config.enabled) return sinDocumento;
     const detalle = await this.solicitudRepo.detalle(solicitudId);
@@ -932,7 +936,8 @@ export class SgcIntegracionApplicationService {
         lastError: null,
         ...(observacionesActuales !== null ? { observaciones: observacionesActuales } : {}),
       }).catch(() => undefined);
-      return { reenviado: true, documento: null };
+      /* No se envio nada: solo se sincronizo. Se informa para que la bitacora no lo registre como exito. */
+      return { reenviado: true, documento: null, sinEnvio: true };
     }
 
     /* Guia §8/§8.2 y escenarios E/F: el contrato puede quedar igual SOLO si la devolucion

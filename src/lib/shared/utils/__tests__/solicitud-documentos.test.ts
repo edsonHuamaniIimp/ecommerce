@@ -849,3 +849,47 @@ describe("devolucionSgcSinDetalle", () => {
     expect(devolucionSgcSinDetalle({ sgcObservaciones: null })).toBe(false);
   });
 });
+
+/* Linea de tiempo del contrato observado por el SGC (boton verde -> azul -> reenvio).
+ * Verde: observacion de contrato pendiente y el admin aun no regenera (el modal bloquea la firma).
+ * Azul: el admin regenero (contrato posterior al ultimo firmado).
+ * Tras firmar: la observacion queda cubierta y el reenvio reconoce la firma. */
+describe("contrato observado: verde -> azul -> firma reconocida", () => {
+  const obs = {
+    observationId: "obs-contrato",
+    documentId: "sgc-contrato",
+    category: "contract",
+    title: "Contrato",
+    message: "Corrige el contrato",
+    status: "open",
+    requiresDocumentChange: true,
+    createdAt: "2026-11-23T15:21:52.000Z",
+  };
+  const admin = (createdAt: string) => ({ id: `adm-${createdAt}`, userId: null, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO, requisito: null, estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO, origen: "generado", createdAt });
+  const firmado = (createdAt: string, extra: Record<string, unknown> = {}) => ({ id: `fir-${createdAt}`, userId: CLIENTE, categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO, requisito: null, estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO, createdAt, ...extra });
+  const firmaVieja = firmado("2026-11-19T21:38:00.000Z");
+  const adminViejo = admin("2026-11-19T21:35:00.000Z");
+  const adminRegenerado = admin("2026-11-24T18:29:00.000Z");
+
+  it("1) antes de regenerar: observacion pendiente y no hay contrato nuevo para firmar (verde, bloqueado)", () => {
+    const s = { ...devuelto, sgcObservaciones: [obs], docsAdjuntos: [adminViejo, firmaVieja] };
+    expect(observacionContratoSgcPendiente(s)).toBe(true);
+    expect(hayContratoAdminNuevoParaFirmar(s)).toBe(false);
+  });
+
+  it("2) regenerado: hay contrato nuevo para firmar (azul) y la firma vieja no cuenta", () => {
+    const s = { ...devuelto, sgcObservaciones: [obs], docsAdjuntos: [adminViejo, firmaVieja, adminRegenerado] };
+    expect(hayContratoAdminNuevoParaFirmar(s)).toBe(true);
+    expect(observacionContratoSgcPendiente(s)).toBe(true);
+    expect(hayFirmadoPosteriorAlContratoCorregido(s)).toBe(false);
+  });
+
+  it("3) firmado tras regenerar: observacion cubierta y la firma corregida se reconoce para reenviar", () => {
+    const nueva = firmado("2026-11-24T18:40:00.000Z", { sgcObservationId: "obs-contrato" });
+    const s = { ...devuelto, sgcObservaciones: [obs], docsAdjuntos: [adminViejo, firmaVieja, adminRegenerado, nueva] };
+    expect(observacionContratoSgcPendiente(s)).toBe(false);
+    expect(hayContratoAdminNuevoParaFirmar(s)).toBe(false);
+    expect(hayFirmadoPosteriorAlContratoCorregido(s)).toBe(true);
+    expect(estadoCorreccionSgc(s).faltantes).toHaveLength(0);
+  });
+});

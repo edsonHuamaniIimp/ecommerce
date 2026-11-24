@@ -203,3 +203,9 @@ Diagnóstico sobre los 44 expedientes abiertos de prod (solo lectura, BD + API d
   Lo anterior a la devolución no se reenvía.
 - Recomendación al SGC: usar «Devolver para corregir» marcando los adjuntos; así el pedido
   llega por API y el cliente ve exactamente qué corregir.
+
+### Bitácora de intentos: reenvío sin envío (24-nov)
+- Auditoría de rondas (35 expedientes): desde los fixes del 23-24 nov no hay envíos equivocados.
+- Corrección: si "Solicitar nueva revisión" llega con el SGC ya en revisión (pantalla
+  desactualizada), no se envía nada; antes la bitácora lo registraba como `exito`. Ahora queda
+  como `sin_envio` (`SGC_INTENTO_RESULTADOS.SIN_ENVIO`). El comportamiento del reenvío no cambió.
