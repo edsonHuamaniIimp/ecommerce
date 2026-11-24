@@ -1473,8 +1473,8 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
   async datosReservaIImp(solicitudId: string) {    const row = await prisma.solicitud.findUnique({
       where: { id: solicitudId },
       include: {
-        gessStand: { select: { eventoId: true, standApiId: true, standCode: true } },
-        stands: { include: { gessStand: { select: { eventoId: true, standApiId: true, standCode: true } } } },
+        gessStand: { select: { eventoId: true, standApiId: true, standCode: true, medidas: true, tipoStand: true, rawData: true } },
+        stands: { include: { gessStand: { select: { eventoId: true, standApiId: true, standCode: true, medidas: true, tipoStand: true, rawData: true } } } },
       },
     });
     if (!row) return null;
@@ -1490,6 +1490,9 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       tipoEvento: evento?.tipoEvento ?? null,
       codigoEvento: evento?.codigoEvento ?? null,
       stands: gessStands.map((s) => s.standApiId ?? s.standCode).filter(Boolean),
+      standsPrecio: gessStands
+        .map((s) => ({ codigo: s.standApiId ?? s.standCode, standCode: s.standCode, precioUsd: resolverPrecioStand(s) }))
+        .filter((s) => Boolean(s.codigo)),
       planCuotas: (row.planCuotas ?? null) as PlanCuotasSolicitud | null,
       datosFacturacion: (row.datosFacturacion ?? null) as DatosFacturacionSolicitud | null,
       requisitosFacturacion: (row.requisitosFacturacion ?? null) as unknown,

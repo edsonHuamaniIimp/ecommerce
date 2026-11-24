@@ -62,7 +62,8 @@ Importes: **string decimal con punto y 2 decimales**, en la **moneda del contrat
 | Quién la dispara | El **cliente**, con "Solicitar factura" (habilitado 30 días antes de la cuota; la 1.ª siempre) | **Facturación** (staff): inmediato, o **automático a la fecha y hora programadas** (tarea que corre cada minuto, hora de Lima) |
 | Llamada | `POST /stands/reserva` (**una sola vez**, con **todas** las cuotas del contrato) | Igual |
 | `Moneda`, `TipoCambio` | Sí | Sí |
-| `StandsDetalle`, `Comercial`, `Modalidad`, importes por cuota, `Requisitos`, `Origen` | **No** (formato actual) | **Sí** |
+| `Comercial`, importes por cuota y `StandsDetalle` (todos los stands) | Solo si el contrato es en **PEN** (el SIE exige los importes); en USD **no** (formato actual) | **Sí** |
+| `Modalidad`, `Requisitos`, `Origen` | **No** | **Sí** |
 | Requisitos declarados después (reserva ya registrada) | Solo documentos por `POST /stands/archivos` | Igual |
 
 Reglas comunes: `NumeroSolicitud` determinista y único (409 si se repite); `TextoLibre` solo en la cuota de origen;
@@ -127,6 +128,11 @@ factura (`01`) a RUC y boleta (`03`) a DNI; los importes salen del plan de pagos
 "Moneda": "PEN",
 "TipoCambio": "3.5000",
 "Stands": ["114", "117", "118"],
+"StandsDetalle": [
+  { "Numero": "114", "PrecioLista": "26040.00", "DescuentoPorcentaje": "0.00", "DescuentoMonto": "0.00", "PrecioNeto": "26040.00" },
+  { "Numero": "117", "PrecioLista": "26040.00", "DescuentoPorcentaje": "0.00", "DescuentoMonto": "0.00", "PrecioNeto": "26040.00" },
+  { "Numero": "118", "PrecioLista": "32340.00", "DescuentoPorcentaje": "0.00", "DescuentoMonto": "0.00", "PrecioNeto": "32340.00" }
+],
 "Comercial": { "TipoDescuento": "NINGUNO", "SumaLista": "84420.00", "DescuentoTotal": "0.00",
                "BaseImponible": "84420.00", "TasaIgv": "18.00", "Igv": "15195.60", "Total": "99615.60" },
 "Cuotas": [
@@ -135,13 +141,12 @@ factura (`01`) a RUC y boleta (`03`) a DNI; los importes salen del plan de pagos
   { "Porcentaje": 60, "Fecha": "2026-12-09", "BaseImponible": "50652.00", "Igv": "9117.36", "Monto": "59769.36" }
 ]
 ```
-(sin `StandsDetalle`: no hay descuento por stand.)
+(`PrecioLista` = lista del IIMP en USD × `TipoCambio`: 7,440 × 3.5 = 26,040 y 9,240 × 3.5 = 32,340; los precios del ejemplo del SIE (28,000 / 28,140 / 28,280) no son los de la lista.)
 
-### Solicitud regular — solo se suma `TipoCambio`
+### Solicitud regular
 
-```json
-{ "...": "payload actual (v6)", "Moneda": "PEN", "TipoCambio": "3.5000" }
-```
+- **USD:** solo se suma `TipoCambio`: `{ "...": "payload actual (v6)", "Moneda": "USD", "TipoCambio": "1.0000" }`.
+- **PEN:** el SIE no calcula; la web envía `Comercial`, importes por cuota y `StandsDetalle` igual que en el caso A (sin `Modalidad`, `Requisitos` ni `Origen`).
 
 ## 5. Qué debe hacer el SIE
 
@@ -200,5 +205,4 @@ Para conciliar lo facturado, la notificación por cuota podría traer además (o
 5. ¿Cómo se actualiza `Requisitos` si el usuario los completa después (endpoint nuevo o reenvío)? Hoy solo se agregan documentos por `/stands/archivos`.
 6. ¿Aceptan `Origen.ProgramadaPara` para distinguir los registros hechos por tarea programada?
 7. ¿Tope real de cuotas: 3 (acuerdo) o 9 (doc de reserva)?
-8. Empresas extranjeras (público de las solicitudes internas): hoy la web solo envía RUC/DNI. ¿Qué espera el SIE para
-   `TipDocumento 0` (documento, dirección, país, sin detracción)?
+8. ~~Empresas extranjeras~~ **Resuelto en la web:** para una empresa no domiciliada (documento RUT/ID alfanumérico) la web enviará `TipDocFacturacion: "0"`, `NumDocFacturacion` (documento sin signos, en mayúsculas), `RazonSocial`, `DirFacturacion` y **`Pais`** (ISO 3166-1 alfa-2, p. ej. `"CL"`). No se envía documento del representante. Confirmar con el SIE: ¿`Pais` en alfa-2 o prefieren el nombre?

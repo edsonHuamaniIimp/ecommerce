@@ -148,6 +148,8 @@ export interface ISolicitudesRepository {
     tipoEvento: number | null;
     codigoEvento: number | null;
     stands: string[];
+    /** Codigo enviado al IIMP, codigo comercial y precio de lista (USD) de cada stand. */
+    standsPrecio?: Array<{ codigo: string; standCode: string; precioUsd: number }>;
     planCuotas: PlanCuotasSolicitud | null;
     /** Datos comerciales/fiscales del paso 1 del wizard (solicitudes nuevas). */
     datosFacturacion: DatosFacturacionSolicitud | null;

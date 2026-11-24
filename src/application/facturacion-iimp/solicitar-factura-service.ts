@@ -11,6 +11,7 @@ import {
   REGEX_FECHA_ISO,
   REGEX_RUC,
   TIPOS_COMPROBANTE,
+  TIPOS_DOCUMENTO_EMPRESA,
   TIPOS_DOCUMENTO_FACTURACION_IIMP,
   TIPOS_DOCUMENTO_PERSONA,
   TIPOS_SOLICITUD,
@@ -27,6 +28,7 @@ import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpCuotaInput
 import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
 import { numeroSolicitudIImp } from "./numero-solicitud";
 import { extensionReserva } from "./extension-reserva-iimp";
+import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
 
@@ -188,6 +190,7 @@ export class SolicitarFacturaApplicationService {
           tipoCambio: datos.tipoCambio,
           plan: datos.planCuotas,
           cuotas,
+          stands: datos.standsPrecio ?? [],
           interna: fact.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA,
           requisitos: requisitosDeclarados
             ? {
@@ -446,8 +449,19 @@ export class SolicitarFacturaApplicationService {
     }
 
     const ruc = [digitos(snapshot?.numeroDocumento), digitos(empresa?.ruc)].find((v) => REGEX_RUC.test(v)) ?? "";
-    if (!REGEX_RUC.test(ruc)) {
+    /* Empresa extranjera (no domiciliada): documento RUT/ID alfanumerico; el SIE la factura como
+       exportacion con `TipDocFacturacion = 0` y su pais. Un RUC peruano valido sigue el camino normal. */
+    const documentoExtranjero = normalizarDocumentoEmpresa(snapshot?.numeroDocumento || empresa?.ruc);
+    const esExtranjera =
+      !REGEX_RUC.test(ruc) &&
+      resolverTipoDocumentoEmpresa(snapshot?.tipoDocumento || empresa?.tipoDocumento, documentoExtranjero) === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO &&
+      validarDocumentoEmpresa(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO, documentoExtranjero) === null;
+    if (!esExtranjera && !REGEX_RUC.test(ruc)) {
       throw new DomainError("La factura requiere un RUC de 11 digitos (revisa los datos de la solicitud)", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const pais = esExtranjera ? (empresa?.pais ?? "").trim().toUpperCase() : "";
+    if (esExtranjera && !/^[A-Z]{2}$/.test(pais)) {
+      throw new DomainError("La empresa extranjera no tiene pais (ISO de 2 letras); registralo en Empresas antes de facturar", API_ERROR_CODES.VALIDATION, 400);
     }
     const razonSocial = snapshot?.razonSocial?.trim() || empresa?.razonSocial?.trim() || "";
     if (!razonSocial) throw new DomainError("Falta la razon social en los datos de facturacion", API_ERROR_CODES.VALIDATION, 400);
@@ -459,9 +473,10 @@ export class SolicitarFacturaApplicationService {
     return {
       ...base,
       tipoFacturacion: FACTURACION_IIMP.FACTURA,
-      tipDocFacturacion: TIPOS_DOCUMENTO_FACTURACION_IIMP.RUC,
-      numDocFacturacion: ruc,
+      tipDocFacturacion: esExtranjera ? TIPOS_DOCUMENTO_FACTURACION_IIMP.EXTRANJERA : TIPOS_DOCUMENTO_FACTURACION_IIMP.RUC,
+      numDocFacturacion: esExtranjera ? documentoExtranjero : ruc,
       razonSocial,
+      ...(esExtranjera ? { pais } : {}),
       dirFacturacion: direccion,
       web: empresa?.sitioWeb ?? null,
       telefono,
@@ -470,7 +485,7 @@ export class SolicitarFacturaApplicationService {
         contrato: {
           nombre: nombreContacto,
           cargo: IIMP_CARGO_REPRESENTANTE,
-          ...(dniRepresentante ? { tipoDocumento: TIPOS_DOCUMENTO_FACTURACION_IIMP.DNI, numDocumento: dniRepresentante } : {}),
+          ...(dniRepresentante && !esExtranjera ? { tipoDocumento: TIPOS_DOCUMENTO_FACTURACION_IIMP.DNI, numDocumento: dniRepresentante } : {}),
           email: emailPagos,
           ...(telefono ? { telefono } : {}),
         },

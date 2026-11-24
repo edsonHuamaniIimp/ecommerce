@@ -1,4 +1,6 @@
-import { MONEDAS, TIPOS_DESCUENTO, TIPOS_SOLICITUD } from "@/lib/shared/constants";
+import { API_ERROR_CODES, MONEDAS, TIPOS_DESCUENTO, TIPOS_SOLICITUD } from "@/lib/shared/constants";
+import { DomainError } from "@/lib/server/router";
+import { convertirNeto } from "@/lib/shared/utils/moneda";
 import type { PlanCuotasSolicitud } from "@/domain/models/entities";
 import type {
   ReservaIimpComercial,
@@ -12,6 +14,9 @@ import type {
 /** Tasa de IGV que la web aplica al plan (porcentaje). */
 const TASA_IGV = 18;
 const SISTEMA_ORIGEN = "CONTRATOS_STANDS";
+/** Tolerancias del SIE (centavos): sumas 0.02, base de la cuota vs su porcentaje 0.05. */
+const TOLERANCIA_SUMA_C = 2;
+const TOLERANCIA_CUOTA_C = 5;
 
 /** Tipos de descuento del contrato en el vocabulario del IIMP. */
 const TIPO_DESCUENTO_IIMP = {
@@ -24,13 +29,33 @@ const TIPO_DESCUENTO_IIMP = {
 const aCentavos = (valor: number): number => Math.round((valor + Number.EPSILON) * 100);
 const decimal = (centavos: number): string => (centavos / 100).toFixed(2);
 
+/** Porcentaje en 2 decimales si alcanza; si no, en 4 (el SIE valida monto = % de la lista). */
+function porcentajeTexto(valor: number): string {
+  const dos = valor.toFixed(2);
+  return Math.abs(Number(dos) - valor) < 1e-9 ? dos : valor.toFixed(4);
+}
+
+function invalido(mensaje: string): DomainError {
+  return new DomainError(mensaje, API_ERROR_CODES.VALIDATION, 400);
+}
+
+export interface StandPrecioReserva {
+  /** Codigo con el que el stand viaja en `Stands`. */
+  codigo: string;
+  /** Codigo comercial (el que usa el plan en `descuentosPorStand`). */
+  standCode: string;
+  /** Precio de lista en USD. */
+  precioUsd: number;
+}
+
 export interface ContextoExtensionReserva {
   moneda: string;
   tipoCambio: number | null;
   plan: PlanCuotasSolicitud | null;
   /** Cuotas ya redondeadas a porcentajes enteros (las que viajan al IIMP). */
   cuotas: ReservaIimpCuotaInput[];
-  /** Solicitud interna: agrega el bloque extra (comercial, importes, requisitos, origen). */
+  stands: StandPrecioReserva[];
+  /** Solicitud interna: agrega ademas requisitos, modalidad y origen. */
   interna: boolean;
   requisitos: ReservaIimpRequisitos | null;
   origen: Omit<ReservaIimpOrigen, "sistema" | "registradoEn"> | null;
@@ -63,58 +88,147 @@ export function importesPorCuota(
 }
 
 /**
- * Campos que se agregan al payload de la reserva: `TipoCambio` para toda solicitud y,
- * en las internas, el bloque comercial/cuotas/requisitos/origen (propuesta al SIE).
- * Devuelve `{}` si el plan no tiene los datos necesarios (se envia el payload clasico).
+ * Precio pactado de CADA stand de la reserva (el SIE lo exige con soles o con cualquier
+ * descuento): lista en la moneda del contrato, descuento y neto. Con descuento por stand
+ * usa el plan; con descuento global lo reparte proporcionalmente (el ultimo absorbe los
+ * centavos). Valida que sume la lista y la base del contrato.
+ */
+export function detalleStandsReserva(
+  plan: PlanCuotasSolicitud,
+  stands: StandPrecioReserva[],
+  moneda: string,
+  tipoCambio: number | null,
+  sumaListaC: number,
+  baseC: number,
+): ReservaIimpStandDetalle[] {
+  if (stands.length === 0) throw invalido("No se pudo armar el detalle de precios por stand de la solicitud.");
+  const porStand = new Map((plan.descuentosPorStand ?? []).map((d) => [String(d.standCode ?? ""), d]));
+  const listasC = stands.map((s) => {
+    const d = porStand.get(s.standCode);
+    return aCentavos(d ? d.precio : convertirNeto(s.precioUsd, moneda, tipoCambio));
+  });
+  const sumaC = listasC.reduce((a, b) => a + b, 0);
+  if (Math.abs(sumaC - sumaListaC) > TOLERANCIA_SUMA_C) {
+    throw invalido(
+      `La lista de precios de los stands (${decimal(sumaC)}) no coincide con la del contrato (${decimal(sumaListaC)}). Actualiza la solicitud antes de enviarla.`,
+    );
+  }
+
+  const descuentoTotalC = sumaListaC - baseC;
+  let acumulado = 0;
+  const detalle = stands.map((s, i) => {
+    const listaC = listasC[i] ?? 0;
+    const d = porStand.get(s.standCode);
+    const esUltimo = i === stands.length - 1;
+    let descC: number;
+    if (plan.descuentosPorStand && plan.descuentosPorStand.length > 0) {
+      descC = d ? aCentavos(d.descuentoMonto) : 0;
+    } else {
+      descC = esUltimo ? descuentoTotalC - acumulado : Math.round((listaC * descuentoTotalC) / (sumaListaC || 1));
+    }
+    acumulado += descC;
+    return {
+      numero: s.codigo,
+      precioLista: decimal(listaC),
+      descuentoPorcentaje: porcentajeTexto(listaC > 0 ? (descC / listaC) * 100 : 0),
+      descuentoMonto: decimal(descC),
+      precioNeto: decimal(listaC - descC),
+      _netoC: listaC - descC,
+    };
+  });
+  const sumaNetoC = detalle.reduce((a, d) => a + d._netoC, 0);
+  if (Math.abs(sumaNetoC - baseC) > TOLERANCIA_SUMA_C) {
+    throw invalido(`El neto por stand (${decimal(sumaNetoC)}) no coincide con la base del contrato (${decimal(baseC)}).`);
+  }
+  return detalle.map(({ _netoC: _omitido, ...resto }) => resto);
+}
+
+/**
+ * Campos que se agregan al payload de la reserva:
+ * - `TipoCambio` en toda solicitud.
+ * - Con moneda PEN (regular o interna) o solicitud interna: `Comercial`, importes por cuota y
+ *   `StandsDetalle` (el SIE no calcula ni convierte: valida y guarda lo que manda la web).
+ * - Solo internas: ademas `Modalidad`, `Requisitos` y `Origen`.
+ * Una solicitud en USD que no es interna no cambia (el SIE calcula con su lista).
  */
 export function extensionReserva(ctx: ContextoExtensionReserva): Partial<ReservaIimpInput> {
-  const tipoCambio = tipoCambioPactado(ctx.moneda, ctx.plan?.tipoCambio ?? ctx.tipoCambio);
-  const extra: Partial<ReservaIimpInput> = tipoCambio ? { tipoCambio } : {};
+  const esPen = ctx.moneda === MONEDAS.PEN;
   const plan = ctx.plan;
-  if (!ctx.interna || !plan || plan.cuotas.length === 0) return extra;
-  if (typeof plan.total !== "number" || typeof plan.igv !== "number" || typeof plan.netoLista !== "number") return extra;
+  const tipoCambio = tipoCambioPactado(ctx.moneda, plan?.tipoCambio ?? ctx.tipoCambio);
+  if (esPen && !tipoCambio) {
+    throw invalido("La solicitud en soles no tiene tipo de cambio pactado; no se puede enviar al SIE.");
+  }
+  const extra: Partial<ReservaIimpInput> = tipoCambio ? { tipoCambio } : {};
+  if (!ctx.interna && !esPen) return extra;
 
-  const base = typeof plan.netoDescontado === "number" ? plan.netoDescontado : plan.total - plan.igv;
-  const descuentoTotal = typeof plan.descuentoMonto === "number" ? plan.descuentoMonto : plan.netoLista - base;
-  const tipoDescuento =
-    descuentoTotal > 0.004 ? (TIPO_DESCUENTO_IIMP[plan.descuentoTipo ?? TIPOS_DESCUENTO.PORCENTAJE] ?? TIPO_DESCUENTO_IIMP.NINGUNO) : TIPO_DESCUENTO_IIMP.NINGUNO;
+  const completo =
+    plan !== null &&
+    plan.cuotas.length > 0 &&
+    typeof plan.total === "number" &&
+    typeof plan.igv === "number" &&
+    typeof plan.netoLista === "number";
+  if (!completo || !plan) {
+    if (esPen) throw invalido("El plan de pagos de la solicitud en soles esta incompleto; no se puede enviar al SIE.");
+    return extra;
+  }
+  const netoLista = plan.netoLista as number;
+  const totalPlan = plan.total as number;
+  const igvPlan = plan.igv as number;
+
+  const base = typeof plan.netoDescontado === "number" ? plan.netoDescontado : totalPlan - igvPlan;
+  const descuentoTotal = typeof plan.descuentoMonto === "number" ? plan.descuentoMonto : netoLista - base;
+  const hayDescuento = descuentoTotal > 0.004;
+  const tipoDescuento = hayDescuento
+    ? (TIPO_DESCUENTO_IIMP[plan.descuentoTipo ?? TIPOS_DESCUENTO.PORCENTAJE] ?? TIPO_DESCUENTO_IIMP.NINGUNO)
+    : TIPO_DESCUENTO_IIMP.NINGUNO;
 
   const comercial: ReservaIimpComercial = {
     tipoDescuento,
-    sumaLista: decimal(aCentavos(plan.netoLista)),
+    sumaLista: decimal(aCentavos(netoLista)),
     descuentoTotal: decimal(aCentavos(descuentoTotal)),
     baseImponible: decimal(aCentavos(base)),
     tasaIgv: TASA_IGV.toFixed(2),
-    igv: decimal(aCentavos(plan.igv)),
-    total: decimal(aCentavos(plan.total)),
+    igv: decimal(aCentavos(igvPlan)),
+    total: decimal(aCentavos(totalPlan)),
   };
 
+  /* Cuotas: la base de cada una debe corresponder a su porcentaje (el SIE tolera 0.05). */
   const importes = importesPorCuota(plan.cuotas.map((c) => c.monto), base);
+  const baseC = aCentavos(base);
+  ctx.cuotas.forEach((c, i) => {
+    const baseCuotaC = aCentavos(Number(importes[i]?.baseImponible ?? 0));
+    const esperadaC = (baseC * c.porcentaje) / 100;
+    if (Math.abs(baseCuotaC - esperadaC) > TOLERANCIA_CUOTA_C) {
+      throw invalido(
+        `La cuota ${i + 1} (${c.porcentaje} %) no es proporcional a su monto; el SIE exige que la base corresponda al porcentaje. Ajusta el plan de cuotas.`,
+      );
+    }
+  });
   const cuotas = ctx.cuotas.map((c, i) => ({ ...c, ...(importes[i] ?? {}) }));
 
-  const standsDetalle: ReservaIimpStandDetalle[] = (plan.descuentosPorStand ?? [])
-    .filter((s) => s.standCode)
-    .map((s) => ({
-      numero: String(s.standCode),
-      precioLista: decimal(aCentavos(s.precio)),
-      descuentoPorcentaje: (s.porcentaje ?? 0).toFixed(2),
-      descuentoMonto: decimal(aCentavos(s.descuentoMonto)),
-      precioNeto: decimal(aCentavos(s.neto)),
-    }));
+  /* StandsDetalle es obligatorio con soles o con cualquier descuento. */
+  const standsDetalle =
+    esPen || hayDescuento
+      ? detalleStandsReserva(plan, ctx.stands, ctx.moneda, plan.tipoCambio ?? ctx.tipoCambio, aCentavos(netoLista), baseC)
+      : [];
 
   return {
     ...extra,
     comercial,
     cuotas,
     ...(standsDetalle.length > 0 ? { standsDetalle } : {}),
-    ...(plan.modalidad ? { modalidad: plan.modalidad } : {}),
-    ...(ctx.requisitos ? { requisitos: ctx.requisitos } : {}),
-    origen: {
-      sistema: SISTEMA_ORIGEN,
-      tipoSolicitud: TIPOS_SOLICITUD.RESERVA_EMPRESA.toUpperCase(),
-      registradoPor: ctx.origen?.registradoPor ?? null,
-      registradoEn: ctx.ahora.toISOString(),
-      programadaPara: ctx.origen?.programadaPara ?? null,
-    },
+    ...(ctx.interna
+      ? {
+          ...(plan.modalidad ? { modalidad: plan.modalidad } : {}),
+          ...(ctx.requisitos ? { requisitos: ctx.requisitos } : {}),
+          origen: {
+            sistema: SISTEMA_ORIGEN,
+            tipoSolicitud: TIPOS_SOLICITUD.RESERVA_EMPRESA.toUpperCase(),
+            registradoPor: ctx.origen?.registradoPor ?? null,
+            registradoEn: ctx.ahora.toISOString(),
+            programadaPara: ctx.origen?.programadaPara ?? null,
+          },
+        }
+      : {}),
   };
 }

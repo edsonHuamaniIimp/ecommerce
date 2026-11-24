@@ -316,6 +316,41 @@ describe("SolicitarFacturaApplicationService", () => {
     ])).resolves.toMatchObject({ numeroSolicitud: "CTRS-s1" });
   });
 
+  it("empresa extranjera (no domiciliada): TipDocFacturacion 0, documento alfanumerico y pais", async () => {
+    const m = mocks();
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, ruc: "76123456K", tipoDocumento: "0", pais: "CL", razonSocial: "EMPRESA CHILE SPA" } as unknown as EmpresaEntity);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      datosFacturacion: { ...snapshotFactura, tipoDocumento: "0", numeroDocumento: "76.123.456-K", razonSocial: "EMPRESA CHILE SPA" },
+    } as typeof datosBase);
+    await servicio(m).solicitar("c1", ident, ADJUNTOS);
+
+    const enviado = vi.mocked(m.reserva.reservar).mock.calls[0]?.[0];
+    expect(enviado).toMatchObject({ tipDocFacturacion: "0", numDocFacturacion: "76123456K", razonSocial: "EMPRESA CHILE SPA", pais: "CL" });
+    expect(enviado?.contactos.contrato).not.toHaveProperty("tipoDocumento");
+  });
+
+  it("empresa extranjera sin pais: 400 antes de llamar al SIE", async () => {
+    const m = mocks();
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, ruc: "76123456K", tipoDocumento: "0", pais: "" } as unknown as EmpresaEntity);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      datosFacturacion: { ...snapshotFactura, tipoDocumento: "0", numeroDocumento: "76123456K" },
+    } as typeof datosBase);
+    await expect(servicio(m).solicitar("c1", ident, ADJUNTOS)).rejects.toMatchObject({ status: 400 });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
+  it("RUC peruano invalido sigue siendo rechazado (no se trata como extranjera)", async () => {
+    const m = mocks();
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, ruc: "123" } as unknown as EmpresaEntity);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      datosFacturacion: { ...snapshotFactura, tipoDocumento: "RUC", numeroDocumento: "123" },
+    } as typeof datosBase);
+    await expect(servicio(m).solicitar("c1", ident, ADJUNTOS)).rejects.toMatchObject({ status: 400 });
+  });
+
   it("factura sin empresa vinculada: el snapshot alcanza", async () => {
     const m = mocks();
     vi.mocked(m.auth.findEmpresaIdDeUsuario).mockResolvedValue(null);

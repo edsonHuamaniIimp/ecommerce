@@ -141,6 +141,7 @@ function cuerpo(input: ReservaIimpInput): Record<string, unknown> {
     TipDocFacturacion: input.tipDocFacturacion,
     NumDocFacturacion: input.numDocFacturacion,
     ...(input.razonSocial ? { RazonSocial: input.razonSocial } : {}),
+    ...(input.pais ? { Pais: input.pais } : {}),
     ...(input.apellidoPaternoFact ? { ApellidoPaternoFact: input.apellidoPaternoFact } : {}),
     ...(input.apellidoMaternoFact ? { ApellidoMaternoFact: input.apellidoMaternoFact } : {}),
     ...(input.nombresFact ? { NombresFact: input.nombresFact } : {}),
