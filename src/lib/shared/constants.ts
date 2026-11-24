@@ -3831,3 +3831,36 @@ export const DD_PLAZO_RESPUESTA_DIAS_DEFAULT = 3;
 
 
 
+
+/**
+ * Casos del manual contextual de "Mis reservas": segun el estado de la solicitud se abre la
+ * guia exacta (observacion del Asociado o del area legal/SGC, firma, pago, etc.).
+ */
+export const MANUAL_CASOS = {
+  FIRMAR_CONTRATO: "firmar-contrato",
+  ASOCIADO_DOCUMENTOS: "asociado-documentos",
+  ASOCIADO_CONTRATO: "asociado-contrato",
+  SGC_DOCUMENTOS: "sgc-documentos",
+  SGC_GRUPO: "sgc-grupo",
+  SGC_CONTRATO: "sgc-contrato",
+  SGC_SIN_DETALLE: "sgc-sin-detalle",
+  SGC_REENVIAR: "sgc-reenviar",
+  EN_REVISION: "en-revision",
+  PAGO: "pago",
+} as const;
+
+export type ManualCaso = (typeof MANUAL_CASOS)[keyof typeof MANUAL_CASOS];
+
+/** Orden de presentacion de los casos en el modal (de lo mas urgente a lo informativo). */
+export const MANUAL_CASOS_ORDEN: readonly ManualCaso[] = [
+  MANUAL_CASOS.SGC_SIN_DETALLE,
+  MANUAL_CASOS.SGC_CONTRATO,
+  MANUAL_CASOS.SGC_GRUPO,
+  MANUAL_CASOS.SGC_DOCUMENTOS,
+  MANUAL_CASOS.SGC_REENVIAR,
+  MANUAL_CASOS.ASOCIADO_CONTRATO,
+  MANUAL_CASOS.ASOCIADO_DOCUMENTOS,
+  MANUAL_CASOS.FIRMAR_CONTRATO,
+  MANUAL_CASOS.PAGO,
+  MANUAL_CASOS.EN_REVISION,
+];

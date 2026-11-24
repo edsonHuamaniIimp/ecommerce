@@ -7,6 +7,7 @@ import { Eye, Map } from "lucide-react";
 import { MisSolicitudesManager } from "@/components/solicitudes/mis-solicitudes-manager";
 import { PaginaDashboard } from "@/components/dashboard/pagina-dashboard";
 import { EmpresaVerComoSelect } from "@/components/shared/empresa-ver-como-select";
+import { ManualesAyudaBoton } from "@/components/manual/manual-casos-dialog";
 import { useSesion } from "@/hooks/use-sesion";
 import { PERMISSIONS } from "@/lib/shared/constants";
 import type { EmpresaVerComoDTO } from "@/types/dto/ver-como/empresa-ver-como.dto";
@@ -27,13 +28,16 @@ export default function MisSolicitudesPage() {
       ancho="completo"
       accion={
         !empresaVerComo ? (
-          <Button asChild variant="outline" className="gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-            <Link href="/mapa">
-              <Map className="h-4 w-4" />
-              <span>Nueva reserva en el plano</span>
-            </Link>
-          </Button>
-        ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <ManualesAyudaBoton />
+            <Button asChild variant="outline" className="gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+              <Link href="/mapa">
+                <Map className="h-4 w-4" />
+                <span>Nueva reserva en el plano</span>
+              </Link>
+            </Button>
+          </div>
+        ) : <ManualesAyudaBoton />
       }
     >
       {esAdmin && (

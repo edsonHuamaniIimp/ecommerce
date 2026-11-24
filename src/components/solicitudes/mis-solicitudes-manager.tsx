@@ -27,6 +27,8 @@ import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, E
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
 import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, devolucionSgcSinDetalle, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos } from "@/lib/shared/utils/solicitud-documentos";
+import { casosManualSolicitud } from "@/lib/shared/utils/manual-casos";
+import { ManualCasosBoton } from "@/components/manual/manual-casos-dialog";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 import { MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
@@ -716,6 +718,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           {`${(row.docsAdjuntosCount ?? 0) + ((row.documentos as string[])?.length ?? 0)} doc(s)`}
                         </span>
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <ManualCasosBoton casos={casosManualSolicitud(row)} referencia={row.standCodes?.join(", ") ?? row.standCode} />
                           {puedePagar(row) && (
                             <Button size="sm" className="w-full justify-center gap-1.5 bg-gold font-bold text-gold-foreground hover:bg-gold/90 sm:w-auto"
                               onClick={() => {
@@ -867,6 +870,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                         <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground md:table-cell">{dateUtils.formatDateTime(row.createdAt)}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
+                            <ManualCasosBoton casos={casosManualSolicitud(row)} referencia={row.standCodes?.join(", ") ?? row.standCode} />
                             {row.flgActivo === false && (
                               <Badge className={`pointer-events-none text-[10px] ${BADGE_STYLES.NEUTRAL}`}><span>Dada de baja</span></Badge>
                             )}

@@ -586,7 +586,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
           ) : (
             <p className="text-[11px] text-muted-foreground">
               <span className="font-semibold text-foreground">Obligatorios para la revision del area legal:</span>{" "}
-              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trǭmite.
+              {obligatorios.map(a => a.label).join(" y ")}. Sin ellos no se puede enviar el trámite.
             </p>
           )}
         </div>
