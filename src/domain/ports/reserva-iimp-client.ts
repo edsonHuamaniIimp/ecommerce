@@ -14,6 +14,55 @@ export interface ReservaIimpCuotaInput {
   fecha: string;
   /** Texto libre de la cuota (max. 100): se migra a SAP como FreeTxt de la orden de venta. */
   textoLibre?: string | null;
+  /** Importes de la cuota en la moneda del contrato (solo solicitudes internas, string decimal 2 dec.). */
+  baseImponible?: string;
+  igv?: string;
+  monto?: string;
+}
+
+/** Condiciones comerciales pactadas (solo solicitudes internas). Importes string decimal, 2 dec. */
+export interface ReservaIimpComercial {
+  /** NINGUNO | PORCENTAJE | MONTO | POR_STAND */
+  tipoDescuento: string;
+  sumaLista: string;
+  descuentoTotal: string;
+  baseImponible: string;
+  tasaIgv: string;
+  igv: string;
+  total: string;
+}
+
+/** Precio pactado por stand (solo solicitudes internas con descuento por stand). */
+export interface ReservaIimpStandDetalle {
+  numero: string;
+  precioLista: string;
+  descuentoPorcentaje: string;
+  descuentoMonto: string;
+  precioNeto: string;
+}
+
+/** Declaracion de requisitos de facturacion (solo solicitudes internas). */
+export interface ReservaIimpRequisitos {
+  oc: boolean;
+  hes: boolean;
+  plataforma: boolean;
+  plataformaNombre: string | null;
+  plataformaUrl: string | null;
+  valorizacion: boolean;
+  otros: string | null;
+  ninguna: boolean;
+  cuotaOrigen: number | null;
+}
+
+/** Trazabilidad del registro (solo solicitudes internas). */
+export interface ReservaIimpOrigen {
+  sistema: string;
+  tipoSolicitud: string;
+  registradoPor: string | null;
+  /** ISO-8601 UTC. */
+  registradoEn: string;
+  /** ISO-8601 UTC; solo si lo registro una tarea programada. */
+  programadaPara: string | null;
 }
 
 /** Archivo (link) de la cuenta corriente del IIMP: OC, HES, detraccion o diferencia. */
@@ -43,7 +92,19 @@ export interface ReservaIimpInput {
   evenCod: number;
   /** Moneda de la reserva (USD | PEN). */
   moneda?: string | null;
+  /** Tipo de cambio pactado (soles por dolar, 4 dec.). "1.0000" si el contrato es USD. */
+  tipoCambio?: string | null;
   stands: string[];
+  /** Solicitudes internas: precio pactado por stand (cuando hay descuento por stand). */
+  standsDetalle?: ReservaIimpStandDetalle[] | null;
+  /** Solicitudes internas: condiciones comerciales pactadas. */
+  comercial?: ReservaIimpComercial | null;
+  /** Solicitudes internas: modo de pago (completo | cuotas | tres_cuotas | personalizado). */
+  modalidad?: string | null;
+  /** Solicitudes internas: requisitos de facturacion declarados. */
+  requisitos?: ReservaIimpRequisitos | null;
+  /** Solicitudes internas: trazabilidad. */
+  origen?: ReservaIimpOrigen | null;
   tipoFacturacion: string;
   tipDocFacturacion: string;
   numDocFacturacion: string;

@@ -1309,6 +1309,9 @@ export const MAX_PRE_RESERVA_LOTE = 500;
 export const MAX_RESERVA_ADMIN_STANDS = 80;
 
 /** Tipos de solicitud con flujo propio. El flujo regular no persiste tipo. */
+/** Variable de entorno: activa el envio al SIE del tipo de cambio pactado y del detalle de solicitudes internas. */
+export const ENV_RESERVA_IIMP_CAMPOS_EXTENDIDOS = "RESERVA_IIMP_CAMPOS_EXTENDIDOS";
+
 export const TIPOS_SOLICITUD = {
   RESERVA_EMPRESA: "reserva_empresa",
 } as const;

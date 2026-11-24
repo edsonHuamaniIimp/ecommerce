@@ -89,7 +89,7 @@ describe("FacturacionProgramadaApplicationService", () => {
   it("el cron ejecuta las vencidas y las marca ejecutadas", async () => {
     const { service, repo, solicitar } = armar({ vencidas: [tarea()] });
     const r = await service.ejecutarVencidas();
-    expect(solicitar.solicitarComoStaff).toHaveBeenCalledWith("c1", [], REQUISITOS);
+    expect(solicitar.solicitarComoStaff).toHaveBeenCalledWith("c1", [], REQUISITOS, expect.objectContaining({ programadaPara: expect.any(String) }));
     expect(repo.marcarEjecutada).toHaveBeenCalledWith("t1");
     expect(r).toEqual({ procesadas: 1, ejecutadas: 1, errores: 0 });
   });

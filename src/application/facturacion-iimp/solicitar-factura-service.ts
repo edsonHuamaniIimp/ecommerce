@@ -13,6 +13,7 @@ import {
   TIPOS_COMPROBANTE,
   TIPOS_DOCUMENTO_FACTURACION_IIMP,
   TIPOS_DOCUMENTO_PERSONA,
+  TIPOS_SOLICITUD,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
 import type { ClienteIdent, IFacturacionRepository } from "@/domain/ports/facturacion-repository";
@@ -25,6 +26,7 @@ import type { DatosFacturacionSolicitud } from "@/domain/models/entities";
 import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpCuotaInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
 import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
 import { numeroSolicitudIImp } from "./numero-solicitud";
+import { extensionReserva } from "./extension-reserva-iimp";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
 
@@ -56,6 +58,13 @@ export interface RequisitosFacturacionInput {
   descripcionFactura?: string | null;
 }
 
+/** Quien registra la solicitud de factura (trazabilidad hacia el SIE en solicitudes internas). */
+export interface OrigenSolicitudFactura {
+  registradoPor: string | null;
+  /** ISO-8601 UTC: fecha y hora que Facturacion programo (tarea automatica). */
+  programadaPara?: string | null;
+}
+
 /** Solo digitos (RUC/DNI llegan con puntos o espacios). */
 function digitos(valor: string | null | undefined): string {
   return (valor ?? "").replace(/\D/g, "");
@@ -79,9 +88,11 @@ export class SolicitarFacturaApplicationService {
     private readonly reserva: IReservaIimpClient,
     private readonly personas: IPersonaClient,
     private readonly consultaDocumento: IConsultaDocumentoClient,
+    /** Enviar al SIE el tipo de cambio pactado y, en solicitudes internas, el detalle comercial. */
+    private readonly enviarCamposExtendidos: boolean = false,
   ) {}
 
-  async solicitar(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[] = [], requisitos: RequisitosFacturacionInput | null = null): Promise<ResultadoSolicitudFactura> {
+  async solicitar(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[] = [], requisitos: RequisitosFacturacionInput | null = null, origen: OrigenSolicitudFactura | null = null): Promise<ResultadoSolicitudFactura> {
     const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
     if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
@@ -170,13 +181,39 @@ export class SolicitarFacturaApplicationService {
     }
 
     const numeroSolicitud = numeroSolicitudIImp(fact.solicitudId);
+    const cuotaOrigenNumero = fact.cuotas.find((c) => c.id === cuotaId)?.numero ?? null;
+    const extension = this.enviarCamposExtendidos
+      ? extensionReserva({
+          moneda: datos.moneda,
+          tipoCambio: datos.tipoCambio,
+          plan: datos.planCuotas,
+          cuotas,
+          interna: fact.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA,
+          requisitos: requisitosDeclarados
+            ? {
+                oc: requisitosDeclarados.oc === true,
+                hes: requisitosDeclarados.hes === true,
+                plataforma: requisitosDeclarados.plataforma === true,
+                plataformaNombre: requisitosDeclarados.plataformaNombre ?? null,
+                plataformaUrl: requisitosDeclarados.plataformaUrl ?? null,
+                valorizacion: requisitosDeclarados.valorizacion === true,
+                otros: requisitosDeclarados.otros ?? null,
+                ninguna: requisitosDeclarados.ninguna === true,
+                cuotaOrigen: cuotaOrigenNumero,
+              }
+            : null,
+          origen: origen ? { tipoSolicitud: TIPOS_SOLICITUD.RESERVA_EMPRESA, registradoPor: origen.registradoPor, programadaPara: origen.programadaPara ?? null } : null,
+          ahora: new Date(),
+        })
+      : {};
     const input = await this.armarPayload(snapshot, empresa, {
+      ...extension,
       numeroSolicitud,
       tipEvCod: datos.tipoEvento,
       evenCod: datos.codigoEvento,
       moneda: datos.moneda,
       stands: datos.stands,
-      cuotas,
+      cuotas: extension.cuotas ?? cuotas,
       ...(archivosNormalizados.length > 0 ? { archivos: archivosNormalizados } : {}),
     });
 
@@ -270,6 +307,7 @@ export class SolicitarFacturaApplicationService {
     cuotaId: string,
     archivos: ReservaIimpArchivoInput[] = [],
     requisitos: RequisitosFacturacionInput | null = null,
+    origen: OrigenSolicitudFactura | null = null,
   ): Promise<ResultadoSolicitudFactura> {
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
     if (!fact) throw new DomainError("Cuota no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
@@ -277,7 +315,7 @@ export class SolicitarFacturaApplicationService {
     if (!datos?.email) {
       throw new DomainError("La solicitud no tiene correo de cliente", API_ERROR_CODES.VALIDATION, 400);
     }
-    return this.solicitar(cuotaId, { email: datos.email }, archivos, requisitos);
+    return this.solicitar(cuotaId, { email: datos.email }, archivos, requisitos, origen);
   }
 
   /**
@@ -346,7 +384,7 @@ export class SolicitarFacturaApplicationService {
   private async armarPayload(
     snapshot: DatosFacturacionSolicitud | null,
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
-    base: { numeroSolicitud: string; tipEvCod: number; evenCod: number; moneda?: string | null; stands: string[]; cuotas: ReservaIimpCuotaInput[]; archivos?: ReservaIimpArchivoInput[] },
+    base: Partial<ReservaIimpInput> & { numeroSolicitud: string; tipEvCod: number; evenCod: number; stands: string[]; cuotas: ReservaIimpCuotaInput[] },
   ): Promise<ReservaIimpInput> {
     /* Tipo normalizado: define el payload del IIMP (01 factura / 03 boleta). No se asume
      * factura en silencio: si ninguna fuente trae un tipo valido, se rechaza. */

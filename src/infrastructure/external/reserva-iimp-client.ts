@@ -110,7 +110,33 @@ function cuerpo(input: ReservaIimpInput): Record<string, unknown> {
     TipEvCod: input.tipEvCod,
     EvenCod: input.evenCod,
     ...(input.moneda ? { Moneda: input.moneda } : {}),
+    ...(input.tipoCambio ? { TipoCambio: input.tipoCambio } : {}),
     Stands: input.stands,
+    ...(input.standsDetalle && input.standsDetalle.length > 0
+      ? {
+          StandsDetalle: input.standsDetalle.map((s) => ({
+            Numero: s.numero,
+            PrecioLista: s.precioLista,
+            DescuentoPorcentaje: s.descuentoPorcentaje,
+            DescuentoMonto: s.descuentoMonto,
+            PrecioNeto: s.precioNeto,
+          })),
+        }
+      : {}),
+    ...(input.comercial
+      ? {
+          Comercial: {
+            TipoDescuento: input.comercial.tipoDescuento,
+            SumaLista: input.comercial.sumaLista,
+            DescuentoTotal: input.comercial.descuentoTotal,
+            BaseImponible: input.comercial.baseImponible,
+            TasaIgv: input.comercial.tasaIgv,
+            Igv: input.comercial.igv,
+            Total: input.comercial.total,
+          },
+        }
+      : {}),
+    ...(input.modalidad ? { Modalidad: input.modalidad } : {}),
     TipoFacturacion: input.tipoFacturacion,
     TipDocFacturacion: input.tipDocFacturacion,
     NumDocFacturacion: input.numDocFacturacion,
@@ -131,7 +157,36 @@ function cuerpo(input: ReservaIimpInput): Record<string, unknown> {
       Porcentaje: c.porcentaje,
       Fecha: c.fecha,
       ...(c.textoLibre ? { TextoLibre: c.textoLibre } : {}),
+      ...(c.baseImponible ? { BaseImponible: c.baseImponible } : {}),
+      ...(c.igv ? { Igv: c.igv } : {}),
+      ...(c.monto ? { Monto: c.monto } : {}),
     })),
+    ...(input.requisitos
+      ? {
+          Requisitos: {
+            Oc: input.requisitos.oc,
+            Hes: input.requisitos.hes,
+            Plataforma: input.requisitos.plataforma,
+            PlataformaNombre: input.requisitos.plataformaNombre,
+            PlataformaUrl: input.requisitos.plataformaUrl,
+            Valorizacion: input.requisitos.valorizacion,
+            Otros: input.requisitos.otros,
+            Ninguna: input.requisitos.ninguna,
+            CuotaOrigen: input.requisitos.cuotaOrigen,
+          },
+        }
+      : {}),
+    ...(input.origen
+      ? {
+          Origen: {
+            Sistema: input.origen.sistema,
+            TipoSolicitud: input.origen.tipoSolicitud,
+            RegistradoPor: input.origen.registradoPor,
+            RegistradoEn: input.origen.registradoEn,
+            ProgramadaPara: input.origen.programadaPara,
+          },
+        }
+      : {}),
     ...(input.archivos && input.archivos.length > 0 ? { Archivos: input.archivos.map(cuerpoArchivo) } : {}),
   };
 }

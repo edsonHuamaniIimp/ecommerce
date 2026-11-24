@@ -107,6 +107,7 @@ export class FacturacionProgramadaApplicationService {
           tarea.cuotaId,
           Array.isArray(tarea.archivos) ? (tarea.archivos as ReservaIimpArchivoInput[]) : [],
           (tarea.requisitos ?? null) as RequisitosFacturacionInput | null,
+          { registradoPor: tarea.createdBy, programadaPara: tarea.fechaProgramada },
         );
         await this.repo.marcarEjecutada(tarea.id);
         ejecutadas += 1;

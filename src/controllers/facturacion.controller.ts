@@ -77,7 +77,7 @@ export const facturacionController = {
     };
     if (!cuotaId) return error(API_ERROR_CODES.VALIDATION, "cuotaId requerido", 400);
     const lista = Array.isArray(archivos) ? (archivos as ReservaIimpArchivoInput[]) : [];
-    return success(await services.solicitarFactura.solicitarComoStaff(cuotaId, lista, requisitos ?? null));
+    return success(await services.solicitarFactura.solicitarComoStaff(cuotaId, lista, requisitos ?? null, { registradoPor: session.email }));
   },
 
   /** Programa la solicitud de factura (solicitudes internas): se guarda como tarea y la ejecuta el cron. */

@@ -14,7 +14,7 @@ import { ConsultaDocumentoClient } from "@/infrastructure/external/consulta-docu
 import { SgcClientMock } from "@/infrastructure/external/sgc-client.mock";
 import { SgcClient } from "@/infrastructure/external/sgc-client";
 import type { ISgcClient } from "@/domain/ports/sgc-client";
-import { SGC_MODES } from "@/lib/shared/constants";
+import { ENV_RESERVA_IIMP_CAMPOS_EXTENDIDOS, SGC_MODES } from "@/lib/shared/constants";
 import { SgcPrismaRepository } from "@/infrastructure/persistence/sgc-repository";
 import { SgcWebhookPrismaRepository } from "@/infrastructure/persistence/sgc-webhook-repository";
 import { SgcOutboxPrismaRepository } from "@/infrastructure/persistence/sgc-outbox-repository";
@@ -117,7 +117,7 @@ const debidaDiligenciaApp = new DebidaDiligenciaApplicationService(
   ddConfiguracionRepo,
 );
 
-const solicitarFacturaApp = new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient);
+const solicitarFacturaApp = new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient, process.env[ENV_RESERVA_IIMP_CAMPOS_EXTENDIDOS] === "true");
 const facturacionProgramadaApp = new FacturacionProgramadaApplicationService(new FacturacionProgramadaPrismaRepository(), facturacionRepo, solicitarFacturaApp);
 
 export const services = {
