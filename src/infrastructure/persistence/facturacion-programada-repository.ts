@@ -88,6 +88,14 @@ export class FacturacionProgramadaPrismaRepository implements IFacturacionProgra
     return rows.map(mapear);
   }
 
+  async recuperarAtascadas(antesDe: Date): Promise<number> {
+    const r = await prisma.facturacionProgramada.updateMany({
+      where: { estado: E.PROCESANDO, updatedAt: { lt: antesDe } },
+      data: { estado: E.PENDIENTE },
+    });
+    return r.count;
+  }
+
   async tomar(id: string): Promise<boolean> {
     const r = await prisma.facturacionProgramada.updateMany({
       where: { id, estado: E.PENDIENTE },

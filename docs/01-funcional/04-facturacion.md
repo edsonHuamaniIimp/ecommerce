@@ -295,6 +295,14 @@ Alternativa a evaluar: revertir el estado al recibir `2` (pendiente de decisión
 - Historial en `facturacion_historial` (`agregar_cuota`, `pagar_cuota`, `actualizar`,
   `eliminar`, `eliminar_cuota`, `adjuntar_voucher`, `documento_iimp`).
 
+## 10b. Solicitud de factura programada (solicitudes internas)
+
+- Solo para solicitudes `reserva_empresa` (Facturacion PI y Facturacion). En el modal de **Solicitar factura** el boton **Configurar fecha** abre un input de fecha y hora (**hora de Peru**) y **Guardar programacion** guarda los requisitos y documentos como tarea (`facturacion_programada`); no envia nada al SIE.
+- La hora se convierte con `dateUtils.fromLimaDateTimeInput` (ISO UTC en BD) y se muestra con `dateUtils.formatDateTime` (Lima).
+- **Ejecucion:** EventBridge Scheduler llama cada minuto a `POST /api/cron/facturacion-programada` (header `x-cron-secret`, responde 202 y procesa despues). Registra la solicitud con el mismo flujo de **Solicitar factura**; retraso maximo ~1 minuto.
+- Estados: `pendiente`, `procesando`, `ejecutada`, `error` (con motivo en la bandeja), `cancelada`. Una tarea en `procesando` mas de 15 min vuelve a `pendiente`. Si Facturacion solicita a mano antes de la hora, la tarea se cancela sola.
+- Una solicitud tiene una sola tarea vigente; reprogramar cancela la anterior.
+
 ## 11. Limitaciones conocidas
 
 - `cancelado` (facturación) y `vencido` (cuota) declarados sin transición ni job.

@@ -24,6 +24,7 @@ import {
   FileText,
   Loader2,
   MessageSquare,
+  Save,
   Scale,
   Send,
   ShieldCheck,
@@ -296,6 +297,33 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       toast.success("Evaluación del vínculo guardada");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "No se pudo guardar la evaluación");
+    } finally {
+      setGuardando(false);
+    }
+  };
+  /** Guarda criterios, observaciones por criterio y observaciones de SIG sin concluir la evaluacion. */
+  const guardarBorrador = async () => {
+    if (!detalle || guardando) return;
+    setGuardando(true);
+    try {
+      const listas = Object.fromEntries(
+        Object.entries(decisiones).map(([codigo, decision]) => [codigo, valorMatriz(decision)]),
+      );
+      const listasObservaciones = Object.fromEntries(
+        Object.entries(observacionesLista).map(([codigo, texto]) => [codigo, texto.trim() || null]),
+      );
+      const actualizado = await ddMatrizEvaluacionService.guardar({
+        id,
+        borrador: true,
+        listas,
+        listasObservaciones,
+        sig: { observaciones: observaciones.trim() || null },
+      });
+      /* Conserva lo que el usuario ya eligio en resultado/conclusion SIG (no forma parte del borrador). */
+      setDetalle(actualizado);
+      toast.success("Borrador guardado. La evaluación sigue sin concluir.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo guardar el borrador");
     } finally {
       setGuardando(false);
     }
@@ -579,8 +607,14 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         aria-label={`Observación de ${criterio.label}`}
                         className="min-h-40 text-xs"
                       />
+                      {puedeEditar ? (
+                        <Button type="button" variant="outline" size="sm" className="h-7 w-full gap-1.5 text-[11px]" disabled={guardando} onClick={() => { void guardarBorrador(); }}>
+                          {guardando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                          <span>Guardar borrador</span>
+                        </Button>
+                      ) : null}
                       <p className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>{puedeEditar ? "Se guarda con «Guardar evaluación»." : "Solo lectura."}</span>
+                        <span>{puedeEditar ? "Se guarda con «Guardar borrador» o «Guardar evaluación»." : "Solo lectura."}</span>
                         <span>{texto.length}/{limite}</span>
                       </p>
                     </>
@@ -764,10 +798,16 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                 <p className="max-w-[220px] text-[10px] text-muted-foreground">
                   La conclusión final del expediente se registra en Revisar expediente.
                 </p>
-                <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!puedeEditar || guardando || !resultadoSig || !conclusionSig} onClick={() => { void guardarDecision(); }}>
-                  {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-                  <span>Guardar evaluación</span>
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={!puedeEditar || guardando} onClick={() => { void guardarBorrador(); }}>
+                    {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    <span>Guardar borrador</span>
+                  </Button>
+                  <Button type="button" size="sm" className="h-8 gap-1.5 text-xs" disabled={!puedeEditar || guardando || !resultadoSig || !conclusionSig} onClick={() => { void guardarDecision(); }}>
+                    {guardando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    <span>Guardar evaluación</span>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -323,6 +323,8 @@ export class DdMatrizEvaluacionApplicationService {
     const cambios: DdMatrizVinculoCambios = { actualizadoPor: session.email };
     let reiniciarAutomatico = false;
 
+    if (dto.borrador) return this.guardarBorrador(session, dto, vinculo, permisos);
+
     if (dto.identidad) {
       if (!permisos.editarIdentidad) this.prohibido("Sin permiso para editar los datos del vínculo");
       const { ambito, pais, ...datos } = dto.identidad;
@@ -783,6 +785,65 @@ export class DdMatrizEvaluacionApplicationService {
       resultado[campo] = normalizado;
     }
     return resultado;
+  }
+
+  /**
+   * Guardado borrador: criterios, observaciones por criterio y texto de observaciones de SIG, sin
+   * resultado ni conclusion, sin sellar fecha/responsable y sin las exigencias de una evaluacion cerrada.
+   */
+  private async guardarBorrador(
+    session: DdSession,
+    dto: DdMatrizEvaluacionGuardarRequestDTO,
+    vinculo: DdMatrizVinculoEntity,
+    permisos: DdMatrizPermisos,
+  ): Promise<DdMatrizDetalleResultado> {
+    const soloBorrador =
+      !dto.identidad &&
+      !dto.generales &&
+      !dto.reputacional &&
+      !dto.compliance &&
+      dto.resultadoFinal === undefined &&
+      dto.sig?.resultado === undefined &&
+      dto.sig?.conclusion === undefined;
+    if (!soloBorrador) {
+      throw new DomainError(
+        "El borrador solo guarda criterios, sus observaciones y las observaciones de SIG",
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+    const cambios: DdMatrizVinculoCambios = { actualizadoPor: session.email };
+    const ambito = vinculo.ambito as DdMatrizAmbito;
+
+    if (dto.listas) {
+      if (!permisos.editarListas) this.prohibido("Sin permiso para registrar las listas restrictivas");
+      cambios.listas = this.mapearListas(dto.listas, vinculo, ambito);
+    }
+    if (dto.listasObservaciones) {
+      if (!permisos.editarListas) this.prohibido("Sin permiso para registrar las observaciones de los criterios");
+      cambios.listasObservaciones = this.mapearListasObservaciones(dto.listasObservaciones, vinculo, ambito);
+    }
+    if (dto.sig?.observaciones !== undefined) {
+      if (!permisos.editarSig) this.prohibido("Sin permiso para registrar la evaluación de SIG");
+      const texto = dto.sig.observaciones?.trim() || null;
+      if (!texto && vinculo.sig.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO) {
+        throw new DomainError(
+          "Una evaluación OBSERVADA exige registrar la observación",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      cambios.sig = { observaciones: texto };
+    }
+
+    await this.repo.actualizarVinculo(vinculo.id, cambios);
+    await this.repo.registrarAuditoria(
+      "matriz_borrador",
+      vinculo.expediente.codigo,
+      session.email,
+      `Matriz DD: borrador guardado en ${vinculo.nombre}`,
+    );
+    return this.detalle(session, vinculo.id);
   }
 
   /** Observacion por criterio: solo criterios aplicables al vinculo; el maximo depende del criterio. */

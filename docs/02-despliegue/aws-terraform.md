@@ -122,6 +122,10 @@ terraform output -json s3_access_key_secret    # → .env (sensitive)
 
 ---
 
+### Cron de facturas programadas (`modules/cron_facturacion`)
+
+EventBridge Scheduler (`rate(1 minute)`) -> bus propio -> regla -> API destination -> `POST https://<app_domain>/api/cron/facturacion-programada` con `x-cron-secret` (variable `cron_secret`). Sin reintentos (el siguiente tick reintenta), alarma `FailedInvocations` al SNS. Variables: `cron_facturacion_enabled`, `cron_facturacion_schedule`. Costo estimado < US$1/mes por ambiente. Aplicar en QA con aviso y en prod solo con autorizacion (R1).
+
 ## 5. Pendientes / decisión del equipo
 
 - [x] Estructura Terraform completa (5 módulos + bootstrap) adaptada al proyecto.

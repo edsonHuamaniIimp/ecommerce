@@ -41,6 +41,7 @@ function armar(opts: { tipo?: string | null; contrato?: string | null; vencidas?
     vigentesPorSolicitudes: vi.fn(async () => []),
     cancelar: vi.fn(async () => 1),
     listarVencidas: vi.fn(async () => opts.vencidas ?? []),
+    recuperarAtascadas: vi.fn(async () => 0),
     tomar: vi.fn(async () => true),
     marcarEjecutada: vi.fn(async () => undefined),
     marcarError: vi.fn(async () => undefined),
@@ -91,6 +92,12 @@ describe("FacturacionProgramadaApplicationService", () => {
     expect(solicitar.solicitarComoStaff).toHaveBeenCalledWith("c1", [], REQUISITOS);
     expect(repo.marcarEjecutada).toHaveBeenCalledWith("t1");
     expect(r).toEqual({ procesadas: 1, ejecutadas: 1, errores: 0 });
+  });
+
+  it("el cron recupera primero las tareas atascadas en procesando", async () => {
+    const { service, repo } = armar();
+    await service.ejecutarVencidas();
+    expect(repo.recuperarAtascadas).toHaveBeenCalledOnce();
   });
 
   it("el cron marca error con el motivo cuando falla el SIE", async () => {

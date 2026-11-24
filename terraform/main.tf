@@ -384,3 +384,18 @@ module "contract_async" {
 
   common_tags = local.common_tags
 }
+
+# Cron de facturas programadas (solicitudes internas): EventBridge Scheduler cada minuto
+# llama a /api/cron/facturacion-programada. Aditivo: no toca la app ni la BD.
+module "cron_facturacion" {
+  source = "./modules/cron_facturacion"
+
+  environment         = var.environment
+  app_domain          = var.app_domain
+  enabled             = var.cron_facturacion_enabled
+  cron_secret         = var.cron_secret
+  schedule_expression = var.cron_facturacion_schedule
+  alarm_topic_arn     = module.observability.sns_topic_arn
+
+  common_tags = local.common_tags
+}

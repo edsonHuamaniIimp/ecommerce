@@ -40,6 +40,7 @@ export const PUBLIC_API_ROUTES = [
   "/api/integracion/sgc/webhook",
   "/api/integracion/factura",
   "/api/cron/sgc-reconciliar",
+  "/api/cron/facturacion-programada",
 ] as const;
 
 /** URL base de la aplicacion. En produccion se configura via variable de entorno. */
@@ -1325,6 +1326,9 @@ export const ESTADOS_FACTURACION_PROGRAMADA = {
 
 export type EstadoFacturacionProgramada =
   (typeof ESTADOS_FACTURACION_PROGRAMADA)[keyof typeof ESTADOS_FACTURACION_PROGRAMADA];
+
+/** Minutos en `procesando` tras los que una tarea programada se considera atascada y vuelve a `pendiente`. */
+export const MINUTOS_FACTURACION_PROGRAMADA_ATASCADA = 15;
 
 /** Tope de tareas programadas que el cron ejecuta por corrida. */
 export const MAX_FACTURACION_PROGRAMADA_POR_CORRIDA = 20;

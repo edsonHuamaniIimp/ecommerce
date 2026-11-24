@@ -31,6 +31,8 @@ export interface IFacturacionProgramadaRepository {
   cancelar(solicitudId: string): Promise<number>;
   /** Tareas pendientes cuya fecha ya llego (mas antiguas primero). */
   listarVencidas(ahora: Date, limite: number): Promise<FacturacionProgramadaEntity[]>;
+  /** Devuelve a `pendiente` las tareas que llevan demasiado tiempo en `procesando` (proceso caido). */
+  recuperarAtascadas(antesDe: Date): Promise<number>;
   /** Toma la tarea para ejecutarla (pendiente -> procesando); false si otro proceso la tomo. */
   tomar(id: string): Promise<boolean>;
   marcarEjecutada(id: string): Promise<void>;

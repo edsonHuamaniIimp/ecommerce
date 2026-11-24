@@ -8,6 +8,7 @@ import { pagosService, type ArchivoIImpInputDTO, type RequisitosFacturacionDTO }
 import { facturacionService } from "@/lib/client/api/services/facturacion-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { useConfirm } from "@/hooks/use-confirm";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { MAX_DESCRIPCION_FACTURA, TIPOS_ARCHIVO_IIMP, type TipoArchivoIImp } from "@/lib/shared/constants";
 import { TIPOS_ARCHIVO_LABELS } from "./form-archivo-iimp";
 
@@ -171,6 +172,8 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
   /** Panel "Configurar fecha" abierto y fecha/hora (datetime-local, hora de Peru). */
   const [configurandoFecha, setConfigurandoFecha] = useState(false);
   const [fechaLocal, setFechaLocal] = useState("");
+  /** Minimo del input: ahora en hora de Peru (la hora de Lima, no la del navegador). */
+  const minimoFecha = dateUtils.toLimaDateTimeInput(new Date());
   const [cuotaOrigen, setCuotaOrigen] = useState({ id: cuotaId, numero: cuotaNumero ?? 1 });
   const cuotaEfectivaId = esAdminSolicitud ? cuotaOrigen.id : cuotaId;
   const cuotaEfectivaNumero = esAdminSolicitud ? cuotaOrigen.numero : cuotaNumero;
@@ -279,16 +282,16 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
       setError("Indica la fecha y hora en que se solicitará la factura.");
       return;
     }
-    /* El input es hora de Peru (UTC-5, sin horario de verano). */
-    const fecha = new Date(`${fechaLocal}:00-05:00`);
-    if (Number.isNaN(fecha.getTime()) || fecha.getTime() <= Date.now()) {
+    /* El input es hora de Peru: dateUtils lo convierte a ISO UTC. */
+    const fechaIso = dateUtils.fromLimaDateTimeInput(fechaLocal);
+    if (!fechaIso || new Date(fechaIso).getTime() <= Date.now()) {
       setError("La fecha y hora deben ser posteriores al momento actual.");
       return;
     }
     setError(null);
     setEnviando(true);
     try {
-      await facturacionService.programarFactura(cuotaEfectivaId, fecha.toISOString(), armarRequisitos(), archivos);
+      await facturacionService.programarFactura(cuotaEfectivaId, fechaIso, armarRequisitos(), archivos);
       toast.success("Solicitud de factura programada. Se registrará automáticamente en la fecha indicada.");
       cerrar(false);
       onEnviado();
@@ -562,12 +565,13 @@ export function EnviarReservaIimp({ open, onOpenChange, cuotaId, cuotaNumero, st
               <Input
                 id="fecha-programada"
                 type="datetime-local"
+                min={minimoFecha}
                 className="h-9 text-xs"
                 value={fechaLocal}
                 onChange={(e) => { setError(null); setFechaLocal(e.target.value); }}
               />
               <p className="text-[10px] text-muted-foreground">
-                Se guardan los requisitos y documentos de arriba como una tarea. En esa fecha y hora el sistema registra la solicitud de factura (puede demorar hasta 10 minutos).
+                Se guardan los requisitos y documentos de arriba como una tarea. En esa fecha y hora el sistema registra la solicitud de factura (puede demorar hasta 1 minuto).
               </p>
               <Button className="w-full" disabled={enviando || faltantes.length > 0 || sinRequisitoDeclarado || !fechaLocal} onClick={() => { void programar(); }}>
                 {enviando ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarClock className="mr-1.5 h-4 w-4" />}

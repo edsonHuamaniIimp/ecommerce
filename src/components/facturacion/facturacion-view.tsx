@@ -726,7 +726,7 @@ export function FacturacionView({ soloInternas = false }: FacturacionViewProps) 
                                               <span>{row.programada.estado === ESTADOS_FACTURACION_PROGRAMADA.ERROR ? "Programada con error" : row.programada.estado === ESTADOS_FACTURACION_PROGRAMADA.PROCESANDO ? "Registrando..." : "Programada"}</span>
                                             </Badge>
                                             <p className="text-[9px] text-muted-foreground">
-                                              {new Date(row.programada.fechaProgramada).toLocaleString("es-PE", { timeZone: "America/Lima", dateStyle: "short", timeStyle: "short" })}
+                                              {dateUtils.formatDateTime(row.programada.fechaProgramada)}
                                             </p>
                                             {row.programada.ultimoError && (
                                               <p className="max-w-[180px] text-[9px] text-destructive">{row.programada.ultimoError}</p>

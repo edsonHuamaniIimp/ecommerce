@@ -126,6 +126,7 @@ export const ddMatrizEvaluacionDetalleQuerySchema = z.object({
 /** Guardado parcial: solo se procesan las secciones presentes. */
 export const ddMatrizEvaluacionGuardarSchema = z.object({
   id: z.string().trim().min(1).max(60),
+  borrador: z.boolean().optional(),
   identidad: z
     .object({
       nombre: z.string().trim().min(1).max(250).optional(),

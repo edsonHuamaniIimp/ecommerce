@@ -1,6 +1,7 @@
 import {
   API_ERROR_CODES,
   MAX_FACTURACION_PROGRAMADA_POR_CORRIDA,
+  MINUTOS_FACTURACION_PROGRAMADA_ATASCADA,
   TIPOS_SOLICITUD,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/lib/server/router";
@@ -86,6 +87,8 @@ export class FacturacionProgramadaApplicationService {
 
   /** Cron: registra las solicitudes de factura cuya fecha programada ya llego. */
   async ejecutarVencidas(): Promise<ResultadoEjecucionProgramadas> {
+    /* Una tarea que quedo en `procesando` (proceso caido) se reintenta en la siguiente corrida. */
+    await this.repo.recuperarAtascadas(new Date(Date.now() - MINUTOS_FACTURACION_PROGRAMADA_ATASCADA * 60_000));
     const vencidas = await this.repo.listarVencidas(new Date(), MAX_FACTURACION_PROGRAMADA_POR_CORRIDA);
     let ejecutadas = 0;
     let errores = 0;

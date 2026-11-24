@@ -25,6 +25,12 @@ export interface DdMatrizBloqueRequestDTO {
  */
 export interface DdMatrizEvaluacionGuardarRequestDTO {
   id: string;
+  /**
+   * Guardado borrador: solo persiste respuestas de criterios, observaciones por criterio y el texto
+   * de observaciones de SIG. No registra resultado ni conclusion, no sella fecha/responsable y no
+   * exige las validaciones de una evaluacion concluida.
+   */
+  borrador?: boolean;
   identidad?: {
     nombre?: string;
     tipoDocumento?: string | null;

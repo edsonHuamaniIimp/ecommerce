@@ -901,3 +901,15 @@ variable "contract_async_percentage" {
     error_message = "contract_async_percentage debe estar entre 0 y 100."
   }
 }
+
+variable "cron_facturacion_enabled" {
+  description = "Crear el cron de EventBridge Scheduler para las facturas programadas (requiere cron_secret)"
+  type        = bool
+  default     = true
+}
+
+variable "cron_facturacion_schedule" {
+  description = "Frecuencia del cron de facturas programadas (EventBridge Scheduler)"
+  type        = string
+  default     = "rate(1 minute)"
+}

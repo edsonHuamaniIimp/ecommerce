@@ -66,6 +66,12 @@ describe("dateUtils datetime-local en hora Lima", () => {
     expect(dateUtils.fromLimaDateTimeInput("2026-10-19T20:05")).toBe("2026-10-20T01:05:00.000Z");
   });
 
+  it("la hora programada ida y vuelta se conserva en hora de Peru (23:30 Lima = 04:30 UTC del dia siguiente)", () => {
+    const iso = dateUtils.fromLimaDateTimeInput("2026-11-23T23:30");
+    expect(iso).toBe("2026-11-24T04:30:00.000Z");
+    expect(dateUtils.toLimaDateTimeInput(iso)).toBe("2026-11-23T23:30");
+  });
+
   it("formatea un rango en hora Lima", () => {
     expect(
       dateUtils.formatDateTimeRangeLima("2026-10-20T01:05:00.000Z", "2026-10-20T01:30:00.000Z"),

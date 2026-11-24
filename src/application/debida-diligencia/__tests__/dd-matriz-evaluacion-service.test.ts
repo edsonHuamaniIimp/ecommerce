@@ -560,6 +560,45 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
+  describe("guardado borrador", () => {
+    it("guarda criterios, observaciones por criterio y texto SIG sin resultado, conclusion ni sello", async () => {
+      const { servicio, repo } = crear(vinculo());
+      await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+        id: "v-1",
+        borrador: true,
+        listas: { peps_prp_persona: "si" },
+        listasObservaciones: { peps_prp_persona: "Pendiente de confirmar" },
+        sig: { observaciones: "  avance  " },
+      });
+      const cambios = repo.actualizarVinculo.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(cambios.listas).toEqual({ peps_prp_persona: "si" });
+      expect(cambios.listasObservaciones).toEqual({ peps_prp_persona: "Pendiente de confirmar" });
+      expect(cambios.sig).toEqual({ observaciones: "avance" });
+    });
+
+    it("no acepta resultado, conclusion ni otras secciones", async () => {
+      const { servicio } = crear(vinculo());
+      const s = sesion([PERMISSIONS.DD_REVISION]);
+      await expect(servicio.guardar(s, { id: "v-1", borrador: true, sig: { resultado: "ACEPTADO" } })).rejects.toMatchObject({ status: 400 });
+      await expect(servicio.guardar(s, { id: "v-1", borrador: true, sig: { conclusion: "SIN OBSERVACIONES" } })).rejects.toMatchObject({ status: 400 });
+      await expect(servicio.guardar(s, { id: "v-1", borrador: true, resultadoFinal: "APTO" })).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("no deja vacia la observacion de una evaluacion ya OBSERVADA", async () => {
+      const { servicio } = crear(vinculo({ sig: { ...vinculo().sig, resultado: "observado", observaciones: "algo", conclusion: "requiere_dd_reforzada" } }));
+      await expect(
+        servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", borrador: true, sig: { observaciones: "  " } }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("exige el permiso de edicion", async () => {
+      const { servicio } = crear(vinculo());
+      await expect(
+        servicio.guardar({ email: "x@iimp.org.pe", roles: [], permissions: [PERMISSIONS.DD_MATRIZ], eventoId: "evento-1" }, { id: "v-1", borrador: true, listas: { peps_prp_persona: "no" } }),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
   it("no permite crear manualmente la fila de empresa", async () => {
     const { servicio } = crear(vinculo());
     await expect(
