@@ -229,6 +229,12 @@ export function DdRevisionMatrizTab({ detalle, vinculos, loading, error, matrizI
             Actualizado {dateUtils.formatDateTime(detalle.updatedAt)}
           </div>
         </div>
+        <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+          <Link href={`${DD_RUTAS.MATRIZ}/${detalle.id}?returnTo=${encodeURIComponent(returnTo)}`}>
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span>Abrir matriz completa</span>
+          </Link>
+        </Button>
       </div>
 
       <VinculosMatriz vinculos={vinculos} returnTo={returnTo} />

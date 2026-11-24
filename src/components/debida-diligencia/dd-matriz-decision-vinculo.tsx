@@ -33,7 +33,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
+import type { DdMatrizAdjuntoDTO, DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
 import { DdAutomatizacionGeneral } from "./dd-automatizacion-general";
 import { DdEvidenciasCriterio } from "./dd-evidencias-criterio";
 import { DdVinculoResumen } from "./dd-vinculo-resumen";
@@ -205,6 +205,23 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       toast.error(error instanceof Error ? error.message : "No se pudo cargar la evidencia");
     } finally {
       setSubiendoCriterio(null);
+    }
+  };
+
+  const eliminarEvidencia = async (evidencia: DdMatrizAdjuntoDTO) => {
+    const ok = await confirm({
+      title: "Eliminar evidencia",
+      description: `Se quitará "${evidencia.nombre}" del vínculo. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await ddMatrizEvaluacionService.eliminarAdjunto({ id: evidencia.id });
+      setDetalle((previo) => (previo ? { ...previo, adjuntos: previo.adjuntos.filter((adjunto) => adjunto.id !== evidencia.id) } : previo));
+      toast.success("Evidencia eliminada");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo eliminar la evidencia");
     }
   };
 
@@ -507,7 +524,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                                 <Skeleton className="h-4 w-36" />
                               </div>
                             ) : null}
-                            <DdEvidenciasCriterio criterio={lista.label} evidencias={evidencias} />
+                            <DdEvidenciasCriterio
+                              criterio={lista.label}
+                              evidencias={evidencias}
+                              onEliminar={puedeEditar ? (evidencia) => { void eliminarEvidencia(evidencia); } : null}
+                            />
                             <div className="flex flex-wrap items-center gap-2">
                               {puedeEditar ? (
                                 <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] font-medium text-primary hover:underline">

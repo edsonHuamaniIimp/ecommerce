@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { FileText, MoreHorizontal } from "lucide-react";
+import { FileText, MoreHorizontal, Trash2 } from "lucide-react";
 import { DdEvidenciaPreviewButton } from "./dd-evidencia-preview-button";
 import { DD_MATRIZ_EVIDENCIAS_VISIBLES } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -20,9 +20,25 @@ interface Props {
   /** Nombre del criterio (titulo del modal con la lista completa). */
   criterio: string;
   evidencias: DdMatrizAdjuntoDTO[];
+  /** Si se envia, cada evidencia muestra el icono de eliminar (el servidor valida el permiso). */
+  onEliminar?: ((evidencia: DdMatrizAdjuntoDTO) => void) | null;
 }
 
-function Fila({ evidencia }: { evidencia: DdMatrizAdjuntoDTO }) {
+function BotonEliminar({ evidencia, onEliminar }: { evidencia: DdMatrizAdjuntoDTO; onEliminar: NonNullable<Props["onEliminar"]> }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onEliminar(evidencia)}
+      title="Eliminar evidencia"
+      aria-label={`Eliminar la evidencia ${evidencia.nombre}`}
+      className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function Fila({ evidencia, onEliminar }: { evidencia: DdMatrizAdjuntoDTO; onEliminar: Props["onEliminar"] }) {
   return (
     <div className="flex items-center gap-1.5">
       <a
@@ -40,6 +56,7 @@ function Fila({ evidencia }: { evidencia: DdMatrizAdjuntoDTO }) {
         mimeType={evidencia.mimeType}
         detalles={ddEvidenciaDetalles.deAdjunto(evidencia)}
       />
+      {onEliminar ? <BotonEliminar evidencia={evidencia} onEliminar={onEliminar} /> : null}
     </div>
   );
 }
@@ -48,7 +65,7 @@ function Fila({ evidencia }: { evidencia: DdMatrizAdjuntoDTO }) {
  * Evidencias de un criterio: muestra las primeras N y, si hay mas, un boton de tres
  * puntos que abre un modal con la lista completa (la mas reciente primero).
  */
-export function DdEvidenciasCriterio({ criterio, evidencias }: Props) {
+export function DdEvidenciasCriterio({ criterio, evidencias, onEliminar = null }: Props) {
   const [abierto, setAbierto] = useState(false);
 
   if (evidencias.length === 0) {
@@ -62,7 +79,7 @@ export function DdEvidenciasCriterio({ criterio, evidencias }: Props) {
   return (
     <>
       {visibles.map((evidencia) => (
-        <Fila key={evidencia.id} evidencia={evidencia} />
+        <Fila key={evidencia.id} evidencia={evidencia} onEliminar={onEliminar} />
       ))}
       {ocultas > 0 ? (
         <Button
@@ -104,12 +121,15 @@ export function DdEvidenciasCriterio({ criterio, evidencias }: Props) {
                     {evidencia.creadoPor || "—"} · {dateUtils.formatDateTime(evidencia.createdAt)}
                   </p>
                 </div>
-                <DdEvidenciaPreviewButton
-                  url={evidencia.url}
-                  nombre={evidencia.nombre}
-                  mimeType={evidencia.mimeType}
-                  detalles={ddEvidenciaDetalles.deAdjunto(evidencia)}
-                />
+                <div className="flex shrink-0 items-center gap-1">
+                  <DdEvidenciaPreviewButton
+                    url={evidencia.url}
+                    nombre={evidencia.nombre}
+                    mimeType={evidencia.mimeType}
+                    detalles={ddEvidenciaDetalles.deAdjunto(evidencia)}
+                  />
+                  {onEliminar ? <BotonEliminar evidencia={evidencia} onEliminar={onEliminar} /> : null}
+                </div>
               </li>
             ))}
           </ul>
