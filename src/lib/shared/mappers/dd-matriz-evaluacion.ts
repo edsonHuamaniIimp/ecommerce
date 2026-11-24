@@ -11,7 +11,7 @@ import type {
   DdMatrizGeneralesDTO,
   DdMatrizListaDTO,
 } from "@/types/dto/debida-diligencia";
-import { listasAplicables } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { listasAplicables, resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 
 const iso = (fecha: Date | null): string | null => (fecha ? fecha.toISOString() : null);
 const soloFecha = (fecha: Date | null): string | null => (fecha ? fecha.toISOString().slice(0, 10) : null);
@@ -202,7 +202,8 @@ export function mapDdMatrizExportFilaToDTO(item: DdMatrizExportItem): DdMatrizEv
       sig: mapBloque(vinculo.sig),
       reputacional: mapBloque(vinculo.reputacional),
       compliance: mapBloque(vinculo.compliance),
-      resultadoFinal: vinculo.resultadoFinal,
+      /* El efectivo (estado del expediente cuando no hay resultado guardado) es el que ve la bandeja. */
+      resultadoFinal: resultadoFinalEfectivo(vinculo.resultadoFinal, ctx.estado),
     },
   };
 }

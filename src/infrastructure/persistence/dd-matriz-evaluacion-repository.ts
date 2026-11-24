@@ -921,7 +921,23 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
       include,
     });
     const empresaPorExpediente = new Map(empresas.map((e) => [e.expedienteId, mapVinculo(e)]));
-    return rows.map((row) => ({ vinculo: mapVinculo(row), empresa: empresaPorExpediente.get(row.expedienteId) ?? null }));
+    /* Igual que la bandeja: sin resultado reputacional guardado, sale de los casos de Comunicaciones. */
+    const reputacion = await contarReputacion(rows);
+    return rows.map((row) => {
+      const vinculo = mapVinculo(row);
+      const caso = reputacion.get(row.id);
+      return {
+        vinculo: {
+          ...vinculo,
+          reputacional: {
+            ...vinculo.reputacional,
+            resultado: vinculo.reputacional.resultado ?? caso?.resultado ?? null,
+            fecha: vinculo.reputacional.fecha ?? caso?.fecha ?? null,
+          },
+        },
+        empresa: empresaPorExpediente.get(row.expedienteId) ?? null,
+      };
+    });
   }
 
   async findVinculo(id: string): Promise<DdMatrizVinculoEntity | null> {
