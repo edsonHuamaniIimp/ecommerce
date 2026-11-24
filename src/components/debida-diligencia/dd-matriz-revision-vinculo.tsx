@@ -218,8 +218,8 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
                 <FileText className="h-3.5 w-3.5" /><span>Informe</span>
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Volver a Matriz">
-              <Link href={DD_RUTAS.MATRIZ}><ArrowLeft className="h-3.5 w-3.5" /><span>Matriz</span></Link>
+            <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Revisar debida diligencia del expediente" onClick={() => setRevisionAbierta(true)}>
+              <ArrowLeft className="h-3.5 w-3.5" /><span>Matriz</span>
             </Button>
             {onEditar ? (
               <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" title="Editar evaluación" onClick={onEditar}>
