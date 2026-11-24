@@ -52,6 +52,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/laboratorio", label: "Laboratorio 3D", icon: FlaskConical, permission: PERMISSIONS.LABORATORIO_VIEW, section: "Laboratorio 3D" },
 
   { href: "/dashboard/facturacion", label: "Facturación", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW, section: "Facturación" },
+  { href: "/dashboard/facturacion-pi", label: "Facturación PI", icon: CreditCard, permission: PERMISSIONS.FACTURACION_VIEW, section: "Facturación" },
   { href: "/dashboard/mis-pagos", label: "Mis documentos", icon: Wallet, anyOf: [PERMISSIONS.PAGOS_VIEW, PERMISSIONS.FACTURACION_VIEW], section: "Facturación" },
 
   { href: "/dashboard/empresas", label: "Empresas", icon: Building2, permission: PERMISSIONS.EMPRESAS_VIEW, section: "Empresas" },
@@ -156,7 +157,7 @@ export function Sidebar({ open, collapsed, onClose }: Props) {
   const esActivo = (item: NavItem) =>
     item.exact || item.href === "/dashboard" || item.href === DD_RUTAS.BASE
       ? pathname === item.href
-      : pathname.startsWith(item.href);
+      : pathname === item.href || pathname.startsWith(`${item.href}/`);
   const grupoActivo = groups.find((group) => group.items.some(esActivo));
 
   const renderItem = (item: NavItem) => {

@@ -27,6 +27,7 @@ const PROTECTED: ProtectedRoute[] = [
   { path: "/dashboard/reservas", permission: PERMISSIONS.READ_RESERVAS },
   { path: "/dashboard/auspicios", permission: PERMISSIONS.AUSPICIOS_VIEW },
   { path: "/dashboard/facturacion", permission: PERMISSIONS.FACTURACION_VIEW },
+  { path: "/dashboard/facturacion-pi", permission: PERMISSIONS.FACTURACION_VIEW },
   { path: "/api/facturacion", permission: PERMISSIONS.FACTURACION_VIEW },
   { path: "/dashboard/laboratorio", permission: PERMISSIONS.LABORATORIO_VIEW },
   { path: "/api/planos", permission: PERMISSIONS.LABORATORIO_VIEW },
