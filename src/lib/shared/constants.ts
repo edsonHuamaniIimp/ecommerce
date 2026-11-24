@@ -3536,6 +3536,16 @@ export const SGC_CONTRACT_TYPE_BY_SOLICITUD: Record<string, string> = {
   [TIPOS_SOLICITUD.RESERVA_EMPRESA]: SGC_CONTRACT_TYPE_CODES.RESERVA_EMPRESA,
 };
 export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
+
+/**
+ * Devolucion del SGC con cambio documental pero SIN `observations[]` abiertas (guia §8,
+ * escenarios E/F): el SGC exige una version nueva del contrato antes de `/resend`. Se
+ * sintetiza una observacion del contrato para activar el flujo normal (regenerar, firmar,
+ * reenviar). El id es local (prefijo) y no se envia al SGC.
+ */
+export const SGC_OBSERVACION_IMPLICITA_PREFIX = "devolucion-sin-obs";
+export const SGC_OBSERVACION_IMPLICITA_MENSAJE =
+  "El área legal devolvió el trámite sin detallar documentos: firma nuevamente el contrato y solicita una nueva revisión.";
 /**
  * Motivo obligatorio en la reserva de subida. El SGC exige `replacementReason` no
  * vacio junto con `documentId: null` incluso para la carga inicial de un documento.

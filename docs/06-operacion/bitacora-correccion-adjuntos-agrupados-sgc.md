@@ -160,3 +160,32 @@ Archivos de prueba principales:
 - QA debe esperar el deploy de ese commit antes de volver a probar.
 - Los documentos genéricos antiguos pueden permanecer en el SGC como historial; la corrección debe enviar las piezas nuevas asociadas al grupo.
 - Si el SGC sigue reportando faltantes después de desplegar `f3fe782`, el siguiente paso es revisar el tráfico real de `POST /contracts/{id}/documents` y confirmar que el payload lleva ambos IDs.
+
+## 9. Continuación 23–24 nov 2026: casos de producción y correcciones
+
+Diagnóstico sobre los 44 expedientes abiertos de prod (solo lectura, BD + API del SGC).
+
+| Caso | Síntoma | Causa raíz | Corrección |
+|---|---|---|---|
+| MOLY-COP | 6 (luego 12) archivos en la misma pieza; 3 piezas vacías | El modal asignaba un solo `pieceId` a toda la selección múltiple; la 2.ª vez el cliente tenía la página vieja abierta tras el deploy | `c1d2e60`: un botón y un archivo por pieza. El cliente debe recargar (Ctrl+F5) y subir las 3 piezas |
+| ULMA | 3 piezas quedaron `reemplazado` | Un "otro documento" sin requisito marcaba como reemplazados todos los anexos sin requisito, incluidas las piezas | `c1d2e60`. Envío controlado del 23-nov: solo contrato + 3 piezas; quedó en `legal-review` |
+| SCANIA | Vigencia y DNI volvieron a los originales en la ronda 3 | El original seguía activo junto a la corrección y se reenviaba como versión nueva | `37477fe`. Restaurar requiere «Devolver para corregir» en el SGC (la integración no tiene permiso de corrección administrativa: 403) |
+| COMISUB / ESAN / BOART | "Subsanada, puedes reenviar" pero el reenvío falla | El SGC devolvió sin `observations[]`: exige versión nueva del contrato y el cliente no tenía cómo firmar de nuevo | Observación implícita del contrato (ver abajo) |
+| Todos | Correos/alertas repetidos (hasta 729 a un usuario) | Se comparaba el mensaje de la observación con el `reason` del webhook | `c1d2e60`: avisar solo por observaciones nuevas (`observationId`) |
+| Todos | Estado local desfasado horas/días | Sin webhooks desde el 12-nov; el cron gastaba su presupuesto en los 404 | `c1d2e60`: cron rota también los errores y consulta terminales cada 24 h |
+| ULMA (principio) | El reenvío subía anexos no observados | Subía todo lo que el SGC no tenía | `ce6e539`: en subsanación solo se sube lo observado |
+
+### Observación implícita del contrato (24-nov)
+- Si el SGC está `observed`/`rejected` sin observaciones abiertas y la devolución no indica
+  `requiresDocumentChange: false`, la sincronización agrega una observación del contrato con id
+  local `devolucion-sin-obs-v<versión>` y la fecha de la devolución (`updatedAt` del detalle).
+- Activa el flujo existente: regeneración del contrato, botón "Firmar contrato corregido" y
+  reenvío con la versión nueva del contrato. Se reutiliza mientras dure la devolución y
+  desaparece cuando el SGC abre la siguiente ronda.
+
+### Reglas añadidas a la lista de "no repetir"
+9. **En una subsanación solo se envía lo observado.** Si falta algo, el SGC lo observa.
+10. **Una corrección ya aceptada reserva su documento:** un archivo más antiguo no se sube encima.
+11. **Una devolución sin observaciones exige versión nueva del contrato:** el cliente debe poder firmar.
+12. **Nunca iniciar sesión con credenciales de usuarios** para operar el SGC; la integración usa su clave y el operador se identifica en `operatorReference`.
+13. **Bitácora de intentos:** cada "Solicitar nueva revisión" queda en `sgc_subsanacion_intento`; revisar ahí antes de diagnosticar.

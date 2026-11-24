@@ -22,6 +22,7 @@ import {
   SGC_LIFECYCLE_STATUSES,
   SGC_STAGES,
   SGC_OBSERVACION_ESTADOS,
+  SGC_OBSERVACION_IMPLICITA_PREFIX,
   TIPOS_DOCUMENTO_SOLICITUD,
   TIPOS_SOLICITUD,
   SGC_CONTRACT_TYPE_CODES,
@@ -507,6 +508,87 @@ describe("SgcIntegracionApplicationService.reenviarCorreccionAlSgc", () => {
     expect(anexos).not.toHaveBeenCalled();
     expect(subir).not.toHaveBeenCalled();
     expect(client.reabrirExpediente).not.toHaveBeenCalled();
+  });
+});
+
+/* Caso ESAN: el SGC devolvio sin `observations[]` abiertas. Exige version nueva del contrato,
+ * pero sin observacion el cliente no tenia como firmar de nuevo (callejon sin salida). */
+describe("SgcIntegracionApplicationService.consultarExpediente — devolucion sin observaciones", () => {
+  const resuelta = {
+    observationId: "obs-vieja",
+    documentId: "sgc-vig",
+    category: "annex",
+    title: "Vigencia de Poder",
+    message: "Corrige el adjunto",
+    status: SGC_OBSERVACION_ESTADOS.RESOLVED,
+    createdAt: "2026-11-20 16:31:46+00",
+  };
+  const detalleSgc = (overrides: Record<string, unknown> = {}) => ({
+    contractId: "contract-1",
+    lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+    stage: SGC_STAGES.DRAFTING,
+    version: 5,
+    updatedAt: "2026-11-23 15:21:52.725+00",
+    documents: [
+      { documentId: "sgc-contrato", category: "contract", title: "Contrato de separación de stand v1", currentVersionId: "v1", observations: [] },
+      { documentId: "sgc-vig", category: "annex", title: "Vigencia de Poder", currentVersionId: "v2", observations: [resuelta] },
+    ],
+    missingDocuments: [],
+    ...overrides,
+  });
+  async function sincronizar(detalleMock: Record<string, unknown>, exp: Partial<SgcExpedienteEntity> = {}) {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue(detalleMock as never);
+    const repo = sgcRepoMock(expediente({
+      contractId: "contract-1",
+      estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      observaciones: [resuelta],
+      ...exp,
+    }));
+    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(null), repo, client, documentoOrigenMock(), CONFIG);
+    await svc.consultarExpediente("sol-1", { regenerarContrato: false });
+    const guardadas = vi.mocked(repo.actualizarExpediente).mock.calls
+      .map(([, data]) => data.observaciones)
+      .find((o) => Array.isArray(o)) as Array<Record<string, unknown>> | undefined;
+    return guardadas ?? [];
+  }
+
+  it("sintetiza una observacion abierta del contrato con la fecha de la devolucion", async () => {
+    const obs = await sincronizar(detalleSgc());
+    const implicita = obs.find((o) => String(o.observationId).startsWith(SGC_OBSERVACION_IMPLICITA_PREFIX));
+    expect(implicita).toMatchObject({
+      observationId: `${SGC_OBSERVACION_IMPLICITA_PREFIX}-v5`,
+      documentId: "sgc-contrato",
+      category: "contract",
+      status: SGC_OBSERVACION_ESTADOS.OPEN,
+      requiresDocumentChange: true,
+      createdAt: "2026-11-23 15:21:52.725+00",
+    });
+  });
+
+  it("reutiliza el id y la fecha de la implicita previa mientras dure la devolucion", async () => {
+    const previa = { observationId: `${SGC_OBSERVACION_IMPLICITA_PREFIX}-v5`, documentId: "sgc-contrato", category: "contract", message: "x", status: SGC_OBSERVACION_ESTADOS.OPEN, createdAt: "2026-11-23 15:21:52.725+00" };
+    const obs = await sincronizar(detalleSgc({ version: 6, updatedAt: "2026-11-24 10:00:00+00" }), { observaciones: [resuelta, previa] });
+    expect(obs.find((o) => String(o.observationId).startsWith(SGC_OBSERVACION_IMPLICITA_PREFIX))).toMatchObject({
+      observationId: `${SGC_OBSERVACION_IMPLICITA_PREFIX}-v5`,
+      createdAt: "2026-11-23 15:21:52.725+00",
+    });
+  });
+
+  it("no la crea si hay observaciones abiertas, si no exige cambio o si no esta devuelto", async () => {
+    const abierta = { ...resuelta, observationId: "obs-nueva", status: SGC_OBSERVACION_ESTADOS.OPEN };
+    const conAbierta = await sincronizar(detalleSgc({
+      documents: [
+        { documentId: "sgc-contrato", category: "contract", title: "Contrato", currentVersionId: "v1", observations: [] },
+        { documentId: "sgc-vig", category: "annex", title: "Vigencia de Poder", currentVersionId: "v2", observations: [abierta] },
+      ],
+    }));
+    const sinCambio = await sincronizar(detalleSgc(), { devolucionRequiereCambio: false });
+    const enRevision = await sincronizar(detalleSgc({ lifecycleStatus: "legal-review", stage: SGC_STAGES.INTERNAL_REVIEW }));
+    for (const obs of [conAbierta, sinCambio, enRevision]) {
+      expect(obs.some((o) => String(o.observationId ?? "").startsWith(SGC_OBSERVACION_IMPLICITA_PREFIX))).toBe(false);
+    }
   });
 });
 

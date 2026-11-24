@@ -825,3 +825,13 @@ order by i.created_at desc;
   foto suelta además de las 3 piezas observadas.
 - ULMA se envió con un script controlado (contrato firmado v3 + 3 piezas del grupo
   `e3e837cb`, luego `/resend` una sola vez); quedó en `legal-review` con el grupo resuelto.
+
+## Actualización 24-nov-2026: devolución sin observaciones
+
+- Caso ESAN (y COMISUB/BOART): el SGC devolvió con cambio documental pero sin `observations[]`
+  abiertas. Por la guía (§8/§8.2, escenarios E/F) exige una versión nueva del contrato antes de
+  `/resend`; el cliente veía "La observación fue subsanada" y no tenía botón para volver a firmar.
+- `observacionesDesdeDetalle` agrega una observación del contrato con id local
+  `devolucion-sin-obs-v<versión>` (`SGC_OBSERVACION_IMPLICITA_PREFIX`) y la fecha de la
+  devolución, salvo que la devolución tenga `requiresDocumentChange: false`. Activa el flujo de
+  contrato observado (regenerar, firmar, reenviar). Ver la bitácora de operación §9.

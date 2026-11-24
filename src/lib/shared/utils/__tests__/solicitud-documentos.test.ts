@@ -18,6 +18,7 @@ import {
   requiereDocsReevaluacion,
   estadoCorreccionSgc,
   esObservacionSgcContrato,
+  observacionContratoSgcPendiente,
   observacionesSgcSubsanadas,
   piezasObservacionSgc,
   sgcObservacionesAbiertas,
@@ -800,5 +801,40 @@ describe("estadoCorreccionSgc en faltantes con titulo", () => {
       sgcObservaciones: [obs],
       docsAdjuntos: [{ ...ajeno, sgcTitle: "Falta agregar vigencia" }],
     }).faltantes).toHaveLength(0);
+  });
+});
+
+/* Caso ESAN: devolucion sin observaciones -> observacion implicita del contrato. El cliente
+ * debe firmar de nuevo; una firma anterior a la devolucion no la cubre. */
+describe("observacion implicita del contrato (devolucion sin observaciones)", () => {
+  const implicita = {
+    observationId: "devolucion-sin-obs-v5",
+    documentId: "sgc-contrato",
+    category: "contract",
+    title: "Contrato de separación de stand v1",
+    message: "El área legal devolvió el trámite sin detallar documentos: firma nuevamente el contrato y solicita una nueva revisión.",
+    status: "open",
+    requiresDocumentChange: true,
+    createdAt: "2026-11-23T15:21:52.725Z",
+  };
+  const firmado = (id: string, createdAt: string) => ({
+    id,
+    userId: CLIENTE,
+    categoria: TIPOS_DOCUMENTO_SOLICITUD.CONTRATO_FIRMADO,
+    requisito: null,
+    estado: ESTADOS_DOCUMENTO_SOLICITUD.ACTIVO,
+    createdAt,
+  });
+
+  it("una firma anterior a la devolucion no la cubre", () => {
+    const s = { ...devuelto, sgcObservaciones: [implicita], docsAdjuntos: [firmado("viejo", "2026-11-19T21:38:18.000Z")] };
+    expect(observacionContratoSgcPendiente(s)).toBe(true);
+    expect(observacionesSgcSubsanadas(s)).toBe(false);
+  });
+
+  it("una firma posterior a la devolucion la cubre", () => {
+    const s = { ...devuelto, sgcObservaciones: [implicita], docsAdjuntos: [firmado("nuevo", "2026-11-24T18:30:00.000Z")] };
+    expect(observacionContratoSgcPendiente(s)).toBe(false);
+    expect(observacionesSgcSubsanadas(s)).toBe(true);
   });
 });

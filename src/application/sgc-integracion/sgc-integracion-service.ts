@@ -35,6 +35,8 @@ import {
   SGC_TITULOS_DOCUMENTO,
   SGC_STAGES,
   SGC_LIFECYCLE_STATUSES,
+  SGC_OBSERVACION_IMPLICITA_MENSAJE,
+  SGC_OBSERVACION_IMPLICITA_PREFIX,
   CATEGORIAS_DOCUMENTO,
   ESTADOS_DOCUMENTO_SOLICITUD,
   TIPOS_DOCUMENTO_SOLICITUD,
@@ -345,7 +347,7 @@ export class SgcIntegracionApplicationService {
       const detalle = await this.client.consultarExpediente(expediente.contractId);
       // Con bypass admin, el estado local (Vigente) no se revierte al leer del SGC.
       const preservar = expediente.bypassAprobado;
-      const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones);
+      const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones, expediente.devolucionRequiereCambio);
       const devuelto =
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
@@ -467,7 +469,7 @@ export class SgcIntegracionApplicationService {
           sincronizados += 1;
           continue;
         }
-        const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones);
+        const observaciones = this.observacionesDesdeDetalle(detalle, expediente.observaciones, expediente.devolucionRequiereCambio);
         const devuelto =
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
           detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
@@ -921,7 +923,7 @@ export class SgcIntegracionApplicationService {
     /* La UI puede conservar una observacion local ya resuelta. No se deben
      * reenviar piezas cuando el SGC ya abrio una nueva ronda: responde 409. */
     if (!sgcDevuelto) {
-      const observacionesActuales = this.observacionesDesdeDetalle(actual, expediente.observaciones);
+      const observacionesActuales = this.observacionesDesdeDetalle(actual, expediente.observaciones, expediente.devolucionRequiereCambio);
       await this.repo.actualizarExpediente(expediente.id, {
         stage: actual.stage,
         lifecycleStatus: actual.lifecycleStatus,
@@ -940,7 +942,7 @@ export class SgcIntegracionApplicationService {
      * Se usan las observaciones frescas del SGC: la copia local puede traer solo
      * observaciones ya resueltas de rondas anteriores. */
     const observacionesFrescas =
-      this.observacionesDesdeDetalle(actual, expediente.observaciones) ?? detalle.sgcObservaciones ?? [];
+      this.observacionesDesdeDetalle(actual, expediente.observaciones, expediente.devolucionRequiereCambio) ?? detalle.sgcObservaciones ?? [];
     const abiertas = observacionesFrescas.filter(
       (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
     );
@@ -1380,7 +1382,11 @@ export class SgcIntegracionApplicationService {
    * Si llega el `status` del documento como observed/rejected sin detalle, se sintetiza
    * una observacion generica apuntando a ese documento.
    */
-  private observacionesDesdeDetalle(detalle: SgcExpedienteDetalle, previas?: SgcObservacionDocumento[] | null): SgcObservacionDocumento[] | null {
+  private observacionesDesdeDetalle(
+    detalle: SgcExpedienteDetalle,
+    previas?: SgcObservacionDocumento[] | null,
+    devolucionRequiereCambio?: boolean | null,
+  ): SgcObservacionDocumento[] | null {
     const lista: SgcObservacionDocumento[] = [];
     let informado = false;
     for (const doc of detalle.documents ?? []) {
@@ -1455,7 +1461,49 @@ export class SgcIntegracionApplicationService {
           )?.createdAt ?? detalle.updatedAt,
       });
     }
+    const implicita = this.observacionContratoImplicita(detalle, lista, previas, devolucionRequiereCambio);
+    if (implicita) {
+      informado = true;
+      lista.push(implicita);
+    }
     return informado ? lista : null;
+  }
+
+  /**
+   * Devolucion o rechazo del SGC sin observaciones abiertas (caso ESAN/COMISUB/BOART): el SGC
+   * exige una version nueva del contrato antes de `/resend` (guia §8/§8.2), pero sin una
+   * observacion el cliente no tenia como firmar de nuevo. Se sintetiza una observacion del
+   * contrato (id local con prefijo) que activa el flujo existente: regenerar, firmar y reenviar.
+   * No aplica si el SGC indico que la devolucion no exige cambio documental.
+   */
+  private observacionContratoImplicita(
+    detalle: SgcExpedienteDetalle,
+    lista: SgcObservacionDocumento[],
+    previas: SgcObservacionDocumento[] | null | undefined,
+    devolucionRequiereCambio: boolean | null | undefined,
+  ): SgcObservacionDocumento | null {
+    const devuelto =
+      detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+      detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
+    if (!devuelto || devolucionRequiereCambio === false) return null;
+    if (lista.some((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED)) return null;
+    const contrato = (detalle.documents ?? []).find((d) => d.category === SGC_DOCUMENT_CATEGORIES.CONTRACT);
+    if (!contrato) return null;
+    /* Estable mientras dure la devolucion: se reutiliza la implicita previa abierta (id y fecha). */
+    const previa = (previas ?? []).find(
+      (o) => o.observationId?.startsWith(SGC_OBSERVACION_IMPLICITA_PREFIX) && o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED,
+    );
+    return {
+      observationId: previa?.observationId ?? `${SGC_OBSERVACION_IMPLICITA_PREFIX}-v${detalle.version ?? 0}`,
+      documentId: contrato.documentId,
+      category: SGC_DOCUMENT_CATEGORIES.CONTRACT,
+      title: contrato.title,
+      message: SGC_OBSERVACION_IMPLICITA_MENSAJE,
+      severity: "blocking",
+      requiresDocumentChange: true,
+      status: SGC_OBSERVACION_ESTADOS.OPEN,
+      createdAt: previa?.createdAt ?? detalle.updatedAt,
+    };
   }
 
   /** Slug seguro para nombres de archivo enviados al SGC. */
