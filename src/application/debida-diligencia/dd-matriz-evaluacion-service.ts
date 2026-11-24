@@ -1,5 +1,6 @@
 ﻿import { DomainError } from "@/domain/errors/domain-error";
 import type {
+  DdMatrizListasObservacion,
   DdMatrizAdjuntoEntity,
   DdMatrizBloque,
   DdMatrizExportItem,
@@ -43,7 +44,7 @@ import {
   complianceDesbloqueado,
   derivarAmbito,
   evaluarBloqueArea,
-  limiteObservacionAdjunto,
+  limiteObservacionLista,
   listasAplicables,
   normalizarSiNoNa,
   normalizarResultadoFinal,
@@ -372,6 +373,11 @@ export class DdMatrizEvaluacionApplicationService {
     if (dto.listas) {
       if (!permisos.editarListas) this.prohibido("Sin permiso para registrar las listas restrictivas");
       cambios.listas = this.mapearListas(dto.listas, vinculo, ambitoEfectivo);
+    }
+
+    if (dto.listasObservaciones) {
+      if (!permisos.editarListas) this.prohibido("Sin permiso para registrar las observaciones de los criterios");
+      cambios.listasObservaciones = this.mapearListasObservaciones(dto.listasObservaciones, vinculo, ambitoEfectivo);
     }
 
     if (dto.sig) {
@@ -709,37 +715,6 @@ export class DdMatrizEvaluacionApplicationService {
     );
   }
 
-  /** Guarda la observacion de una evidencia; el maximo depende de su categoria. */
-  async actualizarObservacionAdjunto(
-    session: DdSession,
-    id: string,
-    observacion: string | null,
-  ): Promise<DdMatrizAdjuntoEntity> {
-    this.exigirAcceso(session, ACCESO_ADJUNTOS);
-    const adjunto = await this.repo.findAdjunto(id);
-    if (!adjunto) throw new DomainError("Adjunto no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
-    const vinculo = await this.vinculoRequerido(adjunto.vinculoId);
-    const adjuntos = await this.repo.listarAdjuntos(adjunto.vinculoId);
-    this.exigirPermisoAdjunto(session, vinculo, adjuntos, adjunto.categoria, adjunto);
-    const texto = observacion?.trim() || null;
-    const maximo = limiteObservacionAdjunto(adjunto.categoria);
-    if (texto && texto.length > maximo) {
-      throw new DomainError(
-        `La observación admite hasta ${maximo} caracteres`,
-        API_ERROR_CODES.VALIDATION,
-        400,
-      );
-    }
-    const actualizado = await this.repo.actualizarObservacionAdjunto(id, texto);
-    await this.repo.registrarAuditoria(
-      "matriz_adjunto_observacion",
-      vinculo.expediente.codigo,
-      session.email,
-      `Matriz DD: observación de ${adjunto.nombre} en ${vinculo.nombre}`,
-    );
-    return actualizado;
-  }
-
   private exigirPermisoAdjunto(
     session: DdSession,
     vinculo: DdMatrizVinculoEntity,
@@ -806,6 +781,38 @@ export class DdMatrizEvaluacionApplicationService {
       const normalizado = normalizarSiNoNa(valor);
       if (!normalizado) throw new DomainError(`Valor no reconocido en ${campo}`, API_ERROR_CODES.VALIDATION, 400);
       resultado[campo] = normalizado;
+    }
+    return resultado;
+  }
+
+  /** Observacion por criterio: solo criterios aplicables al vinculo; el maximo depende del criterio. */
+  private mapearListasObservaciones(
+    entrada: Record<string, string | null>,
+    vinculo: DdMatrizVinculoEntity,
+    ambito: DdMatrizAmbito,
+  ): DdMatrizListasObservacion {
+    const aplicables = new Set(
+      listasAplicables(vinculo.tipo, ambito, vinculo.tipoDocumento).map((l) => l.codigo),
+    );
+    const resultado: DdMatrizListasObservacion = { ...vinculo.listasObservaciones };
+    for (const [codigo, valor] of Object.entries(entrada)) {
+      if (!aplicables.has(codigo)) {
+        throw new DomainError(`La lista "${codigo}" no aplica a este vínculo`, API_ERROR_CODES.VALIDATION, 400);
+      }
+      const texto = valor?.trim() ?? "";
+      if (texto === "") {
+        delete resultado[codigo];
+        continue;
+      }
+      const maximo = limiteObservacionLista(codigo);
+      if (texto.length > maximo) {
+        throw new DomainError(
+          `La observación de "${codigo}" admite hasta ${maximo} caracteres`,
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
+      }
+      resultado[codigo] = texto;
     }
     return resultado;
   }

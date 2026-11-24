@@ -87,7 +87,6 @@ export function mapDdMatrizAdjuntoToDTO(adjunto: DdMatrizAdjuntoEntity): DdMatri
     mimeType: adjunto.mimeType,
     tamano: adjunto.tamano,
     creadoPor: adjunto.creadoPor,
-    observacion: adjunto.observacion,
     createdAt: adjunto.createdAt.toISOString(),
   };
 }
@@ -115,6 +114,7 @@ export function mapDdMatrizEvaluacionDetalleToDTO(detalle: DdMatrizDetalleResult
     label: lista.label,
     color: lista.color,
     valor: vinculo.listas[lista.codigo] ?? null,
+    observacion: vinculo.listasObservaciones[lista.codigo] ?? null,
   }));
 
   return {

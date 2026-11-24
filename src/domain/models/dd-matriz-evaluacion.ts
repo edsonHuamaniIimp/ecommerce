@@ -7,6 +7,8 @@ import type {
 
 /** Respuesta por lista restrictiva: { codigo de lista: "si" | "no" | "na" }. */
 export type DdMatrizListasValor = Record<string, string>;
+/** Observacion del analista por criterio: { codigo de lista: texto }. */
+export type DdMatrizListasObservacion = Record<string, string>;
 
 /** Bloque de conclusiones de un area (SIG, Reputacional o Compliance). */
 export interface DdMatrizBloque {
@@ -26,8 +28,6 @@ export interface DdMatrizAdjuntoEntity {
   mimeType: string;
   tamano: number;
   creadoPor: string;
-  /** Observacion del analista sobre la evidencia (null si no hay). */
-  observacion: string | null;
   createdAt: Date;
 }
 
@@ -85,6 +85,7 @@ export interface DdMatrizVinculoEntity extends DdMatrizGenerales {
   /** true si SIG completo/corrigio la identidad de una fila automatica. */
   identidadEditada: boolean;
   listas: DdMatrizListasValor;
+  listasObservaciones: DdMatrizListasObservacion;
   sig: DdMatrizBloque;
   reputacional: DdMatrizBloque;
   compliance: DdMatrizBloque;
@@ -231,6 +232,7 @@ export interface DdMatrizVinculoCambios {
   identidadEditada?: boolean;
   generales?: Partial<DdMatrizGenerales>;
   listas?: DdMatrizListasValor;
+  listasObservaciones?: DdMatrizListasObservacion;
   sig?: Partial<DdMatrizBloque>;
   reputacional?: Partial<DdMatrizBloque>;
   compliance?: Partial<DdMatrizBloque>;

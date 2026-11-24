@@ -44,7 +44,6 @@ export const { GET, POST } = createRouter({
     "matriz-evaluacion/guardar": (req) => ddMatrizEvaluacionController.guardar(req),
     "matriz-evaluacion/vinculo": (req) => ddMatrizEvaluacionController.agregarVinculo(req),
     "matriz-evaluacion/vinculo/eliminar": (req) => ddMatrizEvaluacionController.eliminarVinculo(req),
-    "matriz-evaluacion/adjunto/observacion": (req) => ddMatrizEvaluacionController.observacionAdjunto(req),
     "matriz-evaluacion/adjunto/eliminar": (req) => ddMatrizEvaluacionController.eliminarAdjunto(req),
     "clasificar-archivos": (req) => debidaDiligenciaController.clasificarArchivos(req),
   },

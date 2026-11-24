@@ -2474,7 +2474,7 @@ export const DD_MATRIZ_LISTA_URLS: Record<
 
 /**
  * Filas de "6. Observaciones y Conclusiones" del informe: cada una reune las observaciones de
- * las evidencias de sus criterios (codigos de lista).
+ * sus criterios (codigos de lista).
  */
 export const DD_INFORME_GRUPOS_OBSERVACION = {
   PEP: ["peps_prp_empresa", "peps_prp_persona"],
@@ -2489,10 +2489,10 @@ export type DdInformeGrupoObservacion = keyof typeof DD_INFORME_GRUPOS_OBSERVACI
 /** Limites de la matriz. */
 export const DD_MATRIZ_OBSERVACION_MAX = 2000;
 export const DD_MATRIZ_FINAL_COMENTARIO_MAX = 1000;
-/** Observacion por evidencia: limite general y limite ampliado para los criterios con detalle largo. */
-export const DD_MATRIZ_ADJUNTO_OBSERVACION_MAX = 2000;
-export const DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX = 20000;
-/** Criterios (codigo de lista) cuya observacion por evidencia admite el limite ampliado: OEFA, INDECOPI, lavado/corrupcion y Otros. */
+/** Observacion por criterio: limite general y limite ampliado para los criterios con detalle largo. */
+export const DD_MATRIZ_LISTA_OBSERVACION_MAX = 2000;
+export const DD_MATRIZ_LISTA_OBSERVACION_EXTENDIDA_MAX = 20000;
+/** Criterios (codigo de lista) cuya observacion admite el limite ampliado: OEFA, OSCE, INDECOPI, lavado/corrupcion y Otros. */
 export const DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA: readonly string[] = [
   "oefa",
   DD_MATRIZ_LISTA_OSCE,

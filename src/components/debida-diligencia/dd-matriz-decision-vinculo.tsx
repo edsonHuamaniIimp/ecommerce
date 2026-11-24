@@ -23,6 +23,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  MessageSquare,
   Scale,
   Send,
   ShieldCheck,
@@ -31,7 +32,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { DdMatrizAdjuntoDTO, DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
+import type { DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
 import { DdAutomatizacionGeneral } from "./dd-automatizacion-general";
 import { DdEvidenciasCriterio } from "./dd-evidencias-criterio";
 import { DdVinculoResumen } from "./dd-vinculo-resumen";
@@ -42,7 +43,7 @@ import { DdRevisionModal } from "./dd-revision-modal";
 import { useConfirm } from "@/hooks/use-confirm";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
-import { fuenteAutomatizable, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { fuenteAutomatizable, limiteObservacionLista, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import {
   DD_MATRIZ_ADJUNTO_ACCEPT,
   DD_MATRIZ_AMBITO_LABELS,
@@ -123,6 +124,9 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [decisiones, setDecisiones] = useState<Record<string, DecisionCriterio | null>>({});
+  const [observacionesLista, setObservacionesLista] = useState<Record<string, string>>({});
+  /** Criterio seleccionado: su observacion se edita en el panel derecho. */
+  const [criterioActivo, setCriterioActivo] = useState<string | null>(null);
   const [resultadoSig, setResultadoSig] = useState<ResultadoSig | null>(null);
   const [conclusionSig, setConclusionSig] = useState<string | null>(null);
   const [conclusionReputacional, setConclusionReputacional] = useState<string | null>(null);
@@ -135,6 +139,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
   const aplicar = useCallback((data: DdMatrizEvaluacionDetalleDTO) => {
     setDetalle(data);
     setDecisiones(Object.fromEntries(data.listas.map((lista) => [lista.codigo, decisionInicial(lista.valor)])));
+    setObservacionesLista(Object.fromEntries(data.listas.map((lista) => [lista.codigo, lista.observacion ?? ""])));
     setObservaciones(data.sig.observaciones ?? "");
     const resultadoReputacional = ddUtils.normalizarResultadoReputacion(
       data.reputacional.resultado,
@@ -202,16 +207,6 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     }
   };
 
-  const guardarObservacionEvidencia = async (evidencia: DdMatrizAdjuntoDTO, observacion: string | null) => {
-    const actualizado = await ddMatrizEvaluacionService.guardarObservacionAdjunto({ id: evidencia.id, observacion });
-    setDetalle((previo) =>
-      previo
-        ? { ...previo, adjuntos: previo.adjuntos.map((adjunto) => (adjunto.id === actualizado.id ? actualizado : adjunto)) }
-        : previo,
-    );
-    toast.success("Observación guardada");
-  };
-
   const automatizarEvidencia = async (codigo: string) => {
     if (!detalle || automatizandoCriterio) return;
     setAutomatizandoCriterio(codigo);
@@ -276,9 +271,13 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       const listas = Object.fromEntries(
         Object.entries(decisiones).map(([codigo, decision]) => [codigo, valorMatriz(decision)]),
       );
+      const listasObservaciones = Object.fromEntries(
+        Object.entries(observacionesLista).map(([codigo, texto]) => [codigo, texto.trim() || null]),
+      );
       const actualizado = await ddMatrizEvaluacionService.guardar({
         id,
         listas,
+        listasObservaciones,
         sig: {
           resultado: resultadoSig === "aceptado" ? DD_MATRIZ_RESULTADOS.ACEPTADO : DD_MATRIZ_RESULTADOS.OBSERVADO,
           observaciones: observaciones.trim() || null,
@@ -424,12 +423,31 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                     const evidencias = detalle.adjuntos.filter((adjunto) => adjunto.categoria === `${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}`);
                     const fuenteUrl = urlFuenteLista(lista.codigo, detalle.nombre, detalle.documento);
                     return (
-                      <tr key={lista.codigo} className={`align-top transition-colors hover:bg-secondary/30 ${decision === "si" ? "bg-red-50/40" : "even:bg-secondary/10"}`}>
+                      <tr
+                        key={lista.codigo}
+                        onClick={(evento) => {
+                          if ((evento.target as HTMLElement).closest("button, a, label, input, textarea")) return;
+                          setCriterioActivo(lista.codigo);
+                        }}
+                        aria-selected={criterioActivo === lista.codigo}
+                        className={`cursor-pointer align-top transition-colors hover:bg-secondary/30 ${criterioActivo === lista.codigo ? "bg-primary/5 ring-1 ring-inset ring-primary/30" : decision === "si" ? "bg-red-50/40" : "even:bg-secondary/10"}`}
+                      >
                         <td className="px-4 py-3">
                           <div className="flex items-start gap-2">
                             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">{indice + 1}</span>
                             <span className="min-w-0">
-                              <span className="block text-[11px] font-medium text-foreground">{lista.label}</span>
+                              <span className="flex items-start gap-1.5">
+                                <span className="block text-[11px] font-medium text-foreground">{lista.label}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setCriterioActivo(lista.codigo)}
+                                  title={observacionesLista[lista.codigo] ? "Ver / editar la observación de este criterio" : "Agregar observación a este criterio"}
+                                  aria-label={`Observación de ${lista.label}`}
+                                  className={`shrink-0 rounded p-0.5 transition-colors hover:bg-primary/10 ${observacionesLista[lista.codigo] ? "text-primary" : "text-muted-foreground"}`}
+                                >
+                                  <MessageSquare className={`h-3.5 w-3.5 ${observacionesLista[lista.codigo] ? "fill-primary/20" : ""}`} />
+                                </button>
+                              </span>
                               {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo] ? (
                                 <span className="mt-0.5 block text-[10px] font-normal leading-snug text-muted-foreground">
                                   {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo]}
@@ -461,11 +479,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                                 <Skeleton className="h-4 w-36" />
                               </div>
                             ) : null}
-                            <DdEvidenciasCriterio
-                              criterio={lista.label}
-                              evidencias={evidencias}
-                              onGuardarObservacion={puedeEditar ? guardarObservacionEvidencia : null}
-                            />
+                            <DdEvidenciasCriterio criterio={lista.label} evidencias={evidencias} />
                             <div className="flex flex-wrap items-center gap-2">
                               {puedeEditar ? (
                                 <label className="inline-flex cursor-pointer items-center gap-1 text-[10px] font-medium text-primary hover:underline">
@@ -524,6 +538,61 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
         </Card>
 
         <div className="space-y-4">
+          {(() => {
+            const criterio = detalle.listas.find((lista) => lista.codigo === criterioActivo) ?? null;
+            const limite = criterio ? limiteObservacionLista(criterio.codigo) : 0;
+            const texto = criterio ? (observacionesLista[criterio.codigo] ?? "") : "";
+            return (
+              <Card className={criterio ? "border-primary/40" : "border-dashed"}>
+                <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
+                  <CardTitle className="flex items-center justify-between gap-2 text-sm font-bold">
+                    <span className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      Observación del criterio
+                    </span>
+                    {criterio ? (
+                      <button
+                        type="button"
+                        onClick={() => setCriterioActivo(null)}
+                        className="text-[10px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                      >
+                        Cerrar
+                      </button>
+                    ) : null}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 pt-4">
+                  {criterio ? (
+                    <>
+                      <p className="text-[11px] font-semibold text-foreground">{criterio.label}</p>
+                      <Textarea
+                        value={texto}
+                        onChange={(evento) =>
+                          setObservacionesLista((previas) => ({
+                            ...previas,
+                            [criterio.codigo]: evento.target.value.slice(0, limite),
+                          }))
+                        }
+                        maxLength={limite}
+                        disabled={!puedeEditar}
+                        placeholder="Hallazgos, resoluciones o sustento de este criterio..."
+                        aria-label={`Observación de ${criterio.label}`}
+                        className="min-h-40 text-xs"
+                      />
+                      <p className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>{puedeEditar ? "Se guarda con «Guardar evaluación»." : "Solo lectura."}</span>
+                        <span>{texto.length}/{limite}</span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Haz clic en un criterio de la tabla para registrar o ver su observación.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })()}
           <Card>
             <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
               <CardTitle className="flex items-center gap-2 text-sm font-bold">

@@ -36,14 +36,14 @@ export interface DdInformeObservacion {
   responsable: string | null;
 }
 
-/** Observacion de una evidencia lista para el informe. */
-export interface DdInformeNotaEvidencia {
+/** Observacion de un criterio lista para el informe. */
+export interface DdInformeNotaCriterio {
   id: string;
-  /** Vinculo al que pertenece la evidencia. */
+  /** Vinculo al que pertenece el criterio. */
   vinculo: string;
   /** true cuando la nota es de la empresa titular (no hace falta nombrar al vinculo). */
   esTitular: boolean;
-  evidencia: string;
+  criterio: string;
   texto: string;
 }
 
@@ -146,7 +146,7 @@ export function detalleTieneObservacion(detalle: DdMatrizEvaluacionDetalleDTO): 
       bloque.conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA ||
       bloque.conclusion === DD_MATRIZ_CONCLUSIONES.REQUIERE_DEBIDA_DILIGENCIA ||
       Boolean(bloque.observaciones?.trim()),
-  ) || detalle.adjuntos.some((adjunto) => Boolean(adjunto.observacion?.trim()));
+  ) || detalle.listas.some((lista) => Boolean(lista.observacion?.trim()));
 }
 
 /** Vinculos que deben salir en el PDF del informe: solo los que tienen observaciones. */
@@ -204,34 +204,27 @@ export function evidenciasConHallazgo(detalles: DdMatrizEvaluacionDetalleDTO[]):
 }
 
 /**
- * Observaciones de las evidencias de los criterios dados, solo de criterios con resultado SI
- * (los mismos que se anexan). La empresa titular va primero.
+ * Observaciones de los criterios dados, solo de criterios con resultado SI (los mismos cuyas
+ * evidencias se anexan). La empresa titular va primero.
  */
-export function notasEvidenciaPorCriterios(
+export function notasPorCriterios(
   detalles: DdMatrizEvaluacionDetalleDTO[],
   codigos: readonly string[],
-): DdInformeNotaEvidencia[] {
-  const notas: DdInformeNotaEvidencia[] = [];
+): DdInformeNotaCriterio[] {
+  const notas: DdInformeNotaCriterio[] = [];
   const ordenados = [...detalles].sort(
     (a, b) =>
       Number(b.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA) - Number(a.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA),
   );
   for (const detalle of ordenados) {
-    const codigosSi = new Set(
-      detalle.listas
-        .filter((lista) => lista.valor === DD_MATRIZ_SI_NO_NA.SI && codigos.includes(lista.codigo))
-        .map((lista) => lista.codigo),
-    );
-    const adjuntos = [...detalle.adjuntos].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    for (const adjunto of adjuntos) {
-      const texto = adjunto.observacion?.trim();
-      if (!texto || !adjunto.categoria.startsWith(DD_MATRIZ_CRITERIO_PREFIJO)) continue;
-      if (!codigosSi.has(adjunto.categoria.slice(DD_MATRIZ_CRITERIO_PREFIJO.length))) continue;
+    for (const lista of detalle.listas) {
+      const texto = lista.observacion?.trim();
+      if (!texto || lista.valor !== DD_MATRIZ_SI_NO_NA.SI || !codigos.includes(lista.codigo)) continue;
       notas.push({
-        id: adjunto.id,
+        id: `${detalle.id}-${lista.codigo}`,
         vinculo: detalle.nombre,
         esTitular: detalle.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
-        evidencia: adjunto.nombre,
+        criterio: lista.label,
         texto,
       });
     }

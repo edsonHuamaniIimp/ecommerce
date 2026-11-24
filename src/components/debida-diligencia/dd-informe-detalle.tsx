@@ -64,8 +64,8 @@ import {
   evidenciasConHallazgo,
   evidenciasInforme,
   observacionesInforme,
-  notasEvidenciaPorCriterios,
-  type DdInformeNotaEvidencia,
+  notasPorCriterios,
+  type DdInformeNotaCriterio,
   vinculosConObservaciones,
   resumenInforme,
 } from "@/lib/shared/utils/dd-informe";
@@ -141,8 +141,8 @@ function responsableArea(
   return responsables.length > 0 ? [...new Set(responsables)].join(", ") : null;
 }
 
-/** Observaciones de evidencias dentro del informe; no desborda con textos largos. */
-function NotasEvidencia({ notas }: { notas: DdInformeNotaEvidencia[] }) {
+/** Observaciones de criterios dentro del informe; no desborda con textos largos. */
+function NotasEvidencia({ notas }: { notas: DdInformeNotaCriterio[] }) {
   if (notas.length === 0) return null;
   return (
     <ol className="list-decimal space-y-1 pl-4">
@@ -265,7 +265,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const anexosPdf = useMemo(() => evidenciasConHallazgo(vinculosPdf), [vinculosPdf]);
   const vinculosVista = soloObservados ? vinculosPdf : vinculos;
   const notasPor = (grupo: DdInformeGrupoObservacion) =>
-    notasEvidenciaPorCriterios(vinculosPdf, DD_INFORME_GRUPOS_OBSERVACION[grupo]);
+    notasPorCriterios(vinculosPdf, DD_INFORME_GRUPOS_OBSERVACION[grupo]);
 
   if (loading) {
     return (
@@ -798,11 +798,6 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                             {" · "}
                             {dateUtils.format(anexo.createdAt)}
                           </p>
-                          {anexo.observacion ? (
-                            <p className="mt-0.5 whitespace-pre-wrap break-words text-[10px] text-foreground">
-                              {anexo.observacion}
-                            </p>
-                          ) : null}
                         </div>
                       </div>
                       <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-[10px]">

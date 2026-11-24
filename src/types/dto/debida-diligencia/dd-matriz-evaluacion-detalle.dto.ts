@@ -15,7 +15,6 @@ export interface DdMatrizAdjuntoDTO {
   mimeType: string;
   tamano: number;
   creadoPor: string;
-  observacion: string | null;
   createdAt: string;
 }
 
@@ -25,6 +24,8 @@ export interface DdMatrizListaDTO {
   color: string;
   /** Respuesta registrada (si/no/na); null si aun no se evalua. */
   valor: string | null;
+  /** Observacion del analista sobre este criterio (null si no hay). */
+  observacion: string | null;
 }
 
 export interface DdMatrizGeneralesDTO {

@@ -42,8 +42,6 @@ export interface IDdMatrizEvaluacionRepository {
   findAdjunto(id: string): Promise<DdMatrizAdjuntoEntity | null>;
   crearAdjunto(data: DdMatrizAdjuntoCreacion): Promise<DdMatrizAdjuntoEntity>;
   eliminarAdjunto(id: string): Promise<void>;
-  /** Guarda (o limpia con null) la observacion de una evidencia. */
-  actualizarObservacionAdjunto(id: string, observacion: string | null): Promise<DdMatrizAdjuntoEntity>;
 
   /** Registra una accion de la matriz en `audit_log` (tipo debida_diligencia). */
   registrarAuditoria(accion: string, entidad: string, actor: string, mensaje: string): Promise<void>;

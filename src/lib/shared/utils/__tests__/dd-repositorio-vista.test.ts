@@ -48,7 +48,6 @@ function adjunto(parcial: Partial<DdMatrizAdjuntoDTO>): DdMatrizAdjuntoDTO {
     mimeType: "image/png",
     tamano: 10,
     creadoPor: "sig@iimp.org.pe",
-    observacion: null,
     createdAt: dias(2),
     ...parcial,
   };
@@ -69,9 +68,9 @@ function escenario(): DdRepositorioFila[] {
   const empresa = detalle({
     id: "v-empresa",
     listas: [
-      { codigo: "ofac", label: "OFAC", color: "extranjero", valor: "no" },
-      { codigo: "dea", label: "DEA", color: "extranjero", valor: null },
-      { codigo: "otros", label: "Otros", color: "comun", valor: null },
+      { codigo: "ofac", label: "OFAC", color: "extranjero", valor: "no", observacion: null },
+      { codigo: "dea", label: "DEA", color: "extranjero", valor: null, observacion: null },
+      { codigo: "otros", label: "Otros", color: "comun", valor: null, observacion: null },
     ],
     adjuntos: [
       adjunto({ id: "a-ofac", categoria: `${DD_MATRIZ_CRITERIO_PREFIJO}ofac`, createdAt: dias(2) }),
@@ -275,9 +274,9 @@ describe("ddRepositorioVista - ayudas visuales", () => {
   it("calcula la cobertura de evidencias por criterio sin contar Otros", () => {
     const empresa = detalle({
       listas: [
-        { codigo: "ofac", label: "OFAC", color: "extranjero", valor: "no" },
-        { codigo: "dea", label: "DEA", color: "extranjero", valor: null },
-        { codigo: "otros", label: "Otros", color: "comun", valor: null },
+        { codigo: "ofac", label: "OFAC", color: "extranjero", valor: "no", observacion: null },
+        { codigo: "dea", label: "DEA", color: "extranjero", valor: null, observacion: null },
+        { codigo: "otros", label: "Otros", color: "comun", valor: null, observacion: null },
       ],
       adjuntos: [adjunto({ categoria: `${DD_MATRIZ_CRITERIO_PREFIJO}ofac` })],
     });

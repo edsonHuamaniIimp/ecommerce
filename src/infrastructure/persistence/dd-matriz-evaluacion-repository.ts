@@ -15,6 +15,7 @@ import type {
   DdMatrizConteo,
   DdMatrizListarResult,
   DdMatrizResumenEntity,
+  DdMatrizListasObservacion,
   DdMatrizListasValor,
   DdMatrizVinculoCambios,
   DdMatrizVinculoEntity,
@@ -168,6 +169,7 @@ function mapVinculo(row: VinculoRow): DdMatrizVinculoEntity {
     historialIimp: row.historialIimp,
     beneficioMutuo: row.beneficioMutuo,
     listas: (row.listas ?? {}) as DdMatrizListasValor,
+    listasObservaciones: (row.listasObservaciones ?? {}) as DdMatrizListasObservacion,
     sig: bloque(row.sigFecha, row.sigResponsable, row.sigResultado, row.sigObservaciones, row.sigConclusion),
     reputacional: bloque(row.repFecha, row.repResponsable, row.repResultado, row.repObservaciones, row.repConclusion),
     compliance: bloque(row.cmpFecha, row.cmpResponsable, row.cmpResultado, row.cmpObservaciones, row.cmpConclusion),
@@ -359,7 +361,6 @@ function mapAdjunto(row: Prisma.DdMatrizAdjuntoGetPayload<object>): DdMatrizAdju
     mimeType: row.mimeType,
     tamano: row.tamano,
     creadoPor: row.creadoPor,
-    observacion: row.observacion,
     createdAt: row.createdAt,
   };
 }
@@ -990,6 +991,9 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
     if (cambios.paisEditado !== undefined) data.paisEditado = cambios.paisEditado;
     if (cambios.identidadEditada !== undefined) data.identidadEditada = cambios.identidadEditada;
     if (cambios.listas !== undefined) data.listas = cambios.listas as Prisma.InputJsonValue;
+    if (cambios.listasObservaciones !== undefined) {
+      data.listasObservaciones = cambios.listasObservaciones as Prisma.InputJsonValue;
+    }
     if (cambios.generales) {
       const g = cambios.generales;
       if (g.fechaInicioActividades !== undefined) data.fechaInicioActividades = g.fechaInicioActividades;
@@ -1049,11 +1053,6 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
   async crearAdjunto(data: DdMatrizAdjuntoCreacion): Promise<DdMatrizAdjuntoEntity> {
     const row = await prisma.ddMatrizAdjunto.create({ data });
-    return mapAdjunto(row);
-  }
-
-  async actualizarObservacionAdjunto(id: string, observacion: string | null): Promise<DdMatrizAdjuntoEntity> {
-    const row = await prisma.ddMatrizAdjunto.update({ where: { id }, data: { observacion } });
     return mapAdjunto(row);
   }
 

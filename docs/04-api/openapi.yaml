@@ -2296,7 +2296,7 @@ paths:
       summary: Guarda secciones de un vinculo (cada una exige el permiso de su area)
       description: >
         Solo se procesan las secciones presentes. SIG (`dd:revision`): identidad (solo ambito en filas
-        automaticas), generales, listas, sig y conclusion reputacional. Reputacional (`dd:reputacion`):
+        automaticas), generales, listas (con su observacion por criterio: 2000 caracteres, 20000 en OEFA, OSCE, INDECOPI, corrupcion/lavado y Otros), sig y conclusion reputacional. Reputacional (`dd:reputacion`):
         reputacional completo. Compliance (`dd:legal`): compliance, solo si SIG concluyo REQUIERE DEBIDA
         DILIGENCIA REFORZADA y adjunto informe. Resultado final: SIG o Compliance. Los valores de catalogo
         aceptan la etiqueta de negocio ("EN REVISIÓN") o el codigo ("en_revision").
@@ -2381,25 +2381,6 @@ paths:
       responses:
         "200":
           description: Adjunto registrado
-  /debida-diligencia/matriz-evaluacion/adjunto/observacion:
-    post:
-      tags: [DebidaDiligencia]
-      summary: Guarda la observacion de una evidencia (2000 caracteres; 20000 en OEFA, INDECOPI, corrupcion/lavado y Otros)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [id, observacion]
-              properties:
-                id: { type: string }
-                observacion: { type: string, nullable: true, description: Vacio o null la limpia }
-      responses:
-        "200":
-          description: Adjunto actualizado
-        "400":
-          description: Observacion excede el maximo de la categoria
   /debida-diligencia/matriz-evaluacion/adjunto/eliminar:
     post:
       tags: [DebidaDiligencia]

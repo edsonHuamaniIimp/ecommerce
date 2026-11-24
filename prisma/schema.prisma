@@ -1764,6 +1764,8 @@ model DdMatrizVinculo {
 
   /// Respuesta SI/NO/N.A. de cada lista restrictiva: { codigo: "si" | "no" | "na" }.
   listas Json @default("{}")
+  /// Observacion del analista por criterio: { codigo: texto }; el maximo depende del criterio (constants.ts).
+  listasObservaciones Json @default("{}") @map("listas_observaciones")
 
   /// Bloque SIG (Logistica).
   sigFecha         DateTime? @map("sig_fecha")
@@ -1828,8 +1830,6 @@ model DdMatrizAdjunto {
   mimeType   String   @map("mime_type") @db.VarChar(100)
   tamano     Int
   creadoPor  String   @map("creado_por") @db.VarChar(200)
-  /// Observacion del analista sobre esta evidencia; el maximo depende de la categoria (constants.ts).
-  observacion String? @db.Text
   createdAt  DateTime @default(now()) @map("created_at")
 
   vinculo DdMatrizVinculo @relation(fields: [vinculoId], references: [id], onDelete: Cascade)

@@ -1,8 +1,7 @@
 import {
-  DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX,
-  DD_MATRIZ_ADJUNTO_OBSERVACION_MAX,
-  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA,
+  DD_MATRIZ_LISTA_OBSERVACION_EXTENDIDA_MAX,
+  DD_MATRIZ_LISTA_OBSERVACION_MAX,
   DD_ESTADOS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_AREAS,
@@ -197,16 +196,13 @@ export function etiquetaCantidadVinculos(total: number): string {
 
 /** URL oficial del criterio, con busqueda directa cuando el portal lo permite. */
 /**
- * Maximo de caracteres de la observacion de una evidencia: 2000 en general y 20000 para las
- * evidencias de OEFA, INDECOPI, corrupcion/lavado y Otros (categoria `criterio_<codigo>`).
+ * Maximo de caracteres de la observacion de un criterio: 2000 en general y 20000 para
+ * OEFA, OSCE, INDECOPI, corrupcion/lavado y Otros.
  */
-export function limiteObservacionAdjunto(categoria: string): number {
-  const codigo = categoria.startsWith(DD_MATRIZ_CRITERIO_PREFIJO)
-    ? categoria.slice(DD_MATRIZ_CRITERIO_PREFIJO.length)
-    : null;
-  return codigo !== null && DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA.includes(codigo)
-    ? DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX
-    : DD_MATRIZ_ADJUNTO_OBSERVACION_MAX;
+export function limiteObservacionLista(codigo: string): number {
+  return DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA.includes(codigo)
+    ? DD_MATRIZ_LISTA_OBSERVACION_EXTENDIDA_MAX
+    : DD_MATRIZ_LISTA_OBSERVACION_MAX;
 }
 
 export function fuenteAutomatizable(codigo: string): boolean {

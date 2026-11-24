@@ -2,7 +2,7 @@ import { z } from "zod";
 import { normalizarResultadoFinal } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
-  DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX,
+  DD_MATRIZ_LISTA_OBSERVACION_EXTENDIDA_MAX,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
@@ -153,6 +153,10 @@ export const ddMatrizEvaluacionGuardarSchema = z.object({
     })
     .optional(),
   listas: z.record(z.string().max(40), z.string().trim().max(20).nullable()).optional(),
+  /** El limite por criterio lo aplica el servicio; aqui solo el techo absoluto. */
+  listasObservaciones: z
+    .record(z.string().max(40), z.string().max(DD_MATRIZ_LISTA_OBSERVACION_EXTENDIDA_MAX).nullable())
+    .optional(),
   sig: bloqueSchema,
   reputacional: bloqueSchema,
   compliance: bloqueSchema,
@@ -208,12 +212,6 @@ export const ddMatrizEvaluacionVinculoSchema = z.object({
   cargo: textoNullable(120),
   ambito: z.enum(valores(DD_MATRIZ_AMBITOS)).optional(),
   pais: textoNullable(80),
-});
-
-/** El limite por categoria lo aplica el servicio; aqui solo el techo absoluto. */
-export const ddMatrizEvaluacionAdjuntoObservacionSchema = z.object({
-  id: z.string().trim().min(1).max(60),
-  observacion: z.string().max(DD_MATRIZ_ADJUNTO_OBSERVACION_EXTENDIDA_MAX).nullable(),
 });
 
 export const ddMatrizEvaluacionAdjuntoEliminarSchema = z.object({

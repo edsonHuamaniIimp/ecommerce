@@ -46,6 +46,8 @@ export interface DdMatrizEvaluacionGuardarRequestDTO {
     beneficioMutuo?: string | null;
   };
   listas?: Record<string, string | null>;
+  /** Observacion por criterio ({ codigo: texto }); vacio o null la limpia. */
+  listasObservaciones?: Record<string, string | null>;
   sig?: DdMatrizBloqueRequestDTO;
   reputacional?: DdMatrizBloqueRequestDTO;
   compliance?: DdMatrizBloqueRequestDTO;
