@@ -26,7 +26,7 @@ import { RecortePlano, type RecortePlanoHandle } from "@/components/plano/recort
 import { RESULTADOS_APROBACION, REVISION_AREA_LABELS, REVISION_AREA_SGC_LABEL, ESTADOS_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_DOCUMENTO_SOLICITUD_LABELS, ESTADOS_DOCUMENTO_SOLICITUD_MAESTRA_ID, MAESTRA_TABLAS, BADGE_STYLES, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, NIUBIZ_HABILITADO, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, VISTAS_BANDEJA, PERMISSIONS } from "@/lib/shared/constants";
 import { areasRevisionLocal, legalDelegadaAlSgc } from "@/lib/shared/utils/revision-areas";
 import { formatearPrecioSolicitud } from "@/lib/shared/utils/moneda";
-import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos } from "@/lib/shared/utils/solicitud-documentos";
+import { anexosBloqueantesFaltantes, contratoClientePendienteFirma, contratoFirmadoPendienteReemplazo, devolucionSgcSinDetalle, enVentanaContratoReserva, enVentanaLegalSgc, enVentanaDocumentosSgc, enVentanaSubsanacionSgc, esperandoContratoCorregidoSgc, esObservacionSgcAnexo, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, requiereDocsReevaluacion, sgcObservacionesAbiertas, tieneObservacionSgcAnexos } from "@/lib/shared/utils/solicitud-documentos";
 import { sgcAprobado } from "@/lib/shared/utils/sgc-estado";
 import { puedeCambiarMonedaSolicitud } from "@/lib/shared/utils/cambio-moneda-solicitud";
 import { MONEDAS_CONTRATO, type MonedaContrato } from "@/lib/shared/utils/moneda";
@@ -756,7 +756,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <span>Subsanar observación</span>
                             </Button>
                           )}
-                            {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row) && (
+                            {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && ((tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row)) || devolucionSgcSinDetalle(row)) && (
                             <Button size="sm" variant="outline" className="w-full justify-center gap-1.5 sm:w-auto"
                               title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
                               onClick={() => openClienteUpload(row, "anexos")}>
@@ -915,7 +915,7 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                 <span>Subsanar observación</span>
                               </Button>
                             )}
-                          {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row) && (
+                          {(esAdmin || !soloLectura) && enVentanaDocumentosSgc(row) && ((tieneObservacionSgcAnexos(row) && !observacionesSgcSubsanadas(row)) || devolucionSgcSinDetalle(row)) && (
                               <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                                 title={soloLectura ? "Modo prueba: no guarda ni envía nada" : undefined}
                                 onClick={() => openClienteUpload(row, "anexos")}>

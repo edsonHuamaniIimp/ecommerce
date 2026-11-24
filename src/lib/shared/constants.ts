@@ -3545,7 +3545,7 @@ export const SGC_SUBSANACION_MOTIVO = "Subsanacion solicitada por el SGC";
  */
 export const SGC_OBSERVACION_IMPLICITA_PREFIX = "devolucion-sin-obs";
 export const SGC_OBSERVACION_IMPLICITA_MENSAJE =
-  "El área legal devolvió el trámite sin detallar documentos: firma nuevamente el contrato y solicita una nueva revisión.";
+  "El área legal devolvió el trámite sin marcar documentos: adjunta los documentos que te solicitó el área legal y firma nuevamente el contrato.";
 /**
  * Motivo obligatorio en la reserva de subida. El SGC exige `replacementReason` no
  * vacio junto con `documentId: null` incluso para la carga inicial de un documento.

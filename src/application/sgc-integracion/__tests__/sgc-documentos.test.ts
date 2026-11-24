@@ -645,6 +645,44 @@ describe("SgcIntegracionApplicationService.subirAnexosDeSolicitud", () => {
       expect(vi.mocked(completo.client.reservarSubida).mock.calls.length).toBeGreaterThan(3);
     });
 
+    /* Caso ESAN: devolucion sin observaciones; Legal pidio la Vigencia solo en su comentario. */
+    it("devolucion sin detalle: envia lo subido despues de la devolucion y nada anterior", async () => {
+      const TITULO = "Vigencia de Poder (o equivalente, en caso de empresa extranjera)";
+      const devolucion = "2026-11-23T15:21:52.725Z";
+      const client = clientMock();
+      vi.mocked(client.consultarExpediente).mockResolvedValue({
+        lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+        updatedAt: devolucion,
+        documents: [{
+          documentId: "sgc-vig",
+          category: SGC_DOCUMENT_CATEGORIES.ANNEX,
+          title: TITULO,
+          currentFileName: "vigencia-poder-367-8c5949.pdf",
+          observations: [{ observationId: "obs-vieja", documentId: "sgc-vig", status: SGC_OBSERVACION_ESTADOS.RESOLVED, message: "Corrige" }],
+        }],
+        missingDocuments: [],
+      } as never);
+      const svc = build(
+        sgcRepoMock({
+          ...expediente(),
+          lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+          observaciones: [{ observationId: "devolucion-sin-obs-v5", category: "contract", documentId: "sgc-contrato", message: "Firma de nuevo", status: SGC_OBSERVACION_ESTADOS.OPEN, requiresDocumentChange: true, createdAt: devolucion }],
+        }),
+        client,
+        documentoOrigenMock(),
+        solicitudRepoMock(detalle({
+          userId: "user-1",
+          docsAdjuntos: [
+            anexo("ruc-viejo", "/uploads/ruc-viejo.pdf", { requisito: "ficha-ruc", createdAt: new Date("2026-11-13T15:38:00.000Z") }),
+            anexo("vig-nueva", "/uploads/vig-nueva.pdf", { requisito: "vigencia-poder", createdAt: new Date("2026-11-24T19:00:00.000Z") }),
+          ],
+        })),
+      );
+      await svc.subirAnexosDeSolicitud("sol-1", { soloObservado: true });
+      expect(client.reservarSubida).toHaveBeenCalledTimes(1);
+      expect(client.reservarSubida).toHaveBeenCalledWith("contract-1", expect.objectContaining({ documentId: "sgc-vig", title: TITULO }));
+    });
+
     it("observacion individual: versiona el documento observado y omite anexos no observados", async () => {
       const TITULO = "Vigencia de Poder (o equivalente, en caso de empresa extranjera)";
       const client = clientMock();

@@ -1110,6 +1110,21 @@ export class SgcIntegracionApplicationService {
         }
       }
     }
+    /* Devolucion sin observaciones (caso ESAN): el SGC no marco documentos y el motivo solo
+     * viaja en su aviso. Cuenta como "observado" lo que el cliente subio despues de la devolucion. */
+    const implicitaAbierta = (expedienteGrupos?.observaciones ?? []).find(
+      (o) => o.observationId?.startsWith(SGC_OBSERVACION_IMPLICITA_PREFIX) && o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED,
+    );
+    const devueltoSinDetalle =
+      Boolean(sgcGrupos) &&
+      observacionesAbiertasIds.size === 0 &&
+      (sgcGrupos?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
+        sgcGrupos?.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED);
+    const fechaDevolucionSinDetalle = implicitaAbierta
+      ? dateUtils.toMs(implicitaAbierta.createdAt ?? null)
+      : devueltoSinDetalle
+        ? dateUtils.toMs(sgcGrupos?.updatedAt ?? null)
+        : null;
     const gruposPorObservacion = new Map<string, { piezas: Set<string>; sinPiezas: boolean }>();
     const piezasPorTitulo = new Map<string, { observationId: string; pieceId: string }>();
     for (const o of observacionesGrupo ?? []) {
@@ -1331,7 +1346,10 @@ export class SgcIntegracionApplicationService {
         const respondeFaltanteAbierto = observacionesFaltantes
           .filter((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (!o.observationId || observacionesAbiertasIds.has(o.observationId)))
           .some(coincideFaltante);
-        if (!vinculadoAbierta && !versionaObservado && !respondeFaltanteAbierto) continue;
+        const docMsDevolucion = dateUtils.toMs(fechaPorUrl.get(doc.url) ?? null);
+        const respondeDevolucionSinDetalle =
+          fechaDevolucionSinDetalle !== null && docMsDevolucion !== null && docMsDevolucion > fechaDevolucionSinDetalle;
+        if (!vinculadoAbierta && !versionaObservado && !respondeFaltanteAbierto && !respondeDevolucionSinDetalle) continue;
       }
       const documentIdCandidato = (!esFaltante || esVersionPorTitulo) && puedeVersionarAnexos
         ? documentIdObjetivo

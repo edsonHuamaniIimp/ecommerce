@@ -1,4 +1,4 @@
-import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, ORIGENES_DOCUMENTO, SGC_DOCUMENT_CATEGORIES, SGC_FALTANTE_TIPOS, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD, type SgcFaltanteTipo } from "@/lib/shared/constants";
+import { ANEXOS_BLOQUEANTES, ANEXOS_REQUERIDOS, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_REEVALUACION, ESTADOS_SOLICITUD, ORIGENES_DOCUMENTO, SGC_DOCUMENT_CATEGORIES, SGC_FALTANTE_TIPOS, SGC_LIFECYCLE_STATUSES, SGC_OBSERVACION_ESTADOS, SGC_OBSERVACION_IMPLICITA_PREFIX, SGC_SUBSANACION_MODOS, SGC_SUBSANACION_SUGERENCIAS, TIPOS_DOCUMENTO_SOLICITUD, type SgcFaltanteTipo } from "@/lib/shared/constants";
 import { legalDelegadaAlSgc } from "./revision-areas";
 import { dateUtils } from "./date";
 
@@ -135,6 +135,19 @@ export function tieneObservacionSgcContrato(s: SolicitudDocumentosGate): boolean
 
 export function tieneObservacionSgcAnexos(s: SolicitudDocumentosGate): boolean {
   return sgcObservacionesAbiertas(s).some(esObservacionSgcAnexo);
+}
+
+/**
+ * El SGC devolvio el tramite sin marcar documentos (observacion implicita del contrato,
+ * ver `SGC_OBSERVACION_IMPLICITA_PREFIX`). El motivo solo viaja en el aviso del SGC, asi que
+ * el cliente puede adjuntar o reemplazar cualquier anexo ademas de volver a firmar.
+ */
+export function devolucionSgcSinDetalle(s: Pick<SolicitudDocumentosGate, "sgcObservaciones">): boolean {
+  return (s.sgcObservaciones ?? []).some(
+    (o) =>
+      Boolean(o.observationId?.startsWith(SGC_OBSERVACION_IMPLICITA_PREFIX)) &&
+      o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED,
+  );
 }
 
 export interface FaltanteCorreccionSgc {

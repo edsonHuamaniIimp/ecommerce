@@ -189,3 +189,17 @@ Diagnóstico sobre los 44 expedientes abiertos de prod (solo lectura, BD + API d
 11. **Una devolución sin observaciones exige versión nueva del contrato:** el cliente debe poder firmar.
 12. **Nunca iniciar sesión con credenciales de usuarios** para operar el SGC; la integración usa su clave y el operador se identifica en `operatorReference`.
 13. **Bitácora de intentos:** cada "Solicitar nueva revisión" queda en `sgc_subsanacion_intento`; revisar ahí antes de diagnosticar.
+
+### Devolución sin detalle: el motivo no llega por la API (24-nov, ESAN)
+- Legal (SGC) confirmó que en la devolución del 23-nov de ESAN pidió la **Vigencia de Poder**,
+  pero la devolvió sin marcar el adjunto: el `GET /contracts/{id}` no trae ninguna observación
+  abierta y el historial («Trámite devuelto al área de origen») llega con `detail: null`. El
+  motivo solo viaja en `data.reason` del webhook, y los webhooks no llegan desde el 12-nov.
+- Con la sola observación implícita del contrato, el cliente solo podía volver a firmar y, por
+  la regla "solo lo observado", una Vigencia nueva no se habría enviado.
+- Corrección: con la devolución sin detalle (`devolucionSgcSinDetalle`) el cliente ve
+  "Subir / reemplazar documentos" y puede reemplazar cualquier documento requerido; en el
+  reenvío se envían los anexos subidos **después** de la devolución, además del contrato firmado.
+  Lo anterior a la devolución no se reenvía.
+- Recomendación al SGC: usar «Devolver para corregir» marcando los adjuntos; así el pedido
+  llega por API y el cliente ve exactamente qué corregir.

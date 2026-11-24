@@ -12,7 +12,7 @@ import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import { dateUtils } from "@/lib/shared/utils/date";
-import { esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, piezasObservacionSgc, type SgcObservacionLike } from "@/lib/shared/utils/solicitud-documentos";
+import { devolucionSgcSinDetalle, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, piezasObservacionSgc, type SgcObservacionLike } from "@/lib/shared/utils/solicitud-documentos";
 import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
 import type { SolicitudDTO } from "@/types/dto/solicitudes/solicitudes-response.dto";
 import type { EmpresaRepresentanteAdicionalDTO } from "@/types/dto/empresas";
@@ -355,6 +355,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
       !esObservacionSgcContrato(o),
   );
   const observacionContratoSgc = observacionesSgc.find(esObservacionSgcContrato) ?? null;
+  /* El SGC devolvio sin marcar documentos: el cliente puede reemplazar cualquier anexo. */
+  const sinDetalleSgc = !esContrato && devolucionSgcSinDetalle(solicitud);
   const contratoSgcPendiente = observacionContratoSgcPendiente(solicitud);
   const requiereNuevoContratoSgc = contratoSgcPendiente && (
     !contratoAdmin ||
@@ -638,6 +640,12 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
             El contrato se subsana aparte con <strong>Subsanar observación</strong>. En esta ventana reemplaza solo los anexos.
           </p>
         )}
+        {sinDetalleSgc && (
+          <p className="mt-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-[11px] text-foreground">
+            El área legal devolvió el trámite sin marcar documentos. Reemplaza aquí los documentos que te solicitó;
+            solo se enviarán los que subas ahora.
+          </p>
+        )}
         {!esContrato && observacionesSgcAnexos.length > 0 && (
           <div className={`mt-2 rounded-md border px-2.5 py-2 ${observacionesSgcAnexosCorregidas ? "border-success/30 bg-success/5" : "border-destructive/30 bg-destructive/5"}`}>
             <p className={`text-[10px] font-semibold uppercase tracking-wider ${observacionesSgcAnexosCorregidas ? "text-success" : "text-destructive"}`}>
@@ -851,7 +859,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                         {existente && (
                           <a href={existente.url} target="_blank" className="text-primary hover:underline">Ver</a>
                         )}
-                        {(!existente || (observacionSgc && !observacionCorregida) || observado) && (
+                        {(!existente || (observacionSgc && !observacionCorregida) || observado || sinDetalleSgc) && (
                           <Button variant="outline" size="sm" className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
                             disabled={uploading} onClick={() => abrirSelector(a.key, observacionSgc?.observationId ?? null, observacionSgc?.title ?? null, observacionSgc?.documentId ?? null)}>
                             {observacionFaltante || !existente || observado ? "Adjuntar" : "Reemplazar"}

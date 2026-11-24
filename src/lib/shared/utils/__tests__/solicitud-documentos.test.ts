@@ -18,6 +18,7 @@ import {
   requiereDocsReevaluacion,
   estadoCorreccionSgc,
   esObservacionSgcContrato,
+  devolucionSgcSinDetalle,
   observacionContratoSgcPendiente,
   observacionesSgcSubsanadas,
   piezasObservacionSgc,
@@ -836,5 +837,15 @@ describe("observacion implicita del contrato (devolucion sin observaciones)", ()
     const s = { ...devuelto, sgcObservaciones: [implicita], docsAdjuntos: [firmado("nuevo", "2026-11-24T18:30:00.000Z")] };
     expect(observacionContratoSgcPendiente(s)).toBe(false);
     expect(observacionesSgcSubsanadas(s)).toBe(true);
+  });
+});
+
+describe("devolucionSgcSinDetalle", () => {
+  it("solo es true con la observacion implicita abierta", () => {
+    const implicita = { observationId: "devolucion-sin-obs-v5", status: "open", message: "x" };
+    expect(devolucionSgcSinDetalle({ sgcObservaciones: [implicita] })).toBe(true);
+    expect(devolucionSgcSinDetalle({ sgcObservaciones: [{ ...implicita, status: "resolved" }] })).toBe(false);
+    expect(devolucionSgcSinDetalle({ sgcObservaciones: [{ observationId: "obs-real", status: "open", message: "x" }] })).toBe(false);
+    expect(devolucionSgcSinDetalle({ sgcObservaciones: null })).toBe(false);
   });
 });
