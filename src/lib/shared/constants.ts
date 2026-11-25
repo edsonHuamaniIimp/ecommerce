@@ -1728,6 +1728,16 @@ export const DD_PASO = {
   DOCUMENTOS: 4,
 } as const;
 
+/** Estado de cada hito de la linea de avance de "Mi debida diligencia". */
+export const DD_HITO_ESTADOS = {
+  COMPLETADO: "completado",
+  ACTIVO: "activo",
+  PENDIENTE: "pendiente",
+  ALERTA: "alerta",
+} as const;
+
+export type DdHitoEstado = (typeof DD_HITO_ESTADOS)[keyof typeof DD_HITO_ESTADOS];
+
 export const DD_PASOS: { numero: number; label: string; corto: string }[] = [
   { numero: 1, label: "Consentimientos", corto: "Consentimientos" },
   { numero: 2, label: "Empresa y vínculos comerciales", corto: "Empresa y vínculos" },

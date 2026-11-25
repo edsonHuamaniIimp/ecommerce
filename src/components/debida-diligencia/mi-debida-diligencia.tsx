@@ -49,18 +49,22 @@ import { DD_VIGENCIAS, ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
+  DD_HITO_ESTADOS,
   DD_OBSERVACION_AREA_LABELS,
+  DD_OBSERVACION_AREAS,
+  DD_OBSERVACION_ESTADOS,
   DD_RUTAS,
   DD_IMPORTACION_REVISOR,
   DD_IMPORTACION_REVISOR_LABEL,
   DD_VIGENCIA_MESES,
 } from "@/lib/shared/constants";
+import type { DdHitoEstado } from "@/lib/shared/constants";
 import type { DdMiExpedienteDTO } from "@/types/dto/debida-diligencia";
 
 interface Hito {
   titulo: string;
   fecha: string | null;
-  estado: "completado" | "activo" | "pendiente" | "alerta";
+  estado: DdHitoEstado;
   detalle: string;
 }
 
@@ -131,18 +135,37 @@ export function MiDebidaDiligencia() {
     const observado = expediente.estado === DD_ESTADOS.OBSERVADA || observacionesAbiertas.length > 0;
     const aprobado = expediente.estado === DD_ESTADOS.APROBADA;
     const rechazado = expediente.estado === DD_ESTADOS.RECHAZADA;
+    /* Subsanacion: el cliente reenvio despues de la ultima revision y espera una nueva. */
+    const reenviado =
+      !observado && revisado && dateUtils.isAfter(expediente.fechaEnvio, expediente.fechaRevision);
+    /* Hubo observaciones al cliente ya cerradas (de Logistica, de un documento o de un vinculo).
+     * La observacion interna de la derivacion a Legal no cuenta. */
+    const subsanadas =
+      reenviado ||
+      (expediente.observaciones ?? []).some(
+        (observacion) =>
+          observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA &&
+          (observacion.area === DD_OBSERVACION_AREAS.LOGISTICA ||
+            Boolean(observacion.documentoTipo) ||
+            Boolean(observacion.vinculoTipo)),
+      );
+    const enLegal = expediente.estado === DD_ESTADOS.EN_LEGAL;
     return [
       {
         titulo: "Formulario enviado",
         fecha: expediente.fechaEnvio,
-        estado: enviado ? "completado" : "pendiente",
+        estado: enviado ? DD_HITO_ESTADOS.COMPLETADO : DD_HITO_ESTADOS.PENDIENTE,
         detalle: enviado ? "Recibimos tu información." : "Completa y envía el formulario.",
       },
       {
-        titulo: "Revisión de Logística",
+        titulo: reenviado && enLegal ? "Revisión de Legal" : "Revisión de Logística",
         fecha: expediente.fechaRevision,
-        estado: revisado ? "completado" : enviado ? "activo" : "pendiente",
-        detalle: revisado
+        estado: revisado && !reenviado ? DD_HITO_ESTADOS.COMPLETADO : enviado ? DD_HITO_ESTADOS.ACTIVO : DD_HITO_ESTADOS.PENDIENTE,
+        detalle: reenviado
+          ? enLegal
+            ? "Legal revisa las correcciones que enviaste."
+            : "Logística revisa las correcciones que enviaste."
+          : revisado
           ? "Logística revisó los documentos."
           : expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
             ? "Documentación recibida. Pendiente de que Logística inicie la revisión."
@@ -151,15 +174,19 @@ export function MiDebidaDiligencia() {
               : "Pendiente de revisión.",
       },
       {
-        titulo: observado ? "Observaciones" : "Sin observaciones",
-        fecha: observado ? expediente.fechaRevision : null,
-        estado: observado ? "alerta" : revisado ? "completado" : "pendiente",
+        titulo: observado ? "Observaciones" : subsanadas ? "Observaciones subsanadas" : "Sin observaciones",
+        fecha: observado ? expediente.fechaRevision : subsanadas && reenviado ? expediente.fechaEnvio : null,
+        estado: observado ? DD_HITO_ESTADOS.ALERTA : revisado ? DD_HITO_ESTADOS.COMPLETADO : DD_HITO_ESTADOS.PENDIENTE,
         detalle: observado
           ? documentosObservadosCount > 0
             ? `${documentosObservadosCount} documento(s) observado(s) por corregir.`
             : vinculosObservadosCount > 0
               ? `${vinculosObservadosCount} vínculo(s) observado(s) por corregir.`
               : `${observacionesAgrupadas.length} observación(es) por corregir.`
+          : subsanadas
+            ? reenviado
+              ? "Enviaste las correcciones; quedan pendientes de una nueva revisión."
+              : "Las observaciones anteriores fueron subsanadas."
           : revisado
             ? "No se registraron observaciones."
             : "Se mostrarán aquí si las hubiera.",
@@ -167,7 +194,7 @@ export function MiDebidaDiligencia() {
       {
         titulo: rechazado ? "Expediente rechazado" : "Aprobación final",
         fecha: aprobado ? expediente.fechaAprobacion : rechazado ? expediente.fechaRechazo : null,
-        estado: aprobado ? "completado" : rechazado ? "alerta" : "pendiente",
+        estado: aprobado ? DD_HITO_ESTADOS.COMPLETADO : rechazado ? DD_HITO_ESTADOS.ALERTA : DD_HITO_ESTADOS.PENDIENTE,
         detalle: aprobado
           ? `Aprobada por ${
               expediente.revisadoPor === DD_IMPORTACION_REVISOR
@@ -372,20 +399,20 @@ export function MiDebidaDiligencia() {
                     <li key={hito.titulo} className="relative flex gap-3">
                       <span
                         className={`relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
-                          hito.estado === "completado"
+                          hito.estado === DD_HITO_ESTADOS.COMPLETADO
                             ? "border-success bg-success text-success-foreground"
-                            : hito.estado === "activo"
+                            : hito.estado === DD_HITO_ESTADOS.ACTIVO
                               ? "border-primary bg-primary text-primary-foreground"
-                              : hito.estado === "alerta"
+                              : hito.estado === DD_HITO_ESTADOS.ALERTA
                                 ? "border-warning bg-warning/15 text-warning"
                                 : "border-border bg-card text-muted-foreground"
                         }`}
                       >
-                        {hito.estado === "completado" ? (
+                        {hito.estado === DD_HITO_ESTADOS.COMPLETADO ? (
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                        ) : hito.estado === "activo" ? (
+                        ) : hito.estado === DD_HITO_ESTADOS.ACTIVO ? (
                           <Clock className="h-3.5 w-3.5" />
-                        ) : hito.estado === "alerta" ? (
+                        ) : hito.estado === DD_HITO_ESTADOS.ALERTA ? (
                           <AlertCircle className="h-3.5 w-3.5" />
                         ) : (
                           <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />

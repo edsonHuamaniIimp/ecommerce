@@ -33,3 +33,8 @@ Resultados y hallazgos en `docs/01-funcional/26-dd-smoke-e2e-qa.md`.
 
 - `ronda6.mjs`: bloques B (primer envío y bloqueos), T y V (disparadores que inician la revisión), C (ciclos completos con subsanación y Legal) y L (listados). Usa empresas R70..R81 (crearlas con `E2E_TOTAL=81 node ronda2-setup.mjs`); cada corrida necesita empresas sin DD en el evento.
 - Resultados: `docs/01-funcional/28-dd-ronda6-documentacion-recibida-qa.md`.
+
+## Local con Playwright (observaciones de SIG y Legal)
+
+- `local-observaciones-playwright.mjs`: con `npm run dev` arriba (por defecto `http://localhost:3001`), SIG observa desde el modal de la matriz (vínculo faltante; documento + representante) y Legal desde su bandeja (vigencia de poderes). Luego el cliente revisa *Mi debida diligencia* y el formulario, corrige (agrega el vínculo o sube la nueva versión) y reenvía. Verifica estados (`en_revision` / `en_legal`) y que no queden observaciones abiertas.
+- Usa los clientes locales `e2e-l07..l09@example.invalid` (cada corrida necesita que esas empresas no tengan DD en el evento) y Chrome instalado. Capturas en `E2E_OUT` (por defecto `./e2e-capturas`).

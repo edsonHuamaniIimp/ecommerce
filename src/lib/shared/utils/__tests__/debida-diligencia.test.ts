@@ -6,6 +6,10 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_OBSERVACION_AREAS,
+  DD_OBSERVACION_ESTADOS,
+  DD_OBSERVACION_VINCULO_TIPOS,
+  DD_PASO,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_TIPOS,
   DD_RESULTADOS,
@@ -253,21 +257,21 @@ describe("ddUtils.agruparObservacionesPorComentario", () => {
     const grupos = ddUtils.agruparObservacionesPorComentario([
       {
         id: "o-1",
-        area: "logistica",
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
         texto: "Los documentos adjuntos son falsos.",
         createdAt: "2026-11-19T10:00:00.000Z",
         documentoTipo: DD_DOCUMENTOS.FICHA_RUC,
       },
       {
         id: "o-2",
-        area: "logistica",
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
         texto: "Los documentos adjuntos son falsos.",
         createdAt: "2026-11-19T10:00:00.000Z",
         documentoTipo: DD_DOCUMENTOS.PODERES,
       },
       {
         id: "o-3",
-        area: "logistica",
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
         texto: "Los documentos adjuntos son falsos.",
         createdAt: "2026-11-19T10:00:00.000Z",
         documentoTipo: DD_DOCUMENTOS.IDENTIDAD_REPRESENTANTE,
@@ -287,14 +291,14 @@ describe("ddUtils.agruparObservacionesPorComentario", () => {
     const grupos = ddUtils.agruparObservacionesPorComentario([
       {
         id: "o-1",
-        area: "logistica",
+        area: DD_OBSERVACION_AREAS.LOGISTICA,
         texto: "Corregir ficha.",
         createdAt: "2026-11-19T10:00:00.000Z",
         documentoTipo: DD_DOCUMENTOS.FICHA_RUC,
       },
       {
         id: "o-2",
-        area: "legal",
+        area: DD_OBSERVACION_AREAS.LEGAL,
         texto: "Corregir ficha.",
         createdAt: "2026-11-19T10:00:00.000Z",
         documentoTipo: DD_DOCUMENTOS.FICHA_RUC,
@@ -549,17 +553,20 @@ describe("ddUtils.validarRepresentante - documento repetido", () => {
 });
 
 describe("observaciones del cliente en el formulario (caso vinculo faltante)", () => {
-  const abierta = { estado: "abierta" };
-  const docs = [{ tipo: "ficha_ruc", estado: "cargado" }, { tipo: "poderes", estado: "aprobado" }];
+  const abierta = { estado: DD_OBSERVACION_ESTADOS.ABIERTA };
+  const docs = [
+    { tipo: DD_DOCUMENTOS.FICHA_RUC, estado: DD_DOCUMENTO_ESTADOS.CARGADO },
+    { tipo: DD_DOCUMENTOS.PODERES, estado: DD_DOCUMENTO_ESTADOS.APROBADO },
+  ];
 
   it("cuenta las de vinculos (faltante, representante, socio) y omite documentos aprobados o resueltas", () => {
     const lista = ddUtils.observacionesAbiertasCliente(
       [
-        { ...abierta, id: "1", documentoTipo: null, vinculoTipo: "faltante" },
-        { ...abierta, id: "2", documentoTipo: null, vinculoTipo: "representante" },
-        { ...abierta, id: "3", documentoTipo: "ficha_ruc", vinculoTipo: null },
-        { ...abierta, id: "4", documentoTipo: "poderes", vinculoTipo: null },
-        { estado: "resuelta", id: "5", documentoTipo: null, vinculoTipo: null },
+        { ...abierta, id: "1", documentoTipo: null, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE },
+        { ...abierta, id: "2", documentoTipo: null, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE },
+        { ...abierta, id: "3", documentoTipo: DD_DOCUMENTOS.FICHA_RUC, vinculoTipo: null },
+        { ...abierta, id: "4", documentoTipo: DD_DOCUMENTOS.PODERES, vinculoTipo: null },
+        { estado: DD_OBSERVACION_ESTADOS.RESUELTA, id: "5", documentoTipo: null, vinculoTipo: null },
       ],
       docs,
     );
@@ -567,21 +574,96 @@ describe("observaciones del cliente en el formulario (caso vinculo faltante)", (
   });
 
   it("solo vinculo faltante: el paso a corregir es Representante y vinculos y abre ahi", () => {
-    const pasos = ddUtils.pasosConObservacion([{ documentoTipo: null, vinculoTipo: "faltante" }]);
-    expect(pasos).toEqual([3]);
-    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: pasos })).toBe(3);
+    const pasos = ddUtils.pasosConObservacion([{ documentoTipo: null, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE }]);
+    expect(pasos).toEqual([DD_PASO.VINCULOS]);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: pasos })).toBe(DD_PASO.VINCULOS);
   });
 
   it("documentos observados: abre en Documentos; con vinculos y documentos abre primero en vinculos", () => {
-    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: ddUtils.pasosConObservacion([{ documentoTipo: "ficha_ruc" }]) })).toBe(4);
-    expect(ddUtils.pasosConObservacion([], 2)).toEqual([4]);
-    expect(ddUtils.pasosConObservacion([{ vinculoTipo: "beneficiario" }, { documentoTipo: "poderes" }])).toEqual([3, 4]);
-    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: [3, 4] })).toBe(3);
+    expect(
+      ddUtils.pasoInicialFormulario({
+        enSubsanacion: true,
+        pasosConObservacion: ddUtils.pasosConObservacion([{ documentoTipo: DD_DOCUMENTOS.FICHA_RUC }]),
+      }),
+    ).toBe(DD_PASO.DOCUMENTOS);
+    expect(ddUtils.pasosConObservacion([], 2)).toEqual([DD_PASO.DOCUMENTOS]);
+    expect(
+      ddUtils.pasosConObservacion([
+        { vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO },
+        { documentoTipo: DD_DOCUMENTOS.PODERES },
+      ]),
+    ).toEqual([DD_PASO.VINCULOS, DD_PASO.DOCUMENTOS]);
+    expect(
+      ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: [DD_PASO.VINCULOS, DD_PASO.DOCUMENTOS] }),
+    ).toBe(DD_PASO.VINCULOS);
   });
 
   it("observacion general sin documento ni vinculo: abre en Documentos como antes; sin subsanacion en el paso 1", () => {
     expect(ddUtils.pasosConObservacion([{ documentoTipo: null, vinculoTipo: null }])).toEqual([]);
-    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: [] })).toBe(4);
-    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: false, pasosConObservacion: [3] })).toBe(1);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: [] })).toBe(DD_PASO.DOCUMENTOS);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: false, pasosConObservacion: [DD_PASO.VINCULOS] })).toBe(
+      DD_PASO.CONSENTIMIENTOS,
+    );
+  });
+});
+
+describe("observaciones del cliente: todos los tipos de SIG y Legal", () => {
+  const ab = (extra: Record<string, unknown>) => ({
+    estado: DD_OBSERVACION_ESTADOS.ABIERTA,
+    documentoTipo: null,
+    vinculoTipo: null,
+    ...extra,
+  });
+  const SIG = DD_OBSERVACION_AREAS.LOGISTICA;
+  const LEGAL = DD_OBSERVACION_AREAS.LEGAL;
+  const { VINCULOS, DOCUMENTOS } = DD_PASO;
+  const docs = [
+    { tipo: DD_DOCUMENTOS.FICHA_RUC, estado: DD_DOCUMENTO_ESTADOS.OBSERVADO },
+    { tipo: DD_DOCUMENTOS.PODERES, estado: DD_DOCUMENTO_ESTADOS.CARGADO },
+    { tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA, estado: DD_DOCUMENTO_ESTADOS.OBSERVADO },
+    { tipo: DD_DOCUMENTOS.ADICIONAL, estado: DD_DOCUMENTO_ESTADOS.CARGADO },
+    { tipo: DD_DOCUMENTOS.IDENTIDAD_REPRESENTANTE, estado: DD_DOCUMENTO_ESTADOS.APROBADO },
+  ];
+  const casos: { nombre: string; obs: Record<string, unknown>[]; docsObservados: number; pasos: number[]; inicial: number }[] = [
+    { nombre: "SIG comentario general (sin documento ni vinculo)", obs: [ab({ area: SIG })], docsObservados: 0, pasos: [], inicial: DOCUMENTOS },
+    { nombre: "SIG documento observado", obs: [ab({ area: SIG, documentoTipo: DD_DOCUMENTOS.FICHA_RUC })], docsObservados: 1, pasos: [DOCUMENTOS], inicial: DOCUMENTOS },
+    { nombre: "SIG pide documento adicional", obs: [ab({ area: SIG, documentoTipo: DD_DOCUMENTOS.ADICIONAL })], docsObservados: 0, pasos: [DOCUMENTOS], inicial: DOCUMENTOS },
+    { nombre: "SIG representante", obs: [ab({ area: SIG, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE })], docsObservados: 0, pasos: [VINCULOS], inicial: VINCULOS },
+    { nombre: "SIG socio", obs: [ab({ area: SIG, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.BENEFICIARIO, beneficiarioId: "b1" })], docsObservados: 0, pasos: [VINCULOS], inicial: VINCULOS },
+    { nombre: "SIG vinculo faltante (MOTORYSA)", obs: [ab({ area: SIG, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE })], docsObservados: 0, pasos: [VINCULOS], inicial: VINCULOS },
+    {
+      nombre: "SIG mixto: documento + vinculo + general",
+      obs: [
+        ab({ area: SIG, documentoTipo: DD_DOCUMENTOS.FICHA_RUC }),
+        ab({ area: SIG, vinculoTipo: DD_OBSERVACION_VINCULO_TIPOS.FALTANTE }),
+        ab({ area: SIG }),
+      ],
+      docsObservados: 1,
+      pasos: [VINCULOS, DOCUMENTOS],
+      inicial: VINCULOS,
+    },
+    { nombre: "Legal observa documentos", obs: [ab({ area: LEGAL, documentoTipo: DD_DOCUMENTOS.PODERES })], docsObservados: 1, pasos: [DOCUMENTOS], inicial: DOCUMENTOS },
+    { nombre: "Legal observacion general", obs: [ab({ area: LEGAL })], docsObservados: 0, pasos: [], inicial: DOCUMENTOS },
+    { nombre: "Declaracion de vigencia observada", obs: [ab({ area: SIG, documentoTipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA })], docsObservados: 1, pasos: [DOCUMENTOS], inicial: DOCUMENTOS },
+  ];
+  for (const c of casos) {
+    it(c.nombre, () => {
+      const abiertas = ddUtils.observacionesAbiertasCliente(c.obs as { estado: string; documentoTipo?: string | null }[], docs);
+      expect(abiertas).toHaveLength(c.obs.length);
+      const pasos = ddUtils.pasosConObservacion(abiertas as { documentoTipo?: string | null; vinculoTipo?: string | null }[], c.docsObservados);
+      expect(pasos).toEqual(c.pasos);
+      expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: pasos })).toBe(c.inicial);
+    });
+  }
+
+  it("documento ya aprobado y observaciones resueltas no cuentan (igual que antes)", () => {
+    const abiertas = ddUtils.observacionesAbiertasCliente(
+      [
+        ab({ area: SIG, documentoTipo: DD_DOCUMENTOS.IDENTIDAD_REPRESENTANTE }),
+        { estado: DD_OBSERVACION_ESTADOS.RESUELTA, documentoTipo: null },
+      ],
+      docs,
+    );
+    expect(abiertas).toHaveLength(0);
   });
 });

@@ -11,6 +11,7 @@ import * as constantes from "@/lib/shared/constants";
 const SCRIPTS = [
   "scripts/dd-documentacion-recibida/backfill-documentacion-recibida.cjs",
   "scripts/e2e-dd-qa/ronda6.mjs",
+  "scripts/e2e-dd-qa/local-observaciones-playwright.mjs",
 ];
 
 const DECLARACION = /^const (DD_[A-Z0-9_]+) = (\{[\s\S]*?\}|"[^"\n]*");/gm;
