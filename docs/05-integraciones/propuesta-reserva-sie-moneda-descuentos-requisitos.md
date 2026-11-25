@@ -69,6 +69,8 @@ Importes: **string decimal con punto y 2 decimales**, en la **moneda del contrat
 Reglas comunes: `NumeroSolicitud` determinista y único (409 si se repite); `TextoLibre` solo en la cuota de origen;
 factura (`01`) a RUC y boleta (`03`) a DNI; los importes salen del plan de pagos **congelado** en la solicitud.
 
+**Correo de `Contactos.Contrato.Email` y `Contactos.Pagos.Email`** (el mismo en ambos), por prioridad: 1) correo del *responsable de pagos* de la empresa, 2) *correo de facturación* de la empresa, 3) correo de notificaciones que el cliente eligió en su perfil (o su correo de acceso). Ya no se envía el correo que el cliente escribe en el paso de datos de la reserva.
+
 ## 4. Ejemplos exactos de request (los que producirá la web)
 
 ### Caso B — interna, USD, descuento por stand, programada por Facturación

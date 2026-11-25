@@ -284,7 +284,8 @@ export class SolicitarFacturaApplicationService {
           ahora: new Date(),
         })
       : {};
-    const input = await this.armarPayload(snapshot, empresa, {
+    const correoCliente = await this.resolverCorreoFacturacion(empresa, datos.email);
+    const input = await this.armarPayload(snapshot, empresa, correoCliente, {
       ...extension,
       numeroSolicitud,
       tipEvCod: datos.tipoEvento,
@@ -463,10 +464,32 @@ export class SolicitarFacturaApplicationService {
     return normalizado;
   }
 
+  /**
+   * Correo del cliente que viaja al SIE (contactos de contrato y de pagos), por prioridad:
+   * 1) responsable de pagos de la empresa, 2) correo de facturacion de la empresa,
+   * 3) correo de notificaciones que el cliente eligio en su perfil (o su correo de acceso).
+   * Cadena vacia si ninguno existe; entonces `armarPayload` recurre a los datos de la solicitud.
+   */
+  private async resolverCorreoFacturacion(
+    empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
+    emailSolicitante: string | null | undefined,
+  ): Promise<string> {
+    const deEmpresa = empresa?.responsablePagosEmail?.trim() || empresa?.emailFacturacion?.trim();
+    if (deEmpresa) return deEmpresa;
+    if (!emailSolicitante) return "";
+    try {
+      const perfil = await this.auth.findPerfilByEmail(emailSolicitante);
+      return perfil?.notificationEmail?.trim() || perfil?.email?.trim() || "";
+    } catch {
+      return "";
+    }
+  }
+
   /** Arma el payload del IIMP desde el snapshot (preferente) y la empresa (enriquecimiento). */
   private async armarPayload(
     snapshot: DatosFacturacionSolicitud | null,
     empresa: Awaited<ReturnType<IEmpresaRepository["findById"]>>,
+    correoCliente: string,
     base: Partial<ReservaIimpInput> & { numeroSolicitud: string; tipEvCod: number; evenCod: number; stands: string[]; cuotas: ReservaIimpCuotaInput[] },
   ): Promise<ReservaIimpInput> {
     /* Tipo normalizado: define el payload del IIMP (01 factura / 03 boleta). No se asume
@@ -480,7 +503,8 @@ export class SolicitarFacturaApplicationService {
     if (!direccion) {
       throw new DomainError("Falta la direccion fiscal del cliente en la solicitud", API_ERROR_CODES.VALIDATION, 400);
     }
-    const email = snapshot?.email?.trim() || empresa?.emailFacturacion?.trim() || empresa?.emailContacto?.trim() || "";
+    /* El correo del paso 1 de la reserva ya no manda: solo evita bloquear el envio si no hay otro. */
+    const email = correoCliente || snapshot?.email?.trim() || empresa?.emailContacto?.trim() || "";
     const telefono = snapshot?.telefono?.trim() || empresa?.telefono?.trim() || null;
 
     if (esBoleta) {

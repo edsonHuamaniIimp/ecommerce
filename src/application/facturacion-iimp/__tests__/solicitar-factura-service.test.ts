@@ -407,6 +407,54 @@ describe("SolicitarFacturaApplicationService", () => {
     });
   });
 
+  describe("correo que viaja al SIE", () => {
+    const correosEnviados = (m: ReturnType<typeof mocks>) => {
+      const input = vi.mocked(m.reserva.reservar).mock.calls[0]?.[0];
+      return { contrato: input?.contactos.contrato.email, pagos: input?.contactos.pagos.email };
+    };
+    const conPerfil = (m: ReturnType<typeof mocks>, perfil: { email: string; notificationEmail: string | null } | null) => {
+      (m.auth as unknown as { findPerfilByEmail: unknown }).findPerfilByEmail = vi.fn(async () => perfil);
+    };
+
+    it("1) el responsable de pagos de la empresa manda sobre todo lo demas", async () => {
+      const m = mocks();
+      vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, responsablePagosEmail: "pagos@hidrostal.com.pe" } as unknown as EmpresaEntity);
+      conPerfil(m, { email: "cliente@empresa.com", notificationEmail: "notif@cliente.com" });
+      await servicio(m).solicitar("c1", ident, ADJUNTOS);
+      expect(correosEnviados(m)).toEqual({ contrato: "pagos@hidrostal.com.pe", pagos: "pagos@hidrostal.com.pe" });
+    });
+
+    it("2) sin responsable de pagos: correo de facturacion de la empresa (no el del paso 1 de la reserva)", async () => {
+      const m = mocks();
+      await servicio(m).solicitar("c1", ident, ADJUNTOS);
+      expect(correosEnviados(m)).toEqual({ contrato: "facturacion@hidrostal.com.pe", pagos: "facturacion@hidrostal.com.pe" });
+    });
+
+    it("3) sin correos de facturacion: el de notificaciones que el cliente eligio en su perfil", async () => {
+      const m = mocks();
+      vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, emailFacturacion: null, responsablePagosEmail: null } as unknown as EmpresaEntity);
+      conPerfil(m, { email: "cliente@empresa.com", notificationEmail: "notif@cliente.com" });
+      await servicio(m).solicitar("c1", ident, ADJUNTOS);
+      expect(correosEnviados(m)).toEqual({ contrato: "notif@cliente.com", pagos: "notif@cliente.com" });
+    });
+
+    it("3) si el cliente no eligio otro, se usa su correo de acceso", async () => {
+      const m = mocks();
+      vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, emailFacturacion: null } as unknown as EmpresaEntity);
+      conPerfil(m, { email: "acceso@cliente.com", notificationEmail: null });
+      await servicio(m).solicitar("c1", ident, ADJUNTOS);
+      expect(correosEnviados(m).pagos).toBe("acceso@cliente.com");
+    });
+
+    it("sin ninguno de los tres: no se bloquea, recurre al correo de la solicitud", async () => {
+      const m = mocks();
+      vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, emailFacturacion: null } as unknown as EmpresaEntity);
+      conPerfil(m, null);
+      await servicio(m).solicitar("c1", ident, ADJUNTOS);
+      expect(correosEnviados(m).pagos).toBe("cliente@empresa.com");
+    });
+  });
+
   it("factura sin empresa vinculada: el snapshot alcanza", async () => {
     const m = mocks();
     vi.mocked(m.auth.findEmpresaIdDeUsuario).mockResolvedValue(null);
