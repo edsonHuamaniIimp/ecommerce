@@ -482,12 +482,15 @@ export class DdMatrizEvaluacionApplicationService {
         dto.resultadoFinal !== undefined &&
         finalEfectivo === DD_MATRIZ_RESULTADOS_FINALES.APTO
       ) {
-        await this.validarComunicacionesParaApto({
-          ...vinculo,
-          reputacional: cambios.reputacional
-            ? { ...vinculo.reputacional, ...cambios.reputacional }
-            : vinculo.reputacional,
-        });
+        await this.validarComunicacionesParaApto(
+          {
+            ...vinculo,
+            reputacional: cambios.reputacional
+              ? { ...vinculo.reputacional, ...cambios.reputacional }
+              : vinculo.reputacional,
+          },
+          { omitir: dto.omitirValidacionComunicaciones === true, usuario: session.email },
+        );
       }
     }
 
@@ -537,7 +540,10 @@ export class DdMatrizEvaluacionApplicationService {
    * Bloquea el APTO si Comunicaciones no cerró sin hallazgos.
    * En la fila de empresa se exige el veredicto de todos los vínculos.
    */
-  private async validarComunicacionesParaApto(vinculo: DdMatrizVinculoEntity): Promise<void> {
+  private async validarComunicacionesParaApto(
+    vinculo: DdMatrizVinculoEntity,
+    bypass: { omitir: boolean; usuario: string } = { omitir: false, usuario: "" },
+  ): Promise<void> {
     /* El dictamen de Legal (aprobar) prevalece sobre los hallazgos de Comunicaciones: SIG puede cerrar APTO. */
     if (vinculo.expediente.decisionLegal === DD_ACCIONES_LEGAL.APROBAR) return;
     const vinculos =
@@ -556,6 +562,15 @@ export class DdMatrizEvaluacionApplicationService {
         return `${item.nombre} (${tipo})`;
       })
       .join(", ");
+    if (bypass.omitir) {
+      await this.repo.registrarAuditoria(
+        "matriz_bypass_comunicaciones",
+        vinculo.expediente.codigo,
+        bypass.usuario,
+        `Matriz DD: APTO declarado sin veredicto de Comunicaciones sin hallazgos para: ${detalle}`,
+      );
+      return;
+    }
     throw new DomainError(
       `No se puede declarar APTO: Comunicaciones no tiene un veredicto sin hallazgos para: ${detalle}`,
       API_ERROR_CODES.CONFLICT,

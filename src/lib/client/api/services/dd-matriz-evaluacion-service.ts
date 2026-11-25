@@ -77,12 +77,15 @@ export const ddMatrizEvaluacionService = {
       clienteComentario?: string | null;
       documentosObservados?: DdDocumentoTipo[];
       vinculosObservados?: DdVinculoObservadoRequestDTO[];
+      /** Bypass confirmado por el usuario: declara APTO sin el veredicto de Comunicaciones. */
+      omitirValidacionComunicaciones?: boolean;
     },
   ): Promise<void> {
     const { id } = await this.abrir(expedienteId);
     await this.guardar({
       id,
       resultadoFinal: resultado,
+      omitirValidacionComunicaciones: cierre?.omitirValidacionComunicaciones || undefined,
       finalComentario: comentario?.trim() || null,
       clienteComentario: cierre?.clienteComentario ?? null,
       documentosObservados: cierre?.documentosObservados ?? [],

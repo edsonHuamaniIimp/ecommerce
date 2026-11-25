@@ -399,3 +399,19 @@ describe("conclusion reputacional de SIG", () => {
     expect(normalizarResultadoReputacional("sin_observaciones")).toBe("sin_observaciones");
   });
 });
+
+describe("pendientes de Comunicaciones para declarar APTO", () => {
+  it("explica que falta en cada vinculo", async () => {
+    const { pendientesComunicaciones } = await import("@/lib/shared/utils/dd-matriz-evaluacion");
+    const pendientes = pendientesComunicaciones([
+      { nombre: "Empresa", tipo: "empresa", resultado: null, conclusion: null },
+      { nombre: "Socio", tipo: "beneficiario", resultado: "aceptado", conclusion: null },
+      { nombre: "Director", tipo: "beneficiario", resultado: "observado", conclusion: "requiere_dd_reforzada" },
+      { nombre: "Representante", tipo: "representante", resultado: "aceptado", conclusion: "sin_observaciones" },
+    ]);
+    expect(pendientes.map((p) => p.nombre)).toEqual(["Empresa", "Socio", "Director"]);
+    expect(pendientes[0]?.motivo).toContain("aún no registró");
+    expect(pendientes[1]?.accion).toContain("conclusión reputacional");
+    expect(pendientes[2]?.motivo).toContain("hallazgos");
+  });
+});

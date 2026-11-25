@@ -337,6 +337,53 @@ export function complianceDesbloqueado(conclusionSig: string | null | undefined,
   return conclusionSig === DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA && informesSig > 0;
 }
 
+/** Vinculo que impide declarar APTO porque Comunicaciones no cerro sin hallazgos. */
+export interface ComunicacionesPendiente {
+  nombre: string;
+  tipo: string;
+  /** Que falta, en lenguaje de negocio. */
+  motivo: string;
+  /** Que debe hacerse para resolverlo. */
+  accion: string;
+}
+
+/**
+ * Por que un vinculo no tiene el veredicto de Comunicaciones sin hallazgos (null = ya lo tiene).
+ * Es la misma regla de `comunicacionesAprobadas`, con el motivo para mostrarlo al usuario.
+ */
+export function motivoComunicacionesPendiente(
+  resultado: string | null | undefined,
+  conclusion: string | null | undefined,
+): { motivo: string; accion: string } | null {
+  if (comunicacionesAprobadas(resultado, conclusion)) return null;
+  if (!resultado) {
+    return {
+      motivo: "Comunicaciones aún no registró su resultado",
+      accion: "Comunicaciones debe evaluar este vínculo en su bandeja reputacional.",
+    };
+  }
+  if (resultado === DD_MATRIZ_RESULTADOS.ACEPTADO || resultado === DD_REPUTACION_RESULTADOS.SIN_OBSERVACIONES) {
+    return {
+      motivo: "Comunicaciones lo aceptó, pero falta la conclusión reputacional de SIG",
+      accion: "SIG debe elegir la conclusión reputacional «Sin observaciones» en el detalle del vínculo.",
+    };
+  }
+  return {
+    motivo: "Comunicaciones registró hallazgos u observaciones",
+    accion: "Revisa el hallazgo; si SIG lo da por resuelto, define la conclusión reputacional en el detalle del vínculo.",
+  };
+}
+
+/** Vinculos de un expediente sin veredicto de Comunicaciones sin hallazgos. */
+export function pendientesComunicaciones(
+  vinculos: { nombre: string; tipo: string; resultado: string | null | undefined; conclusion: string | null | undefined }[],
+): ComunicacionesPendiente[] {
+  return vinculos.flatMap((vinculo) => {
+    const pendiente = motivoComunicacionesPendiente(vinculo.resultado, vinculo.conclusion);
+    return pendiente ? [{ nombre: vinculo.nombre, tipo: vinculo.tipo, ...pendiente }] : [];
+  });
+}
+
 /** Comunicaciones aprobo el vinculo sin hallazgos. */
 export function comunicacionesAprobadas(
   resultado: string | null | undefined,

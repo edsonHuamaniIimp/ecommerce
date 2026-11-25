@@ -2295,7 +2295,7 @@ paths:
       tags: [DebidaDiligencia]
       summary: Guarda secciones de un vinculo (cada una exige el permiso de su area)
       description: >
-        Con `borrador: true` solo se guardan criterios, sus observaciones y las observaciones de SIG (sin resultado ni conclusion ni sello de fecha). Solo se procesan las secciones presentes. SIG (`dd:revision`): identidad (solo ambito en filas
+        Con `omitirValidacionComunicaciones: true` (bypass confirmado en pantalla) se puede declarar APTO sin el veredicto de Comunicaciones; queda en auditoria como `matriz_bypass_comunicaciones` con los vinculos pendientes. Con `borrador: true` solo se guardan criterios, sus observaciones y las observaciones de SIG (sin resultado ni conclusion ni sello de fecha). Solo se procesan las secciones presentes. SIG (`dd:revision`): identidad (solo ambito en filas
         automaticas), generales, listas (con su observacion por criterio: 2000 caracteres, 20000 en OEFA, OSCE, INDECOPI, corrupcion/lavado y Otros), sig y conclusion reputacional. Reputacional (`dd:reputacion`):
         reputacional completo. Compliance (`dd:legal`): compliance, solo si SIG concluyo REQUIERE DEBIDA
         DILIGENCIA REFORZADA y adjunto informe. Resultado final: SIG o Compliance. Los valores de catalogo

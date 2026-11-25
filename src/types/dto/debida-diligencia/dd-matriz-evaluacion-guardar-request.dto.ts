@@ -58,6 +58,11 @@ export interface DdMatrizEvaluacionGuardarRequestDTO {
   reputacional?: DdMatrizBloqueRequestDTO;
   compliance?: DdMatrizBloqueRequestDTO;
   resultadoFinal?: string | null;
+  /**
+   * Bypass: declara APTO aunque Comunicaciones no tenga veredicto sin hallazgos en todos los vinculos.
+   * Solo aplica con resultadoFinal APTO; queda registrado en la auditoria con los vinculos pendientes.
+   */
+  omitirValidacionComunicaciones?: boolean;
   /** Fecha del resultado final (YYYY-MM-DD); si no se envia se registra la de hoy. */
   finalFecha?: string | null;
   /** Quien registra el resultado final; si no se envia se registra el usuario que guarda. */

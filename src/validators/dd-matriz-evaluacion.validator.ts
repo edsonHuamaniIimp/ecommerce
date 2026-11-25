@@ -162,6 +162,7 @@ export const ddMatrizEvaluacionGuardarSchema = z.object({
   reputacional: bloqueSchema,
   compliance: bloqueSchema,
   resultadoFinal: valorCatalogo,
+  omitirValidacionComunicaciones: z.boolean().optional(),
   finalFecha: fechaNullable,
   finalPor: textoNullable(200),
   finalComentario: textoNullable(DD_MATRIZ_FINAL_COMENTARIO_MAX),

@@ -675,6 +675,30 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it("bypass: con confirmacion explicita permite APTO sin Comunicaciones y lo deja en la auditoria", async () => {
+    const { servicio, repo } = crear(vinculo());
+    await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), {
+      id: "v-1",
+      resultadoFinal: "APTO",
+      finalComentario: "Cierre con sustento interno.",
+      omitirValidacionComunicaciones: true,
+    });
+    expect((repo.actualizarVinculo.mock.calls[0]?.[1] as Record<string, unknown>).resultadoFinal).toBe("apto");
+    const auditoria = repo.registrarAuditoria.mock.calls.find((llamada) => llamada[0] === "matriz_bypass_comunicaciones");
+    expect(auditoria?.[2]).toBe("usuario@iimp.org.pe");
+    expect(auditoria?.[3]).toContain("sin veredicto de Comunicaciones");
+  });
+
+  it("bypass: sin comentario interno sigue siendo rechazado y sin la marca sigue el 409", async () => {
+    const { servicio } = crear(vinculo());
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "APTO", omitirValidacionComunicaciones: true }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "APTO", finalComentario: "x" }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
   it("cierra la empresa como APTO cuando el ultimo vinculo tambien queda APTO", async () => {
     const empresa = vinculo({
       id: "v-empresa",

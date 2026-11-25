@@ -61,9 +61,12 @@ import {
   type DdDocumentoTipo,
   type DdMatrizResultadoFinal,
 } from "@/lib/shared/constants";
+import { DdBypassComunicacionesDialog } from "./dd-bypass-comunicaciones-dialog";
 import { ddUtils } from "@/lib/shared/utils/debida-diligencia";
 import { dateUtils } from "@/lib/shared/utils/date";
 import {
+  type ComunicacionesPendiente,
+  pendientesComunicaciones,
   resultadoFinalEditable,
   resultadoFinalEfectivo,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
@@ -101,6 +104,7 @@ interface Props {
       clienteComentario?: string | null;
       documentosObservados?: DdDocumentoTipo[];
       vinculosObservados?: DdVinculoObservadoRequestDTO[];
+      omitirValidacionComunicaciones?: boolean;
     },
   ) => Promise<void> | void;
 }
@@ -493,6 +497,19 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     }
   };
 
+  /** Dialogo de bypass (APTO sin veredicto de Comunicaciones): se resuelve con la eleccion del usuario. */
+  const [bypass, setBypass] = useState<{
+    pendientes: ComunicacionesPendiente[];
+    total: number;
+    resolver: (continuar: boolean) => void;
+  } | null>(null);
+  const confirmarBypass = (pendientes: ComunicacionesPendiente[], total: number) =>
+    new Promise<boolean>((resolver) => setBypass({ pendientes, total, resolver }));
+  const cerrarBypass = (continuar: boolean) => {
+    bypass?.resolver(continuar);
+    setBypass(null);
+  };
+
   const registrarResultadoFinal = async (resultado: DdMatrizResultadoFinal) => {
     if (!onResultadoFinal || guardandoFinal) return;
     const esDocumentacionObservada =
@@ -507,13 +524,29 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       );
       return;
     }
-    const ok = await confirm({
-      title: `Registrar ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`,
-      description: esDocumentacionObservada
-        ? "Se registrará la documentación observada, se notificará al cliente y podrá corregir la información."
-        : "Se actualizará el resultado final del vínculo de empresa en la matriz.",
-      confirmLabel: "Registrar resultado",
-    });
+    /* Regla: el APTO exige el veredicto de Comunicaciones sin hallazgos en todos los vinculos
+     * (salvo dictamen de aprobacion de Legal). En vez de un error, se explica y se permite el bypass. */
+    const pendientesApto =
+      resultado === DD_MATRIZ_RESULTADOS_FINALES.APTO && detalle?.decisionLegal !== DD_ACCIONES_LEGAL.APROBAR
+        ? pendientesComunicaciones(
+            matrizVinculos.map((vinculo) => ({
+              nombre: vinculo.nombre,
+              tipo: vinculo.tipo,
+              resultado: vinculo.repResultado,
+              conclusion: vinculo.repConclusion,
+            })),
+          )
+        : [];
+    const omitirComunicaciones = pendientesApto.length > 0;
+    const ok = omitirComunicaciones
+      ? await confirmarBypass(pendientesApto, matrizVinculos.length)
+      : await confirm({
+          title: `Registrar ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`,
+          description: esDocumentacionObservada
+            ? "Se registrará la documentación observada, se notificará al cliente y podrá corregir la información."
+            : "Se actualizará el resultado final del vínculo de empresa en la matriz.",
+          confirmLabel: "Registrar resultado",
+        });
     if (!ok) return;
     setGuardandoFinal(resultado);
     setError(null);
@@ -522,6 +555,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
         clienteComentario: esDocumentacionObservada ? comentarioClienteFinal.trim() || null : null,
         documentosObservados: esDocumentacionObservada ? documentosObservados : [],
         vinculosObservados: esDocumentacionObservada ? vinculosObservados : [],
+        omitirValidacionComunicaciones: omitirComunicaciones || undefined,
       });
       toast.success(`Resultado final: ${DD_MATRIZ_RESULTADO_FINAL_LABELS[resultado]}`);
       onDone();
@@ -1566,6 +1600,14 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
           onClose={() => setPreviewDocumento(null)}
         />
         {confirmDialog}
+        {bypass ? (
+          <DdBypassComunicacionesDialog
+            pendientes={bypass.pendientes}
+            total={bypass.total}
+            onCancel={() => cerrarBypass(false)}
+            onConfirm={() => cerrarBypass(true)}
+          />
+        ) : null}
       </DialogContent>
     </Dialog>
   );
