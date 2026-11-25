@@ -26,6 +26,7 @@ interface OpcionEmpresa {
   representanteUserId: string | null;
   representanteLegalNombre: string | null;
   representanteLegalDni: string | null;
+  representanteLegalTipoDocumento: string | null;
   representanteCorreo: string | null;
   direccionFiscal: string | null;
   emailContacto: string | null;
@@ -76,6 +77,7 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       representanteUserId: e.representanteUserId ?? null,
       representanteLegalNombre: e.representanteLegalNombre ?? null,
       representanteLegalDni: e.representanteLegalDni ?? null,
+      representanteLegalTipoDocumento: e.representanteLegalTipoDocumento ?? null,
       representanteCorreo: e.representanteCorreo ?? null,
       direccionFiscal: e.direccionFiscal ?? null,
       emailContacto: e.emailContacto ?? null,
@@ -100,6 +102,7 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       representanteUserId: null,
       representanteLegalNombre: null,
       representanteLegalDni: null,
+      representanteLegalTipoDocumento: null,
       representanteCorreo: null,
       direccionFiscal: null,
       emailContacto: null,
@@ -137,6 +140,7 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       representanteUserId: empresa.representanteUserId,
       representanteLegalNombre: empresa.representanteLegalNombre,
       representanteLegalDni: empresa.representanteLegalDni,
+      representanteLegalTipoDocumento: empresa.representanteLegalTipoDocumento,
       representanteCorreo: empresa.representanteCorreo,
       direccionFiscal: empresa.direccionFiscal,
       emailContacto: empresa.emailContacto,

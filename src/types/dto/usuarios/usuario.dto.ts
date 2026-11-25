@@ -41,6 +41,8 @@ export interface EmpresaAccesoDTO {
   representanteUserId?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  /** Tipo de documento del representante (TIPOS_DOCUMENTO_PERSONA). */
+  representanteLegalTipoDocumento?: string | null;
   representanteCorreo?: string | null;
   direccionFiscal?: string | null;
   emailContacto?: string | null;

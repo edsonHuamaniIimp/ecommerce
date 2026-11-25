@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from "vitest";
-import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA } from "@/lib/shared/constants";
+import { TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA } from "@/lib/shared/constants";
 import { validarEmpresaReservaAdministrativa } from "../reserva-admin-readiness";
 
 function empresa(overrides: Record<string, unknown> = {}) {
@@ -40,6 +40,32 @@ describe("validarEmpresaReservaAdministrativa", () => {
 
     expect(resultado.ok).toBe(false);
     expect(resultado.faltantesEmpresa.some((f) => f.startsWith("RUC de 11"))).toBe(true);
+  });
+
+  it("acepta boleta con pasaporte alfanumerico del representante", () => {
+    const resultado = validarEmpresaReservaAdministrativa(
+      empresa({ representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.PASAPORTE, representanteLegalDni: "P852553QS" }),
+      TIPOS_COMPROBANTE.BOLETA,
+      "USD",
+    );
+
+    expect(resultado.ok).toBe(true);
+  });
+
+  it("acepta boleta con carne de extranjeria y rechaza un DNI que no tiene 8 digitos", () => {
+    const carne = validarEmpresaReservaAdministrativa(
+      empresa({ representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA, representanteLegalDni: "001234567" }),
+      TIPOS_COMPROBANTE.BOLETA,
+      "USD",
+    );
+    const dni = validarEmpresaReservaAdministrativa(
+      empresa({ representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI, representanteLegalDni: "1234567" }),
+      TIPOS_COMPROBANTE.BOLETA,
+      "USD",
+    );
+
+    expect(carne.ok).toBe(true);
+    expect(dni.faltantesRepresentante).toContain("DNI de 8 dígitos para la boleta");
   });
 
   it("rechaza una empresa sin correo", () => {

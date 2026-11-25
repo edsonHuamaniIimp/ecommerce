@@ -1,9 +1,10 @@
 import {
   MONEDAS,
-  REGEX_DNI,
   TIPOS_COMPROBANTE,
+  TIPOS_DOCUMENTO_PERSONA,
   type TipoComprobante,
 } from "@/lib/shared/constants";
+import { normalizarDocumentoPersona, normalizarTipoDocumentoPersona, validarDocumentoPersona } from "./documento-persona";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "./documento-empresa";
 
 /** Datos minimos de la empresa que alimentan el contrato y la facturacion. */
@@ -16,6 +17,8 @@ export interface EmpresaReservaAdminFuente {
   representanteUserId?: string | null;
   representanteLegalNombre?: string | null;
   representanteLegalDni?: string | null;
+  /** TIPOS_DOCUMENTO_PERSONA; si falta se asume DNI. */
+  representanteLegalTipoDocumento?: string | null;
   representanteCorreo?: string | null;
   emailContacto?: string | null;
   emailFacturacion?: string | null;
@@ -53,7 +56,10 @@ export function validarEmpresaReservaAdministrativa(
   const tipoDocumento = documento
     ? resolverTipoDocumentoEmpresa(empresa.tipoDocumento, documento)
     : null;
-  const dni = texto(empresa.representanteLegalDni).replace(/\D/g, "");
+  const tipoDocumentoRepresentante = normalizarTipoDocumentoPersona(
+    texto(empresa.representanteLegalTipoDocumento) || TIPOS_DOCUMENTO_PERSONA.DNI,
+  );
+  const dni = normalizarDocumentoPersona(tipoDocumentoRepresentante, empresa.representanteLegalDni);
   const email =
     texto(empresa.representanteCorreo) ||
     texto(empresa.emailFacturacion) ||
@@ -67,8 +73,13 @@ export function validarEmpresaReservaAdministrativa(
   if (!texto(empresa.representanteLegalNombre)) faltantesRepresentante.push("nombre");
   if (!dni) {
     faltantesRepresentante.push("documento");
-  } else if (tipoComprobante === TIPOS_COMPROBANTE.BOLETA && !REGEX_DNI.test(dni)) {
-    faltantesRepresentante.push("DNI de 8 dígitos para la boleta");
+  } else if (tipoComprobante === TIPOS_COMPROBANTE.BOLETA && validarDocumentoPersona(tipoDocumentoRepresentante, dni)) {
+    /* La boleta admite DNI (8 digitos), carne de extranjeria o pasaporte (alfanumerico). */
+    faltantesRepresentante.push(
+      tipoDocumentoRepresentante === TIPOS_DOCUMENTO_PERSONA.DNI
+        ? "DNI de 8 dígitos para la boleta"
+        : "documento válido (alfanumérico, máx. 15) para la boleta",
+    );
   }
   if (tipoComprobante !== TIPOS_COMPROBANTE.FACTURA && tipoComprobante !== TIPOS_COMPROBANTE.BOLETA) {
     faltantesGenerales.push("tipo de facturación");

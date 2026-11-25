@@ -7,7 +7,6 @@ import {
   MAX_CUOTAS_IIMP,
   MAX_DESCRIPCION_FACTURA,
   MAX_STANDS_IIMP,
-  REGEX_DNI,
   REGEX_FECHA_ISO,
   REGEX_RUC,
   TIPOS_COMPROBANTE,
@@ -29,6 +28,7 @@ import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo
 import { numeroSolicitudIImp } from "./numero-solicitud";
 import { extensionReserva } from "./extension-reserva-iimp";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
+import { normalizarDocumentoPersona, normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
 
@@ -70,6 +70,33 @@ export interface OrigenSolicitudFactura {
 /** Solo digitos (RUC/DNI llegan con puntos o espacios). */
 function digitos(valor: string | null | undefined): string {
   return (valor ?? "").replace(/\D/g, "");
+}
+
+/** Tipo de documento de la persona (servicio-persona) -> codigo de `TipDocFacturacion` del IIMP. */
+const TIPO_DOC_IIMP_POR_PERSONA: Record<string, string> = {
+  [TIPOS_DOCUMENTO_PERSONA.DNI]: TIPOS_DOCUMENTO_FACTURACION_IIMP.DNI,
+  [TIPOS_DOCUMENTO_PERSONA.CARNE_EXTRANJERIA]: TIPOS_DOCUMENTO_FACTURACION_IIMP.CARNE_EXTRANJERIA,
+  [TIPOS_DOCUMENTO_PERSONA.PASAPORTE]: TIPOS_DOCUMENTO_FACTURACION_IIMP.PASAPORTE,
+};
+
+/**
+ * Parte un nombre completo en apellidos y nombres. Acepta "APELLIDOS, NOMBRES" (formato de la
+ * ficha) o "NOMBRES APELLIDO": en el segundo caso la ultima palabra es el apellido paterno.
+ */
+function separarNombreExtranjero(
+  completo: string | null | undefined,
+): { nombres: string; apellidoPaterno: string; apellidoMaterno: string | null } | null {
+  const texto = (completo ?? "").trim().replace(/\s+/g, " ");
+  if (!texto) return null;
+  const [antes = "", despues = ""] = texto.split(",").map((parte) => parte.trim());
+  if (despues) {
+    const [paterno = "", ...resto] = antes.split(" ");
+    return paterno ? { nombres: despues, apellidoPaterno: paterno, apellidoMaterno: resto.join(" ") || null } : null;
+  }
+  const palabras = texto.split(" ");
+  const paterno = palabras.pop() ?? "";
+  if (!palabras.length || !paterno) return null;
+  return { nombres: palabras.join(" "), apellidoPaterno: paterno, apellidoMaterno: null };
 }
 
 /**
@@ -404,21 +431,34 @@ export class SolicitarFacturaApplicationService {
     const telefono = snapshot?.telefono?.trim() || empresa?.telefono?.trim() || null;
 
     if (esBoleta) {
-      const dni = digitos(snapshot?.numeroDocumento);
-      if (!REGEX_DNI.test(dni)) {
-        throw new DomainError("La boleta requiere DNI de 8 digitos en la solicitud", API_ERROR_CODES.VALIDATION, 400);
+      /* El titular de la boleta puede ser DNI, carne de extranjeria o pasaporte (doc IIMP 2.4). */
+      const tipoPersona = normalizarTipoDocumentoPersona(snapshot?.tipoDocumento || TIPOS_DOCUMENTO_PERSONA.DNI);
+      const dni = normalizarDocumentoPersona(tipoPersona, snapshot?.numeroDocumento);
+      if (validarDocumentoPersona(tipoPersona, dni)) {
+        throw new DomainError(
+          tipoPersona === TIPOS_DOCUMENTO_PERSONA.DNI
+            ? "La boleta requiere DNI de 8 digitos en la solicitud"
+            : "La boleta requiere un documento alfanumerico valido (carne de extranjeria o pasaporte) en la solicitud",
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
       }
-      const persona = await this.personas.buscarPorDocumento(dni, TIPOS_DOCUMENTO_PERSONA.DNI).catch(() => null);
+      const persona = await this.personas.buscarPorDocumento(dni, tipoPersona).catch(() => null);
       type TitularBoleta = { nombres: string; apellidoPaterno: string; apellidoMaterno: string | null; correo: string | null };
       let titular: TitularBoleta | null = persona?.nombres && persona.apellido_paterno
         ? { nombres: persona.nombres, apellidoPaterno: persona.apellido_paterno, apellidoMaterno: persona.apellido_materno ?? null, correo: persona.correo ?? null }
         : null;
       /* Respaldo RENIEC: son datos de facturacion y el DNI puede no existir en el padron interno. */
-      if (!titular) {
+      if (!titular && tipoPersona === TIPOS_DOCUMENTO_PERSONA.DNI) {
         const reniec = await this.consultaDocumento.consultarDni(dni).catch(() => null);
         if (reniec?.nombres && reniec.apellidoPaterno) {
           titular = { nombres: reniec.nombres, apellidoPaterno: reniec.apellidoPaterno, apellidoMaterno: reniec.apellidoMaterno ?? null, correo: null };
         }
+      }
+      /* Extranjeros: RENIEC no los tiene; se usa el nombre de la solicitud ("APELLIDOS, NOMBRES"). */
+      if (!titular && tipoPersona !== TIPOS_DOCUMENTO_PERSONA.DNI) {
+        const partido = separarNombreExtranjero(snapshot?.razonSocial || snapshot?.contacto);
+        if (partido) titular = { ...partido, correo: null };
       }
       if (!titular) {
         throw new DomainError(`No se encontraron los datos del DNI ${dni} (padron de personas ni RENIEC)`, API_ERROR_CODES.VALIDATION, 400);
@@ -429,7 +469,7 @@ export class SolicitarFacturaApplicationService {
       return {
         ...base,
         tipoFacturacion: FACTURACION_IIMP.BOLETA,
-        tipDocFacturacion: TIPOS_DOCUMENTO_FACTURACION_IIMP.DNI,
+        tipDocFacturacion: TIPO_DOC_IIMP_POR_PERSONA[tipoPersona] ?? TIPOS_DOCUMENTO_FACTURACION_IIMP.DNI,
         numDocFacturacion: dni,
         apellidoPaternoFact: titular.apellidoPaterno,
         apellidoMaternoFact: titular.apellidoMaterno,
