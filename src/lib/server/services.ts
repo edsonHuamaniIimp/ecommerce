@@ -43,6 +43,7 @@ import { UsuariosApplicationService } from "@/application/usuarios/usuarios-serv
 import { facturacionRepo } from "@/infrastructure/persistence/facturacion-repository";
 import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client";
 import { SolicitarFacturaApplicationService } from "@/application/facturacion-iimp/solicitar-factura-service";
+import { FacturacionIntentoPrismaRepository } from "@/infrastructure/persistence/facturacion-intento-repository";
 import { FacturacionProgramadaPrismaRepository } from "@/infrastructure/persistence/facturacion-programada-repository";
 import { FacturacionProgramadaApplicationService } from "@/application/facturacion-iimp/facturacion-programada-service";
 import { ArchivosCuentaCorrienteApplicationService } from "@/application/facturacion-iimp/archivos-cuenta-service";
@@ -117,7 +118,7 @@ const debidaDiligenciaApp = new DebidaDiligenciaApplicationService(
   ddConfiguracionRepo,
 );
 
-const solicitarFacturaApp = new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient, process.env[ENV_RESERVA_IIMP_CAMPOS_EXTENDIDOS] === "true");
+const solicitarFacturaApp = new SolicitarFacturaApplicationService(facturacionRepo, solicitudesRepo, authRepo, empresaRepo, reservaIimpClient, personaClient, consultaDocumentoClient, process.env[ENV_RESERVA_IIMP_CAMPOS_EXTENDIDOS] === "true", new FacturacionIntentoPrismaRepository());
 const facturacionProgramadaApp = new FacturacionProgramadaApplicationService(new FacturacionProgramadaPrismaRepository(), facturacionRepo, solicitarFacturaApp);
 
 export const services = {

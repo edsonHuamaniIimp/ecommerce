@@ -5,7 +5,7 @@ import type { ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
-    constructor(message: string, public readonly code: string, public readonly status = 400) {
+    constructor(message: string, public readonly code: string, public readonly status = 400, public readonly detalle?: unknown) {
       super(message);
       this.name = "DomainError";
     }
@@ -215,6 +215,7 @@ describe("ReservaIimpClient (API de reserva del IIMP)", () => {
     await expect(new ReservaIimpClient().reservar(INPUT)).rejects.toMatchObject({
       status: 502,
       message: "Error del API de reserva del IIMP (abc-123)",
+      detalle: { httpStatus: 500, cuerpo: { codigo: "ERROR_INTERNO", identificador: "abc-123" } },
     });
   });
 

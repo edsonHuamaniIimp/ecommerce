@@ -240,7 +240,14 @@ export class ReservaIimpClient implements IReservaIimpClient {
     if (res.ok) {
       return mapearRespuesta((await res.json()) as Record<string, unknown>);
     }
-    lanzarError(res, (await res.json().catch(() => null)) as { mensaje?: string; identificador?: string } | null, "RESERVA");
+    const cuerpoError = (await res.json().catch(() => null)) as { mensaje?: string; identificador?: string } | null;
+    try {
+      lanzarError(res, cuerpoError, "RESERVA");
+    } catch (e) {
+      /* El mensaje al usuario no cambia; el cuerpo del SIE queda en el detalle para la bitacora. */
+      if (e instanceof DomainError) throw new DomainError(e.message, e.code, e.status, { httpStatus: res.status, cuerpo: cuerpoError });
+      throw e;
+    }
   }
 
   async agregarArchivos(input: ReservaIimpCuentaInput & { archivos: ReservaIimpArchivoInput[] }): Promise<ReservaIimpArchivo[]> {

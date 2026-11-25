@@ -23,6 +23,7 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { DatosFacturacionSolicitud } from "@/domain/models/entities";
+import type { IFacturacionIntentoRepository } from "@/domain/ports/facturacion-intento-repository";
 import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpCuotaInput, ReservaIimpDocumento, ReservaIimpInput } from "@/domain/ports/reserva-iimp-client";
 import { validarArchivoIImp, normalizarLinkArchivoIImp } from "./validar-archivo-iimp";
 import { numeroSolicitudIImp } from "./numero-solicitud";
@@ -65,6 +66,16 @@ export interface OrigenSolicitudFactura {
   registradoPor: string | null;
   /** ISO-8601 UTC: fecha y hora que Facturacion programo (tarea automatica). */
   programadaPara?: string | null;
+}
+
+/** Lo que se sabe de la solicitud en curso, para la bitacora si falla. */
+interface CapturaSolicitud {
+  solicitudId: string | null;
+  payload: ReservaIimpInput | null;
+  requisitos: RequisitosFacturacionInput | null;
+  archivos: ReservaIimpArchivoInput[];
+  /** El SIE respondio bien (si despues falla, el error es del guardado local). */
+  respondio: boolean;
 }
 
 /** Solo digitos (RUC/DNI llegan con puntos o espacios). */
@@ -119,9 +130,46 @@ export class SolicitarFacturaApplicationService {
     private readonly consultaDocumento: IConsultaDocumentoClient,
     /** Enviar al SIE el tipo de cambio pactado y, en solicitudes internas, el detalle comercial. */
     private readonly enviarCamposExtendidos: boolean = false,
+    /** Bitacora de solicitudes fallidas (opcional): conserva lo declarado para reenviarlo. */
+    private readonly intentos: IFacturacionIntentoRepository | null = null,
   ) {}
 
   async solicitar(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[] = [], requisitos: RequisitosFacturacionInput | null = null, origen: OrigenSolicitudFactura | null = null): Promise<ResultadoSolicitudFactura> {
+    const captura: CapturaSolicitud = { solicitudId: null, payload: null, requisitos: null, archivos: [], respondio: false };
+    try {
+      return await this.ejecutarSolicitud(cuotaId, ident, archivos, requisitos, origen, captura);
+    } catch (e) {
+      /* Solo si el envio llego a armarse: se guarda lo declarado para reenviarlo sin pedirlo de nuevo. */
+      await this.registrarFallo(cuotaId, ident, origen, captura, e);
+      throw e;
+    }
+  }
+
+  /** Guarda en la bitacora (best-effort) lo que el usuario declaro cuando el SIE fallo; nunca oculta el error original. */
+  private async registrarFallo(cuotaId: string, ident: ClienteIdent, origen: OrigenSolicitudFactura | null, captura: CapturaSolicitud, error: unknown): Promise<void> {
+    if (!this.intentos || !captura.solicitudId || !captura.payload) return;
+    try {
+      const detalle = error instanceof DomainError ? (error.detalle as { httpStatus?: number; cuerpo?: { identificador?: string } } | undefined) : undefined;
+      await this.intentos.registrarFallo({
+        solicitudId: captura.solicitudId,
+        cuotaId,
+        origen: origen ? (origen.programadaPara ? "programada" : "staff") : "cliente",
+        actor: origen ? origen.registradoPor : (ident.email ?? null),
+        resultado: captura.respondio ? "error_posterior" : "error_sie",
+        httpStatus: detalle?.httpStatus ?? (error instanceof DomainError ? error.status : null),
+        mensaje: error instanceof Error ? error.message : String(error),
+        identificadorSie: detalle?.cuerpo?.identificador ?? null,
+        requisitos: captura.requisitos,
+        archivos: captura.archivos,
+        payload: captura.payload,
+        respuestaSie: detalle?.cuerpo ?? null,
+      });
+    } catch (e) {
+      console.error("[facturacion-intento] no se pudo registrar el fallo", e instanceof Error ? e.message : e);
+    }
+  }
+
+  private async ejecutarSolicitud(cuotaId: string, ident: ClienteIdent, archivos: ReservaIimpArchivoInput[], requisitos: RequisitosFacturacionInput | null, origen: OrigenSolicitudFactura | null, captura: CapturaSolicitud): Promise<ResultadoSolicitudFactura> {
     const propio = await this.facturacion.esPropietarioDeCuota(cuotaId, ident);
     if (!propio) throw new DomainError("Sin acceso a esta cuota", API_ERROR_CODES.FORBIDDEN, 403);
     const fact = await this.facturacion.facturacionDeCuota(cuotaId);
@@ -247,7 +295,12 @@ export class SolicitarFacturaApplicationService {
       ...(archivosNormalizados.length > 0 ? { archivos: archivosNormalizados } : {}),
     });
 
+    captura.solicitudId = fact.solicitudId;
+    captura.payload = input;
+    captura.requisitos = requisitosDeclarados;
+    captura.archivos = archivosNormalizados;
     const respuesta = await this.reserva.reservar(input);
+    captura.respondio = true;
 
     await this.solicitudes.guardarReservaIImp(fact.solicitudId, {
       contrato: respuesta.contrato,

@@ -9,10 +9,12 @@ import type { IPersonaClient } from "@/domain/ports/persona-client";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpResponse } from "@/domain/ports/reserva-iimp-client";
 import type { EmpresaEntity } from "@/domain/models/empresa";
+import { DomainError } from "@/lib/server/router";
+import type { RegistrarIntentoFacturaData } from "@/domain/ports/facturacion-intento-repository";
 
 vi.mock("@/lib/server/router", () => ({
   DomainError: class DomainError extends Error {
-    constructor(message: string, public readonly code: string, public readonly status = 400) {
+    constructor(message: string, public readonly code: string, public readonly status = 400, public readonly detalle?: unknown) {
       super(message);
       this.name = "DomainError";
     }
@@ -349,6 +351,60 @@ describe("SolicitarFacturaApplicationService", () => {
       datosFacturacion: { ...snapshotFactura, tipoDocumento: "RUC", numeroDocumento: "123" },
     } as typeof datosBase);
     await expect(servicio(m).solicitar("c1", ident, ADJUNTOS)).rejects.toMatchObject({ status: 400 });
+  });
+
+  describe("bitacora de solicitudes fallidas", () => {
+    const REQ = { oc: true, descripcionFactura: "L-07 - CUOTA 1" };
+
+    function conBitacora(m: ReturnType<typeof mocks>) {
+      const intentos = { registrarFallo: vi.fn(async (_d: RegistrarIntentoFacturaData) => {}) };
+      const s = new SolicitarFacturaApplicationService(m.facturacion, m.solicitudes, m.auth, m.empresas, m.reserva, m.personas, m.consultaDocumento, false, intentos);
+      return { s, intentos };
+    }
+
+    it("si el SIE falla con 500, guarda lo declarado, el payload y el identificador (y relanza el error)", async () => {
+      const m = mocks();
+      vi.mocked(m.reserva.reservar).mockRejectedValue(new DomainError("Error del API de reserva del IIMP (5d71cefe)", "INTERNAL", 502, { httpStatus: 500, cuerpo: { identificador: "5d71cefe" } }));
+      const { s, intentos } = conBitacora(m);
+      await expect(s.solicitar("c1", ident, ADJUNTOS, REQ)).rejects.toMatchObject({ status: 502 });
+
+      expect(intentos.registrarFallo).toHaveBeenCalledTimes(1);
+      const dato = vi.mocked(intentos.registrarFallo).mock.calls[0]?.[0];
+      expect(dato).toMatchObject({ solicitudId: "s1", cuotaId: "c1", origen: "cliente", resultado: "error_sie", httpStatus: 500, identificadorSie: "5d71cefe" });
+      expect(dato?.requisitos).toMatchObject({ oc: true, descripcionFactura: "L-07 - CUOTA 1" });
+      expect(dato?.archivos).toEqual(expect.any(Array));
+      expect(dato?.payload).toMatchObject({ numeroSolicitud: expect.any(String), stands: expect.any(Array) });
+    });
+
+    it("Facturacion que la programo: origen programada y actor", async () => {
+      const m = mocks();
+      vi.mocked(m.reserva.reservar).mockRejectedValue(new DomainError("SIE caido", "INTERNAL", 502));
+      const { s, intentos } = conBitacora(m);
+      await expect(s.solicitar("c1", ident, ADJUNTOS, REQ, { registradoPor: "admin@iimp.org.pe", programadaPara: "2026-11-25T15:00:00.000Z" })).rejects.toBeDefined();
+      expect(vi.mocked(intentos.registrarFallo).mock.calls[0]?.[0]).toMatchObject({ origen: "programada", actor: "admin@iimp.org.pe" });
+    });
+
+    it("una validacion local (antes de armar el envio) no se guarda", async () => {
+      const m = mocks();
+      const { s, intentos } = conBitacora(m);
+      await expect(s.solicitar("c1", ident, ADJUNTOS, { oc: false })).rejects.toMatchObject({ status: 400 });
+      expect(intentos.registrarFallo).not.toHaveBeenCalled();
+    });
+
+    it("si todo sale bien no guarda nada", async () => {
+      const m = mocks();
+      const { s, intentos } = conBitacora(m);
+      await s.solicitar("c1", ident, ADJUNTOS, REQ);
+      expect(intentos.registrarFallo).not.toHaveBeenCalled();
+    });
+
+    it("si la bitacora misma falla, el error original sigue llegando al usuario", async () => {
+      const m = mocks();
+      vi.mocked(m.reserva.reservar).mockRejectedValue(new DomainError("Error del API de reserva del IIMP (abc)", "INTERNAL", 502));
+      const { s, intentos } = conBitacora(m);
+      vi.mocked(intentos.registrarFallo).mockRejectedValue(new Error("db caida"));
+      await expect(s.solicitar("c1", ident, ADJUNTOS, REQ)).rejects.toMatchObject({ message: "Error del API de reserva del IIMP (abc)" });
+    });
   });
 
   it("factura sin empresa vinculada: el snapshot alcanza", async () => {

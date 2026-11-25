@@ -600,6 +600,8 @@ model Solicitud {
 
   gessStand      GessStand?           @relation(fields: [gessStandId], references: [id])
   facturacionesProgramadas FacturacionProgramada[]
+  /// Bitacora de solicitudes de factura que fallaron al registrarse en el SIE (con lo declarado).
+  facturacionIntentos      FacturacionSolicitudIntento[]
   revisiones     Revision[]
   reevaluaciones Reevaluacion[]
   docsAdjuntos   SolicitudDocumento[] @relation("SolicitudDocs")
@@ -1289,6 +1291,36 @@ model FacturacionProgramada {
   @@index([estado, fechaProgramada])
   @@index([solicitudId])
   @@map("facturacion_programada")
+}
+
+/// Bitacora de solicitudes de factura que FALLARON al registrarse en el SIE: guarda lo que el
+/// usuario declaro (requisitos, documentos) y el payload enviado, para reenviarlo sin pedirselo de nuevo.
+model FacturacionSolicitudIntento {
+  id             String   @id @default(uuid())
+  solicitudId    String   @map("solicitud_id")
+  cuotaId        String   @map("cuota_id")
+  /// cliente | staff | programada
+  origen         String   @db.VarChar(20)
+  actor          String?  @db.VarChar(200)
+  /// error_sie (el SIE rechazo o no respondio) | error_posterior (el SIE registro pero fallo el guardado local).
+  resultado      String   @db.VarChar(20)
+  httpStatus     Int?     @map("http_status")
+  mensaje        String?  @db.VarChar(1000)
+  /// Codigo `identificador` del SIE (500) para ubicar la llamada en sus logs.
+  identificadorSie String? @map("identificador_sie") @db.VarChar(40)
+  requisitos     Json?
+  archivos       Json?
+  /// Payload exacto enviado al SIE.
+  payload        Json?
+  /// Cuerpo de la respuesta del SIE.
+  respuestaSie   Json?    @map("respuesta_sie")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
+
+  @@index([solicitudId])
+  @@index([createdAt])
+  @@map("facturacion_solicitud_intento")
 }
 
 model SgcOutbox {

@@ -6,6 +6,8 @@ export class DomainError extends Error {
     message: string,
     public readonly code: ApiErrorCode = API_ERROR_CODES.VALIDATION,
     public readonly status: number = 400,
+    /** Detalle tecnico opcional (p. ej. cuerpo de la respuesta de un sistema externo); no se muestra al usuario. */
+    public readonly detalle?: unknown,
   ) {
     super(message);
     this.name = "DomainError";
