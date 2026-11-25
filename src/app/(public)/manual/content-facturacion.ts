@@ -26,7 +26,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <ul>
 <li>Declarar los <strong>requisitos de facturación</strong> de tu empresa.</li>
 <li><strong>Enviar tu solicitud de factura</strong> con los documentos que correspondan.</li>
-<li>Ver la <strong>fecha de emisión</strong> de cada cuota y el estado de tu plan.</li>
+<li>Ver la <strong>fecha de vencimiento</strong> y la <strong>fecha de emisión de la factura</strong> de cada cuota, y el estado de tu plan.</li>
 <li><strong>Ver y descargar</strong> tus facturas.</li>
 <li>Adjuntar <strong>constancias de pago</strong> (referenciales) y otros documentos por cuota.</li>
 </ul>
@@ -36,7 +36,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <hr>
 <h2 id="seccion-2">2. Acceso a Mis documentos</h2>
 <p>Ingresa al Portal del Expositor y abre <strong>Mis documentos</strong> en el menú lateral.</p>
-<p><img src="/manual/img/fact-01-mis-documentos.png" alt="Mis documentos"><br><em>Figura 1 — Plan de cuotas con fechas de emisión y estado por cuota.</em></p>
+<p><img src="/manual/img/fact-01-mis-documentos.png" alt="Mis documentos"><br><em>Figura 1 — Plan de cuotas con fecha de vencimiento, emisión de la factura y estado por cuota.</em></p>
 <p>Verás tus solicitudes de stands, cada una con su plan de cuotas y el estado de cada cuota:</p>
 <ul>
 <li><strong>Pendiente</strong>: la cuota aún no se ha pagado.</li>
@@ -107,21 +107,21 @@ export const MANUAL_FACTURACION_HTML: string = `
 <h2 id="seccion-5">5. ¿Qué pasa después del envío?</h2>
 <p>La factura <strong>no se emite de inmediato</strong>: Facturación emite la factura de <strong>cada cuota en su fecha</strong>.</p>
 <ul>
-<li>Mientras no se emita, verás la <strong>fecha de emisión programada</strong> de la cuota y el aviso de que tu factura está <strong>en proceso de emisión</strong>.</li>
-<li>Cuando la factura se emite, el portal muestra la <strong>fecha de emisión real</strong> y el documento queda disponible para ver y descargar. También <strong>recibirás un correo</strong> avisando que la factura está disponible.</li>
+<li>Mientras no se emita, verás la <strong>fecha de vencimiento</strong> de la cuota, la indicación <strong>"Factura: pendiente de emisión"</strong> y el aviso de que tu factura está <strong>en proceso de emisión</strong>.</li>
+<li>Cuando la factura se emite, el portal muestra <strong>"Factura emitida"</strong> con su <strong>fecha real de emisión</strong> y el documento queda disponible para ver y descargar. También <strong>recibirás un correo</strong> avisando que la factura está disponible.</li>
 <li>Si Facturación anula o rechaza una factura, verás la marca y el motivo; la cuota queda pendiente de un nuevo documento.</li>
 <li>Cuando Facturación confirma el pago de todas las cuotas, la solicitud pasa a <strong>pagado</strong>.</li>
 </ul>
 <hr>
 <h2 id="seccion-6">6. Fechas y seguimiento de tus cuotas</h2>
-<p>Cada cuota muestra su <strong>Fecha de emisión</strong>:</p>
+<p>Cada cuota muestra dos datos distintos:</p>
 <ul>
-<li><strong>Real</strong>, si Facturación ya emitió la factura.</li>
-<li><strong>Programada</strong>, si aún no se emite (es la fecha del plan).</li>
+<li><strong>Vence</strong>: la fecha configurada para esa cuota en el plan. Siempre se muestra.</li>
+<li><strong>Factura emitida</strong>: la fecha real en que Facturación emitió la factura. Mientras no se emita, verás <strong>"Factura: pendiente de emisión"</strong>.</li>
 </ul>
 <p>El portal te ayuda a anticiparte:</p>
 <ul>
-<li><strong>Siguiente cuota</strong>: se resalta la primera cuota pendiente cuando faltan <strong>15 días o menos</strong> para su emisión ("se emite en N días", "se emite hoy" o "fecha de emisión pasada").</li>
+<li><strong>Siguiente cuota</strong>: se resalta la primera cuota pendiente cuando faltan <strong>15 días o menos</strong> para su vencimiento ("vence en N días", "vence hoy" o "fecha de vencimiento pasada").</li>
 <li><strong>Factura emitida · pendiente de pago</strong>: la factura ya existe y falta el pago.</li>
 <li><strong>Solicitud de factura pendiente</strong>: si aún no enviaste tu solicitud, se resalta la cuota desde la que debes hacerlo ("Solicitar factura aquí").</li>
 </ul>
@@ -166,7 +166,7 @@ export const MANUAL_FACTURACION_HTML: string = `
 <h2 id="seccion-10">10. Preguntas frecuentes</h2>
 <p><strong>¿Por qué me piden OC y HES?</strong><br>Son requisitos habituales de las áreas de cuentas por pagar: la OC autoriza la compra y la HES confirma la conformidad del servicio. Declararlos y adjuntarlos evita observaciones y retrasos en la emisión.</p>
 <p><strong>Mi empresa no usa OC ni HES, ¿puedo solicitar mi factura?</strong><br>Sí. Marca <strong>Ninguna de las anteriores</strong> y envía la solicitud; no se exigirán documentos de esos tipos.</p>
-<p><strong>¿Cuándo se emite mi factura?</strong><br>Facturación emite la factura de cada cuota en su fecha. Hasta entonces verás la fecha programada; luego se actualiza a la fecha real de emisión.</p>
+<p><strong>¿Cuándo se emite mi factura?</strong><br>Facturación emite la factura de cada cuota en su fecha. Hasta entonces verás la fecha de vencimiento de la cuota y "Factura: pendiente de emisión"; al emitirse, se muestra la fecha real en "Factura emitida".</p>
 <p><strong>Subí mi constancia de pago y sigue "Pendiente", ¿qué pasa?</strong><br>Las constancias son referenciales y no cambian el estado. Facturación valida el pago por sus canales y actualiza la cuota cuando lo confirma.</p>
 <p><strong>¿Qué hago si mi factura fue anulada?</strong><br>Revisa el motivo en la cuota. Facturación gestiona la reemisión; cuando se emita la nueva factura aparecerá con su fecha y podrás descargarla.</p>
 <p><strong>¿Cuándo pasa mi solicitud a "Pagado"?</strong><br>Cuando todas las cuotas estén pagadas y confirmadas por Facturación.</p>

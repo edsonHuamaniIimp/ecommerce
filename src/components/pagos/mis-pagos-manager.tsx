@@ -344,7 +344,12 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
               </span>
                 <span className="font-semibold text-foreground">{numberUtils.monto(cuota.monto, row.moneda, { decimales: 2 })}</span>
               <span className="text-muted-foreground">
-                Fecha de emisión: {dateUtils.format(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision ?? cuota.fechaVencimiento)}
+                Vence: {dateUtils.format(cuota.fechaVencimiento)}
+              </span>
+              <span className="text-muted-foreground">
+                {(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision)
+                  ? `Factura emitida: ${dateUtils.format(cuota.documentoSieFechaEmision ?? cuota.iimpDocumento?.fechaEmision)}`
+                  : "Factura: pendiente de emisión"}
               </span>
               <Badge className={`pointer-events-none ${claseBadge(cuota.estado)}`}>
                 <span>{ESTADO_CUOTA_LABELS[cuota.estado] ?? cuota.estado}</span>
@@ -363,10 +368,10 @@ export function MisPagosManager({ empresaVerComoId }: { empresaVerComoId?: strin
                     : `Siguiente cuota${
                         diasParaPendiente !== null
                           ? diasParaPendiente < 0
-                            ? " · fecha de emisión pasada"
+                            ? " · fecha de vencimiento pasada"
                             : diasParaPendiente === 0
-                              ? " · se emite hoy"
-                              : ` · se emite en ${diasParaPendiente} día${diasParaPendiente === 1 ? "" : "s"}`
+                              ? " · vence hoy"
+                              : ` · vence en ${diasParaPendiente} día${diasParaPendiente === 1 ? "" : "s"}`
                           : ""
                       }`}
                 </span>

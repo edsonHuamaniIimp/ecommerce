@@ -110,12 +110,13 @@ declaración inicial de requisitos con una carga documental posterior:
 
 Cada cuota muestra:
 
-- **Fecha de emisión**: la real notificada por el sistema de facturación (o emitida por
-  el IIMP) y, si no existe, la programada del plan.
+- **Vence**: la fecha configurada de la cuota en el plan (siempre visible).
+- **Factura emitida**: la fecha real notificada por el sistema de facturación (o emitida
+  por el IIMP); si no existe, "Factura: pendiente de emisión".
 - Estado de la cuota: pendiente / pagado.
 - **Siguiente cuota**: se resalta la primera cuota no pagada cuando falta ≤
-  `DIAS_ANTICIPACION_CUOTA` (15 días) para su fecha de emisión programada
-  ("se emite en N días", "se emite hoy" o "fecha de emisión pasada"); si la factura ya
+  `DIAS_ANTICIPACION_CUOTA` (15 días) para su vencimiento
+  ("vence en N días", "vence hoy" o "fecha de vencimiento pasada"); si la factura ya
   se emitió, muestra "Factura emitida · pendiente de pago".
 - **Solicitud de factura pendiente**: si la reserva aún no se registró en el IIMP, se
   resalta la cuota sugerida ("Solicitar factura aquí").

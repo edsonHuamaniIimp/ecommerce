@@ -997,7 +997,12 @@ export function FacturacionView({ soloInternas = false }: FacturacionViewProps) 
                                   <div className="min-w-0">
                                     <p className="truncate text-xs font-semibold text-foreground">{numberUtils.monto(c.monto, expediente.moneda ?? "", { decimales: 2 })}</p>
                                     <p className="text-[10px] text-muted-foreground">
-                                      Fecha de emisión: {dateUtils.format(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision ?? c.fechaVencimiento)}
+                                      Vence: {dateUtils.format(c.fechaVencimiento)}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision)
+                                        ? `Factura emitida: ${dateUtils.format(c.documentoSieFechaEmision ?? c.iimpDocumento?.fechaEmision)}`
+                                        : "Factura: pendiente de emisión"}
                                     </p>
                                   </div>
                                 </div>
