@@ -111,6 +111,13 @@ variable "sgc_webhook_secret" {
   sensitive   = true
 }
 
+variable "gemini_api_key" {
+  description = "Clave de la API de Gemini (clasificador de archivos y asistente de la matriz DD) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "liststand_usuario" {
   description = "Usuario de la cuenta tecnica del API de stands del IIMP (liststand, acceso VTA) (R2) — vacio = no crear"
   type        = string
@@ -482,6 +489,26 @@ resource "aws_secretsmanager_secret_version" "sgc_webhook_secret" {
   secret_string = var.sgc_webhook_secret
 }
 
+resource "aws_secretsmanager_secret" "gemini_api_key" {
+
+  # Backup: replica en la region DR (bloque nativo de Secrets Manager)
+  dynamic "replica" {
+    for_each = var.enable_replica ? [1] : []
+    content {
+      region = var.dr_region
+    }
+  }
+  count = var.gemini_api_key != "" ? 1 : 0
+  name  = "${local.name}-gemini-api-key"
+  tags  = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "gemini_api_key" {
+  count         = var.gemini_api_key != "" ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.gemini_api_key[0].id
+  secret_string = var.gemini_api_key
+}
+
 output "secret_arns" {
   description = "ARNs de los secretos existentes (para la task definition)"
   value       = local.todas
@@ -507,6 +534,7 @@ locals {
     var.cron_secret != "" ? { cron_secret = aws_secretsmanager_secret.cron_secret[0].arn } : {},
     var.sgc_api_key != "" ? { sgc_api_key = aws_secretsmanager_secret.sgc_api_key[0].arn } : {},
     var.sgc_webhook_secret != "" ? { sgc_webhook_secret = aws_secretsmanager_secret.sgc_webhook_secret[0].arn } : {},
+    var.gemini_api_key != "" ? { gemini_api_key = aws_secretsmanager_secret.gemini_api_key[0].arn } : {},
   )
 }
 

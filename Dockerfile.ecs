@@ -72,9 +72,11 @@ ENV HOSTNAME=0.0.0.0
 # Chromium del sistema: lo usa playwright-core para automatizar las evidencias de DD.
 ENV CHROME_PATH=/usr/bin/chromium
 
+# poppler-utils + tesseract: texto y OCR de las evidencias para el asistente de la matriz DD.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl openssl \
     libreoffice-writer fonts-liberation chromium \
+    poppler-utils tesseract-ocr tesseract-ocr-spa \
     && rm -rf /var/lib/apt/lists/* \
     && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs

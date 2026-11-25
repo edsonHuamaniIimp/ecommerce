@@ -11,7 +11,10 @@ import type {
   DdMatrizVinculoEntity,
 } from "@/domain/models/dd-matriz-evaluacion";
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
+import type { IDdConfiguracionRepository } from "@/domain/ports/dd-configuracion-repository";
+import type { DdConfiguracionEntity } from "@/domain/models/dd-configuracion";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
+import { CONFIG_DEFAULT } from "@/application/debida-diligencia/dd-configuracion-service";
 import type {
   DdMatrizEvaluacionExportarRequestDTO,
   DdMatrizEvaluacionGuardarRequestDTO,
@@ -24,12 +27,14 @@ import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_ADJUNTOS_MAX,
   DD_MATRIZ_AREAS,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_EXPORT_MAX,
   DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_PER_PAGE_DEFAULT,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
+  DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
   PERMISSIONS,
@@ -68,6 +73,8 @@ export interface DdMatrizPermisos {
   editarFinal: boolean;
   complianceDesbloqueado: boolean;
   puedeEliminar: boolean;
+  /** Asistente de IA en la observacion del criterio: SIG y la regla de Configuración DD encendida. */
+  usarAsistenteIa: boolean;
 }
 
 export interface DdMatrizListarResultado {
@@ -117,7 +124,51 @@ export class DdMatrizEvaluacionApplicationService {
     private readonly repo: IDdMatrizEvaluacionRepository,
     private readonly aprobarExpediente?: DdMatrizAprobarExpediente,
     private readonly cerrarSinRespuesta?: DdMatrizAprobarExpediente,
+    /** Reglas de evaluación (Configuración DD): evidencia exigida y asistente de IA. */
+    private readonly configuracion?: Pick<IDdConfiguracionRepository, "obtener">,
   ) {}
+
+  /**
+   * Reglas vigentes. Sin fila guardada valen los valores por defecto de Configuración DD.
+   * Sin repositorio (uso aislado) no se restringe nada, igual que el servicio del asistente.
+   */
+  private async reglas(): Promise<DdConfiguracionEntity> {
+    if (!this.configuracion) return { ...CONFIG_DEFAULT, exigirEvidencia: false, asistenteIaHabilitado: true };
+    return (await this.configuracion.obtener()) ?? CONFIG_DEFAULT;
+  }
+
+  /**
+   * Regla «Exigir evidencia por campo aplicable»: cada criterio marcado SI necesita al menos
+   * una evidencia; N.A. tambien, salvo que «Permitir N.A. sin evidencia» este encendida.
+   * Solo revisa los criterios que llegan en la peticion.
+   */
+  private validarEvidenciaListas(
+    enviados: Record<string, string | null>,
+    listas: DdMatrizListasValor,
+    vinculo: DdMatrizVinculoEntity,
+    ambito: DdMatrizAmbito,
+    adjuntos: DdMatrizAdjuntoEntity[],
+    reglas: DdConfiguracionEntity,
+  ): void {
+    if (!reglas.exigirEvidencia) return;
+    const conEvidencia = new Set<string>(adjuntos.map((adjunto) => adjunto.categoria));
+    const faltantes = listasAplicables(vinculo.tipo, ambito, vinculo.tipoDocumento)
+      .filter((lista) => lista.codigo in enviados)
+      .filter((lista) => {
+        const valor = listas[lista.codigo];
+        const exige =
+          valor === DD_MATRIZ_SI_NO_NA.SI || (valor === DD_MATRIZ_SI_NO_NA.NA && !reglas.permitirNaSinEvidencia);
+        return exige && !conEvidencia.has(`${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}`);
+      })
+      .map((lista) => lista.label);
+    if (faltantes.length > 0) {
+      throw new DomainError(
+        `${DD_MENSAJES.MATRIZ_EVIDENCIA_REQUERIDA} ${faltantes.join(", ")}.`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+  }
 
   private tienePermiso(session: DdSession, permiso: string): boolean {
     return session.roles.includes(ROLES.ADMIN) || session.permissions.includes(permiso);
@@ -151,6 +202,7 @@ export class DdMatrizEvaluacionApplicationService {
     session: DdSession,
     vinculo: DdMatrizVinculoEntity,
     adjuntos: DdMatrizAdjuntoEntity[],
+    asistenteIaHabilitado = false,
   ): DdMatrizPermisos {
     const sig = this.tienePermiso(session, PERMISSIONS.DD_REVISION);
     const reputacion = this.tienePermiso(session, PERMISSIONS.DD_REPUTACION);
@@ -169,6 +221,7 @@ export class DdMatrizEvaluacionApplicationService {
       editarFinal: sig || legal,
       complianceDesbloqueado: desbloqueado,
       puedeEliminar: sig && vinculo.origen === DD_MATRIZ_ORIGENES.MANUAL,
+      usarAsistenteIa: sig && asistenteIaHabilitado,
     };
   }
 
@@ -312,13 +365,19 @@ export class DdMatrizEvaluacionApplicationService {
   async detalle(session: DdSession, id: string): Promise<DdMatrizDetalleResultado> {
     this.exigirAcceso(session, ACCESO_LECTURA);
     const vinculo = await this.vinculoRequerido(id);
-    const [adjuntos, empresa] = await Promise.all([
+    const [adjuntos, empresa, reglas] = await Promise.all([
       this.repo.listarAdjuntos(id),
       vinculo.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA
         ? Promise.resolve(vinculo)
         : this.repo.findVinculoEmpresa(vinculo.expediente.expedienteId),
+      this.reglas(),
     ]);
-    return { vinculo, empresa, adjuntos, permisos: this.calcularPermisos(session, vinculo, adjuntos) };
+    return {
+      vinculo,
+      empresa,
+      adjuntos,
+      permisos: this.calcularPermisos(session, vinculo, adjuntos, reglas.asistenteIaHabilitado),
+    };
   }
 
   /** Aplica las secciones presentes del request, cada una con el permiso de su area. */
@@ -380,9 +439,11 @@ export class DdMatrizEvaluacionApplicationService {
 
     const ambitoEfectivo = (cambios.ambito ?? vinculo.ambito) as DdMatrizAmbito;
 
+    const reglas = await this.reglas();
     if (dto.listas) {
       if (!permisos.editarListas) this.prohibido("Sin permiso para registrar las listas restrictivas");
       cambios.listas = this.mapearListas(dto.listas, vinculo, ambitoEfectivo);
+      this.validarEvidenciaListas(dto.listas, cambios.listas, vinculo, ambitoEfectivo, adjuntos, reglas);
     }
 
     if (dto.listasObservaciones) {
@@ -547,7 +608,7 @@ export class DdMatrizEvaluacionApplicationService {
       vinculo: vinculoFinal,
       empresa,
       adjuntos,
-      permisos: this.calcularPermisos(session, vinculoFinal, adjuntos),
+      permisos: this.calcularPermisos(session, vinculoFinal, adjuntos, reglas.asistenteIaHabilitado),
     };
   }
 

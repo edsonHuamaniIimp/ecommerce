@@ -382,6 +382,8 @@ locals {
     can(var.secret_arns["cron_secret"]) ? [{ name = "CRON_SECRET", valueFrom = var.secret_arns["cron_secret"] }] : [],
     can(var.secret_arns["sgc_api_key"]) ? [{ name = "SGC_API_KEY", valueFrom = var.secret_arns["sgc_api_key"] }] : [],
     can(var.secret_arns["sgc_webhook_secret"]) ? [{ name = "SGC_WEBHOOK_SECRET", valueFrom = var.secret_arns["sgc_webhook_secret"] }] : [],
+    /* IA del clasificador de archivos y del asistente de observaciones de la matriz DD. */
+    can(var.secret_arns["gemini_api_key"]) ? [{ name = "GEMINI_API_KEY", valueFrom = var.secret_arns["gemini_api_key"] }] : [],
   )
 
   env_list = concat(

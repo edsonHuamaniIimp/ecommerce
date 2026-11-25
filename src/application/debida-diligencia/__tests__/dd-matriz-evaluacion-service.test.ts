@@ -2,8 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { DdMatrizEvaluacionApplicationService } from "../dd-matriz-evaluacion-service";
 import type { DdMatrizAdjuntoEntity, DdMatrizVinculoEntity } from "@/domain/models/dd-matriz-evaluacion";
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
+import type { DdConfiguracionEntity } from "@/domain/models/dd-configuracion";
+import { CONFIG_DEFAULT } from "../dd-configuracion-service";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
+  DD_MATRIZ_CRITERIO_PREFIJO,
   DD_ESTADOS,
   DD_EVENTO_TODOS,
   DD_MATRIZ_AMBITOS,
@@ -99,7 +102,11 @@ function informe(): DdMatrizAdjuntoEntity {
   };
 }
 
-function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = []) {
+function crear(
+  v: DdMatrizVinculoEntity,
+  adjuntos: DdMatrizAdjuntoEntity[] = [],
+  reglas?: Partial<DdConfiguracionEntity>,
+) {
   const repo = {
     sincronizarEvento: vi.fn().mockResolvedValue(0),
     sincronizarTodosEventos: vi.fn().mockResolvedValue(0),
@@ -121,7 +128,14 @@ function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = [])
     iniciarRevisionSiRecibida: vi.fn().mockResolvedValue(false),
     registrarAuditoria: vi.fn().mockResolvedValue(undefined),
   } satisfies IDdMatrizEvaluacionRepository;
-  return { repo, servicio: new DdMatrizEvaluacionApplicationService(repo) };
+  const configuracion = reglas
+    ? { obtener: vi.fn().mockResolvedValue({ ...CONFIG_DEFAULT, ...reglas }) }
+    : undefined;
+  return { repo, servicio: new DdMatrizEvaluacionApplicationService(repo, undefined, undefined, configuracion) };
+}
+
+function evidencia(codigo: string): DdMatrizAdjuntoEntity {
+  return { ...informe(), id: `e-${codigo}`, categoria: `${DD_MATRIZ_CRITERIO_PREFIJO}${codigo}` as DdMatrizAdjuntoEntity["categoria"] };
 }
 
 const sesion = (permissions: string[], roles: string[] = []) => ({
@@ -605,6 +619,53 @@ describe("DdMatrizEvaluacionApplicationService", () => {
       await expect(
         servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "DOCUMENTACION RECIBIDA", finalComentario: "x" }),
       ).rejects.toMatchObject({ status: 400 });
+    });
+  });
+
+  describe("reglas de evaluación (Configuración DD)", () => {
+    const s = sesion([PERMISSIONS.DD_REVISION]);
+
+    it("exigir evidencia: un criterio SI sin evidencia no se guarda y nombra el criterio", async () => {
+      const { servicio, repo } = crear(vinculo(), [], { exigirEvidencia: true });
+      await expect(servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" } })).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining(DD_MENSAJES.MATRIZ_EVIDENCIA_REQUERIDA),
+      });
+      expect(repo.actualizarVinculo).not.toHaveBeenCalled();
+    });
+
+    it("exigir evidencia: SI con evidencia del criterio y NO sin evidencia se guardan", async () => {
+      const { servicio, repo } = crear(vinculo(), [evidencia("peps_prp_persona")], { exigirEvidencia: true });
+      await servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" } });
+      expect(repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+    });
+
+    it("N.A. exige evidencia solo si «Permitir N.A. sin evidencia» está apagada", async () => {
+      const permite = crear(vinculo(), [], { exigirEvidencia: true, permitirNaSinEvidencia: true });
+      await permite.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "N.A." } });
+      expect(permite.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+
+      const exige = crear(vinculo(), [], { exigirEvidencia: true, permitirNaSinEvidencia: false });
+      await expect(exige.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "N.A." } })).rejects.toMatchObject({ status: 400 });
+    });
+
+    it("con la regla apagada, SI sin evidencia se guarda; el borrador nunca la exige", async () => {
+      const apagada = crear(vinculo(), [], { exigirEvidencia: false });
+      await apagada.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" } });
+      expect(apagada.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+
+      const borrador = crear(vinculo(), [], { exigirEvidencia: true });
+      await borrador.servicio.guardar(s, { id: "v-1", borrador: true, listas: { peps_prp_persona: "si" } });
+      expect(borrador.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+    });
+
+    it("el asistente de IA solo se habilita con la regla encendida y para SIG", async () => {
+      const apagado = await crear(vinculo(), [], { asistenteIaHabilitado: false }).servicio.detalle(s, "v-1");
+      expect(apagado.permisos.usarAsistenteIa).toBe(false);
+      const encendido = await crear(vinculo(), [], { asistenteIaHabilitado: true }).servicio.detalle(s, "v-1");
+      expect(encendido.permisos.usarAsistenteIa).toBe(true);
+      const sinSig = await crear(vinculo(), [], { asistenteIaHabilitado: true }).servicio.detalle(sesion([PERMISSIONS.DD_LEGAL]), "v-1");
+      expect(sinSig.permisos.usarAsistenteIa).toBe(false);
     });
   });
 

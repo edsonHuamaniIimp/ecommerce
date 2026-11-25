@@ -6,13 +6,16 @@ import {
   iniciarAutomatizacionGeneral,
 } from "@/lib/server/dd-matriz-automatizacion";
 import { success, error } from "@/lib/server/api-response";
+import { exigirLimiteConsultas } from "@/lib/server/limite-consultas";
 import {
   API_ERROR_CODES,
+  DD_ASISTENTE,
+  DD_ASISTENTE_MENSAJES,
   DD_MATRIZ_RESULTADOS_FINALES,
 } from "@/lib/shared/constants";
 import { DomainError } from "@/domain/errors/domain-error";
 import { getSession } from "@/lib/server/auth";
-import type { DdMatrizEvaluacionResumenDTO } from "@/types/dto/debida-diligencia";
+import type { DdMatrizAsistenteResponseDTO, DdMatrizEvaluacionResumenDTO } from "@/types/dto/debida-diligencia";
 import type { DdSession } from "@/application/debida-diligencia/debida-diligencia-service";
 import {
   normalizarResultadoFinal,
@@ -24,6 +27,7 @@ import {
   mapDdMatrizExportFilaToDTO,
 } from "@/lib/shared/mappers/dd-matriz-evaluacion";
 import {
+  ddMatrizAsistenteSchema,
   ddMatrizAutomatizacionEstadoQuerySchema,
   ddMatrizAutomatizarSchema,
   ddMatrizAutomatizarTodoSchema,
@@ -114,6 +118,26 @@ export const ddMatrizEvaluacionController = {
     }
     const adjunto = await automatizarCriterio(session, parsed.data.vinculoId, parsed.data.codigo);
     return success(mapDdMatrizAdjuntoToDTO(adjunto));
+  },
+
+  /**
+   * Asistente de la observacion del criterio: IA con el archivo u OCR + IA. No guarda nada.
+   * @request DdMatrizAsistenteRequestDTO
+   */
+  async asistente(request: Request): Promise<NextResponse> {
+    const session = await sesionRequerida();
+    const parsed = ddMatrizAsistenteSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return error(API_ERROR_CODES.VALIDATION, parsed.error.issues[0]?.message ?? "Datos inválidos", 400);
+    }
+    exigirLimiteConsultas(
+      `${DD_ASISTENTE.ACCION_AUDITORIA}:${session.email}`,
+      DD_ASISTENTE.LIMITE_POR_VENTANA,
+      DD_ASISTENTE.VENTANA_MS,
+      DD_ASISTENTE_MENSAJES.LIMITE,
+    );
+    const resultado: DdMatrizAsistenteResponseDTO = await services.ddMatrizAsistente.generar(session, parsed.data);
+    return success(resultado, { headers: { "Cache-Control": "no-store" } });
   },
 
   /** Lanza en segundo plano la automatizacion de todos los criterios del vinculo (202). */

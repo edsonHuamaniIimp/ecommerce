@@ -10,6 +10,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   Label,
   Progress,
   Skeleton,
@@ -23,6 +28,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  Maximize2,
   MessageSquare,
   Save,
   Scale,
@@ -36,6 +42,8 @@ import { toast } from "sonner";
 import type { DdMatrizAdjuntoDTO, DdMatrizEvaluacionDetalleDTO } from "@/types/dto/debida-diligencia";
 import { DdAutomatizacionGeneral } from "./dd-automatizacion-general";
 import { DdEvidenciasCriterio } from "./dd-evidencias-criterio";
+import { DdMatrizAsistenteCriterio } from "./dd-matriz-asistente-criterio";
+import { ddAsistenteUtils } from "@/lib/shared/utils/dd-asistente";
 import { DdVinculoResumen } from "./dd-vinculo-resumen";
 import { DdVinculoSkeleton } from "./dd-vinculo-skeleton";
 import { DdVinculoSwitcher } from "./dd-vinculo-switcher";
@@ -124,6 +132,8 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
   const [detalle, setDetalle] = useState<DdMatrizEvaluacionDetalleDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  /** Observacion del criterio abierta en el modal ampliado (asistente + texto con mas espacio). */
+  const [observacionAmpliada, setObservacionAmpliada] = useState(false);
   const [decisiones, setDecisiones] = useState<Record<string, DecisionCriterio | null>>({});
   const [observacionesLista, setObservacionesLista] = useState<Record<string, string>>({});
   /** Criterio seleccionado: su observacion se edita en el panel derecho. */
@@ -591,29 +601,42 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
             const criterio = detalle.listas.find((lista) => lista.codigo === criterioActivo) ?? null;
             const limite = criterio ? limiteObservacionLista(criterio.codigo) : 0;
             const texto = criterio ? (observacionesLista[criterio.codigo] ?? "") : "";
-            return (
-              <Card className={criterio ? "border-primary/40" : "border-dashed"}>
-                <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
-                  <CardTitle className="flex items-center justify-between gap-2 text-sm font-bold">
-                    <span className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-primary" />
-                      Observación del criterio
-                    </span>
-                    {criterio ? (
-                      <button
-                        type="button"
-                        onClick={() => setCriterioActivo(null)}
-                        className="text-[10px] font-medium text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        Cerrar
-                      </button>
-                    ) : null}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 pt-4">
-                  {criterio ? (
+            const ampliada = observacionAmpliada && criterio !== null;
+            /*
+             * Contenido de la observacion (asistente + texto + guardar). Se muestra en la tarjeta o en
+             * el modal ampliado, nunca en ambos a la vez: asi el asistente no se duplica.
+             */
+            const contenidoObservacion = (enModal: boolean) =>
+              criterio ? (
                     <>
-                      <p className="text-[11px] font-semibold text-foreground">{criterio.label}</p>
+                      {enModal ? null : <p className="text-[11px] font-semibold text-foreground">{criterio.label}</p>}
+                      {detalle.permisos.usarAsistenteIa && ddAsistenteUtils.criterioHabilitado(criterio.codigo)
+                        ? (() => {
+                            const evidenciasCriterio = detalle.adjuntos.filter(
+                              (adjunto) => adjunto.categoria === `${DD_MATRIZ_CRITERIO_PREFIJO}${criterio.codigo}`,
+                            );
+                            return (
+                              <DdMatrizAsistenteCriterio
+                                /* Se reinicia al cambiar de criterio o de evidencias (marca las nuevas). */
+                                key={`${criterio.codigo}:${evidenciasCriterio.map((adjunto) => adjunto.id).join(",")}`}
+                                vinculoId={detalle.id}
+                                codigo={criterio.codigo}
+                                evidencias={evidenciasCriterio}
+                                disabled={guardando}
+                                onTexto={(nuevo) =>
+                                  setObservacionesLista((previas) => ({
+                                    ...previas,
+                                    [criterio.codigo]: ddAsistenteUtils.combinarObservacion(
+                                      previas[criterio.codigo] ?? "",
+                                      nuevo,
+                                      limite,
+                                    ),
+                                  }))
+                                }
+                              />
+                            );
+                          })()
+                        : null}
                       <Textarea
                         value={texto}
                         onChange={(evento) =>
@@ -626,7 +649,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         disabled={!puedeEditar}
                         placeholder="Hallazgos, resoluciones o sustento de este criterio..."
                         aria-label={`Observación de ${criterio.label}`}
-                        className="min-h-40 text-xs"
+                        className={enModal ? "min-h-[45vh] text-sm" : "min-h-40 text-xs"}
                       />
                       {puedeEditar ? (
                         <Button type="button" variant="outline" size="sm" className="h-7 w-full gap-1.5 text-[11px]" disabled={guardando} onClick={() => { void guardarBorrador(); }}>
@@ -639,13 +662,69 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         <span>{texto.length}/{limite}</span>
                       </p>
                     </>
-                  ) : (
-                    <p className="text-[11px] text-muted-foreground">
-                      Haz clic en un criterio de la tabla para registrar o ver su observación.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+              ) : null;
+            return (
+              <>
+                <Card className={criterio ? "border-primary/40" : "border-dashed"}>
+                  <CardHeader className="rounded-t-xl border-b border-border bg-secondary/30 pb-3">
+                    <CardTitle className="flex items-center justify-between gap-2 text-sm font-bold">
+                      <span className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        <span>Observación del criterio</span>
+                      </span>
+                      {criterio ? (
+                        <span className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                            onClick={() => setObservacionAmpliada(true)}
+                            title="Ampliar"
+                            aria-label="Ampliar la observación del criterio"
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <button
+                            type="button"
+                            onClick={() => { setObservacionAmpliada(false); setCriterioActivo(null); }}
+                            className="text-[10px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            Cerrar
+                          </button>
+                        </span>
+                      ) : null}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 pt-4">
+                    {!criterio ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        Haz clic en un criterio de la tabla para registrar o ver su observación.
+                      </p>
+                    ) : ampliada ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        <span>Abierta en la vista ampliada.</span>
+                      </p>
+                    ) : (
+                      contenidoObservacion(false)
+                    )}
+                  </CardContent>
+                </Card>
+                <Dialog open={ampliada} onOpenChange={setObservacionAmpliada}>
+                  <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4 text-primary" />
+                        <span>Observación del criterio</span>
+                      </DialogTitle>
+                      <DialogDescription>
+                        <span>{criterio ? criterio.label : ""}</span>
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">{contenidoObservacion(true)}</div>
+                  </DialogContent>
+                </Dialog>
+              </>
             );
           })()}
           <Card>

@@ -2397,6 +2397,75 @@ paths:
       responses:
         "200":
           description: OK
+  /debida-diligencia/matriz-evaluacion/asistente:
+    post:
+      tags: [DebidaDiligencia]
+      summary: Redacta la observacion de un criterio con IA a partir de su evidencia (no guarda nada)
+      description: |
+        Solo SIG (dd:matriz + dd:revision) y solo en los criterios oefa, indecopi, corrupcion_empresa,
+        corrupcion_persona y otros. Modo `ia`: el PDF o la imagen se envian completos a la IA. Modo `ocr`:
+        el servidor extrae el texto (capa de texto del PDF u OCR con Tesseract, hasta 10 paginas) y la IA
+        solo recibe ese texto. El Word se envia siempre como texto. La respuesta se recorta al limite de
+        la observacion del criterio y queda registrada en auditoria (accion matriz_asistente).
+        Limite: 10 consultas por minuto por usuario.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vinculoId, codigo, modo, prompt, adjuntoIds]
+              properties:
+                vinculoId: { type: string }
+                codigo:
+                  type: string
+                  enum: [oefa, indecopi, corrupcion_empresa, corrupcion_persona, otros]
+                modo:
+                  type: string
+                  enum: [ia, ocr]
+                prompt: { type: string, minLength: 3, maxLength: 1000 }
+                adjuntoIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 5
+                  items: { type: string }
+      responses:
+        "200":
+          description: Texto generado para la observacion del criterio
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  texto: { type: string }
+                  modo: { type: string, enum: [ia, ocr] }
+                  textoTruncado: { type: boolean, description: "El texto extraido supero 60 000 caracteres y se envio recortado" }
+                  recortado: { type: boolean, description: "La respuesta supero el limite de la observacion y se recorto" }
+                  evidencias:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        nombre: { type: string }
+                        metodo:
+                          type: string
+                          nullable: true
+                          enum: [texto_pdf, ocr, docx]
+                          description: "null si el archivo se envio completo a la IA"
+                        paginas: { type: integer, nullable: true }
+        "400":
+          description: Criterio no habilitado, evidencia ajena al criterio, formato o tamano no soportado
+        "403":
+          description: Sin permiso (solo SIG)
+        "422":
+          description: No se pudo leer texto de las evidencias (modo ocr)
+        "429":
+          description: Demasiadas consultas
+        "502":
+          description: La IA no devolvio respuesta
+        "503":
+          description: IA u OCR no configurados en el entorno
   /debida-diligencia/maestra:
     get:
       tags: [DebidaDiligencia]

@@ -655,6 +655,13 @@ variable "sgc_webhook_secret" {
   sensitive   = true
 }
 
+variable "gemini_api_key" {
+  description = "Clave de la API de Gemini (clasificador de archivos y asistente de la matriz DD) — vacio = no crear"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # ── Estado remoto (R5 — bootstrap) ──────────────────────────────────────────
 variable "state_bucket_name" {
   description = "Bucket S3 del estado remoto (R5)"

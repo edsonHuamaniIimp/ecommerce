@@ -27,6 +27,7 @@ export const ddConfiguracionSchema = z.object({
       message: "Vigencia predeterminada inválida",
     }),
   permitirReutilizacionVinculo: z.boolean(),
+  asistenteIaHabilitado: z.boolean(),
   manualUrl: urlNullable,
   reglamentoUrl: urlNullable,
   plantillaInformeUrl: urlNullable,

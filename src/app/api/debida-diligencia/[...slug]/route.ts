@@ -41,6 +41,7 @@ export const { GET, POST } = createRouter({
     "matriz-evaluacion/exportar": (req) => ddMatrizEvaluacionController.exportar(req),
     "matriz-evaluacion/automatizar": (req) => ddMatrizEvaluacionController.automatizar(req),
     "matriz-evaluacion/automatizar-todo": (req) => ddMatrizEvaluacionController.automatizarTodo(req),
+    "matriz-evaluacion/asistente": (req) => ddMatrizEvaluacionController.asistente(req),
     "matriz-evaluacion/guardar": (req) => ddMatrizEvaluacionController.guardar(req),
     "matriz-evaluacion/vinculo": (req) => ddMatrizEvaluacionController.agregarVinculo(req),
     "matriz-evaluacion/vinculo/eliminar": (req) => ddMatrizEvaluacionController.eliminarVinculo(req),

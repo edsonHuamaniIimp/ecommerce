@@ -66,6 +66,10 @@ import { DdIntegracionApplicationService } from "@/application/debida-diligencia
 import { DdIntegracionPrismaRepository } from "@/infrastructure/persistence/dd-integracion-repository";
 import { OpenAiClasificadorArchivosClient } from "@/infrastructure/external/openai-clasificador-archivos-client";
 import { GeminiClasificadorArchivosClient } from "@/infrastructure/external/gemini-clasificador-archivos-client";
+import { DdMatrizAsistenteApplicationService } from "@/application/debida-diligencia/dd-matriz-asistente-service";
+import { GeminiAsistenteIaClient } from "@/infrastructure/external/gemini-asistente-ia-client";
+import { OpenAiAsistenteIaClient } from "@/infrastructure/external/openai-asistente-ia-client";
+import { ExtractorTextoLocal } from "@/infrastructure/ocr/extractor-texto-local";
 import { DebidaDiligenciaNotificacion } from "@/infrastructure/notifications/debida-diligencia-notificacion";
 import { DebidaDiligenciaDocumentoValidator } from "@/infrastructure/validation/debida-diligencia-documento-validator";
 import { getStorage } from "@/lib/server/storage";
@@ -154,6 +158,16 @@ export const services = {
     new DdMatrizEvaluacionPrismaRepository(),
     (expedienteId, session) => debidaDiligenciaApp.aprobarDesdeMatriz(expedienteId, session),
     (expedienteId, session) => debidaDiligenciaApp.cerrarSinRespuestaDesdeMatriz(expedienteId, session),
+    ddConfiguracionRepo,
+  ),
+  ddMatrizAsistente: new DdMatrizAsistenteApplicationService(
+    new DdMatrizEvaluacionPrismaRepository(),
+    documentoOrigen,
+    process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim()
+      ? new GeminiAsistenteIaClient()
+      : new OpenAiAsistenteIaClient(),
+    new ExtractorTextoLocal(),
+    ddConfiguracionRepo,
   ),
   ddClasificarArchivos: new DdClasificarArchivosApplicationService(
     process.env.GEMINI_API_KEY?.trim()

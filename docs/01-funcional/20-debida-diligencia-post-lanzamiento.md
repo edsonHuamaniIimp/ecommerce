@@ -117,6 +117,20 @@ cerrado el flujo de **decisión final, informe oficial y cierre automático**.
 - Repositorio documental con documentos base y evidencias, incluyendo estado
   `Sin evidencia` por vínculo.
 - Configuración administrativa visible y persistida.
+- **Cierre automático** (cron diario `POST /api/cron/dd-cierre-automatico`, workflow
+  `dd-cierre-automatico.yml`, 06:00 Lima; `?simular=1` solo lista). Decide por la
+  **conclusión final de la matriz** (fila de empresa):
+  - entra si la matriz muestra `DOCUMENTACIÓN OBSERVADA` (guardada o deducida del estado
+    Observada) **y** la observación se registró en el sistema (SIG o Legal). Los
+    importados del Excel como `DOCUMENTACION OBSERVADA` no tienen observaciones y no se
+    cierran solos: si corresponde, SIG los cierra a mano;
+  - el plazo son los «Días hábiles» de la configuración (lunes a viernes, hora de Lima,
+    sin feriados) desde que se registró la conclusión o, sin fecha, desde que se observó;
+  - al vencer registra en la matriz la conclusión configurada (`SIN RESPUESTA` por defecto
+    o `NO APTO`), cierra la DD del cliente y deja el evento en el historial. Con
+    `DOCUMENTACIÓN OBSERVADA` configurada no cierra nada.
+- **Evidencia obligatoria por campo aplicable** al «Guardar evaluación» (criterios en SI;
+  N.A. solo si «Permitir N.A. sin evidencia» está apagada).
 
 ### 3.2 Implementado parcialmente
 
@@ -141,9 +155,7 @@ cerrado el flujo de **decisión final, informe oficial y cierre automático**.
 - Revisión legal por vínculo/relación.
 - Informe PDF con la plantilla oficial y anexos ordenados.
 - Documentos adicionales opcionales al informe, con etiqueta `informe`.
-- Cierre automático `SIN RESPUESTA` por plazo de días hábiles.
 - Publicación del resultado final en el portal del cliente.
-- Evidencia obligatoria por campo aplicable y exención por `N.A.`.
 - Uso real de `DdRelacionComercial` y `DdEvidencia`.
 - Historial completo de transiciones con estado anterior/nuevo y motivo.
 

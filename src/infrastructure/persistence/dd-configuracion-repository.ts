@@ -21,6 +21,7 @@ function mapConfig(row: {
   legalSoloDerivacionSig: boolean;
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
+  asistenteIaHabilitado: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;
@@ -38,6 +39,7 @@ function mapConfig(row: {
     legalSoloDerivacionSig: row.legalSoloDerivacionSig,
     vigenciaMeses: row.vigenciaMeses,
     permitirReutilizacionVinculo: row.permitirReutilizacionVinculo,
+    asistenteIaHabilitado: row.asistenteIaHabilitado,
     manualUrl: row.manualUrl,
     reglamentoUrl: row.reglamentoUrl,
     plantillaInformeUrl: row.plantillaInformeUrl,

@@ -57,6 +57,8 @@ export interface DdMatrizPermisosDTO {
   /** Compliance se habilita cuando SIG exige debida diligencia reforzada y adjunta informe. */
   complianceDesbloqueado: boolean;
   puedeEliminar: boolean;
+  /** Asistente de IA en la observacion del criterio (regla de Configuración DD encendida). */
+  usarAsistenteIa: boolean;
 }
 
 export interface DdMatrizExpedienteDTO {

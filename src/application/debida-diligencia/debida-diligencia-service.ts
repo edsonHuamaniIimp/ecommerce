@@ -43,6 +43,7 @@ import type {
 } from "@/types/dto/debida-diligencia";
 import {
   API_ERROR_CODES,
+  DD_CIERRE_AUTOMATICO,
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
   DD_ALCANCES_REVISION,
@@ -85,6 +86,8 @@ import {
   normalizarTipoDocumentoVinculo,
 } from "@/lib/shared/utils/debida-diligencia-v2";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { ddCierreAutomaticoUtils } from "@/lib/shared/utils/dd-cierre-automatico";
+import { CONFIG_DEFAULT } from "@/application/debida-diligencia/dd-configuracion-service";
 import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 
 export interface DdSession {
@@ -1622,6 +1625,75 @@ export class DebidaDiligenciaApplicationService {
       detalle: DD_MENSAJES.CIERRE_SIN_RESPUESTA,
       actor: session.email,
     });
+  }
+
+  /**
+   * Cierre automatico (cron diario). Decide por la CONCLUSION FINAL DE LA MATRIZ: los expedientes
+   * cuya conclusion es DOCUMENTACIÓN OBSERVADA (misma regla que muestra la matriz), observados dentro
+   * del sistema (los importados del Excel sin observaciones no se cierran solos) y que agotaron el
+   * plazo de subsanacion (dias habiles desde que se registro la conclusion o se observo) pasan a
+   * la conclusion configurada (SIN RESPUESTA / NO APTO) y el expediente del cliente se cierra.
+   * Con `simular` solo informa, no cambia nada.
+   */
+  async cerrarObservadasVencidas(
+    opciones: { ahora?: Date; simular?: boolean } = {},
+  ): Promise<{ estadoConfigurado: string; limite: string | null; candidatos: number; cerrados: string[]; errores: number; simulado: boolean }> {
+    const config = (await this.configuracionRepo?.obtener()) ?? CONFIG_DEFAULT;
+    const accion = ddCierreAutomaticoUtils.accion(config.estadoCierreAutomatico);
+    const simulado = opciones.simular === true;
+    const base = { estadoConfigurado: ddCierreAutomaticoUtils.normalizar(config.estadoCierreAutomatico), simulado };
+    if (!accion.cierra) {
+      return { ...base, limite: null, candidatos: 0, cerrados: [], errores: 0 };
+    }
+
+    const ahora = opciones.ahora ?? dateUtils.now();
+    const limite = ddCierreAutomaticoUtils.limiteObservacion(ahora, config.plazoDiasHabiles);
+    const candidatos = (
+      await this.repo.listarConclusionesMatrizCierre({ limite, max: DD_CIERRE_AUTOMATICO.LOTE_MAX })
+    ).filter((c) => ddCierreAutomaticoUtils.vencidaEnDocumentacionObservada(c, limite));
+    const ids = candidatos.map((c) => c.expedienteId);
+    const cerrados: string[] = [];
+    let errores = 0;
+    for (const id of ids) {
+      try {
+        /* Se relee la matriz: el cliente pudo subsanar (la conclusion vuelve a EN REVISIÓN) o SIG
+         * pudo registrar otra conclusion entre la consulta y el cierre. */
+        const [actual] = await this.repo.listarConclusionesMatrizCierre({ expedienteIds: [id], max: 1 });
+        if (!actual || !ddCierreAutomaticoUtils.vencidaEnDocumentacionObservada(actual, limite)) continue;
+        if (simulado) {
+          cerrados.push(id);
+          continue;
+        }
+        await this.repo.actualizarEstado(id, {
+          estado: DD_ESTADOS.RECHAZADA,
+          fechaRevision: ahora,
+          fechaRechazo: ahora,
+          revisadoPor: DD_CIERRE_AUTOMATICO.ACTOR,
+          motivoRechazo: accion.motivo,
+          actualizadoPor: DD_CIERRE_AUTOMATICO.ACTOR,
+        });
+        /* La matriz e informes muestran la conclusion configurada (SIN RESPUESTA / NO APTO). */
+        await this.repo.registrarResultadoFinalMatriz(id, {
+          resultadoFinal: accion.resultadoFinal,
+          comentario: accion.motivo,
+          actor: DD_CIERRE_AUTOMATICO.ACTOR,
+          fecha: ahora,
+        });
+        await this.registrarHistorial(id, {
+          tipo: DD_HISTORIAL_TIPOS.RECHAZO,
+          area: DD_OBSERVACION_AREAS.LOGISTICA,
+          estado: DD_ESTADOS.RECHAZADA,
+          titulo: accion.titulo,
+          detalle: accion.motivo,
+          actor: DD_CIERRE_AUTOMATICO.ACTOR,
+        });
+        cerrados.push(id);
+      } catch (e) {
+        errores += 1;
+        console.error("[dd-cierre-automatico] expediente", id, e instanceof Error ? e.message : e);
+      }
+    }
+    return { ...base, limite: limite.toISOString(), candidatos: ids.length, cerrados, errores };
   }
 
   /** Resolucion de Logistica: aprobar, observar o rechazar. */

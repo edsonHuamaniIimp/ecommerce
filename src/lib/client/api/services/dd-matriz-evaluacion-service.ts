@@ -3,6 +3,8 @@ import "client-only";
 import { internalApi } from "./internal-api";
 import type { DdDocumentoTipo, DdMatrizResultadoFinal } from "@/lib/shared/constants";
 import type {
+  DdMatrizAsistenteRequestDTO,
+  DdMatrizAsistenteResponseDTO,
   DdMatrizAutomatizacionDTO,
   DdVinculoObservadoRequestDTO,
   DdMatrizEvaluacionAdjuntoEliminarRequestDTO,
@@ -113,6 +115,11 @@ export const ddMatrizEvaluacionService = {
 
   automatizarEvidencia(vinculoId: string, codigo: string) {
     return internalApi.post<DdMatrizEvaluacionAdjuntoResponseDTO>(`${BASE}/automatizar`, { vinculoId, codigo });
+  },
+
+  /** Redacta la observacion del criterio con IA (archivo completo) u OCR + IA. No guarda nada. */
+  asistente(body: DdMatrizAsistenteRequestDTO) {
+    return internalApi.post<DdMatrizAsistenteResponseDTO>(`${BASE}/asistente`, body);
   },
 
   subirAdjunto(vinculoId: string, categoria: string, file: File) {

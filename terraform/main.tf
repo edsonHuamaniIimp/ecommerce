@@ -193,6 +193,7 @@ module "secrets" {
   cron_secret          = var.cron_secret
   sgc_api_key          = var.sgc_api_key
   sgc_webhook_secret   = var.sgc_webhook_secret
+  gemini_api_key       = var.gemini_api_key
   enable_replica       = var.secrets_replica_enabled
   dr_region            = var.dr_region
 

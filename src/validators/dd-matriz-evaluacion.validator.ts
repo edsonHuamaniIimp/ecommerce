@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { normalizarResultadoFinal } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import {
+  DD_ASISTENTE,
+  DD_ASISTENTE_MODOS,
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
   DD_MATRIZ_LISTA_OBSERVACION_EXTENDIDA_MAX,
   DD_MATRIZ_AMBITOS,
@@ -111,6 +113,22 @@ export const ddMatrizEvaluacionExportarSchema = z.object({
 export const ddMatrizAutomatizarSchema = z.object({
   vinculoId: z.string().trim().min(1).max(64),
   codigo: z.string().trim().min(1).max(40),
+});
+
+/** Asistente de observaciones del criterio (IA con el archivo u OCR + IA). */
+export const ddMatrizAsistenteSchema = z.object({
+  vinculoId: z.string().trim().min(1).max(64),
+  codigo: z.string().trim().min(1).max(40),
+  modo: z.enum(valores(DD_ASISTENTE_MODOS), { error: "Modo de asistente inválido" }),
+  prompt: z
+    .string()
+    .trim()
+    .min(DD_ASISTENTE.PROMPT_MIN, "Escribe una indicación para el asistente")
+    .max(DD_ASISTENTE.PROMPT_MAX, `La indicación admite hasta ${DD_ASISTENTE.PROMPT_MAX} caracteres`),
+  adjuntoIds: z
+    .array(z.string().trim().min(1).max(64))
+    .min(1, "Elige al menos una evidencia")
+    .max(DD_ASISTENTE.ARCHIVOS_MAX, `Elige hasta ${DD_ASISTENTE.ARCHIVOS_MAX} evidencias`),
 });
 
 export const ddMatrizAutomatizarTodoSchema = z.object({

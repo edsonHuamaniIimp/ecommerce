@@ -91,6 +91,11 @@ export type { DdMatrizConteoDTO, DdMatrizEvaluacionResumenDTO } from "./dd-matri
 export type { DdMatrizEvaluacionVinculoRequestDTO } from "./dd-matriz-evaluacion-vinculo-request.dto";
 export type { DdMatrizEvaluacionAdjuntoEliminarRequestDTO } from "./dd-matriz-evaluacion-adjunto-request.dto";
 export type { DdMatrizEvaluacionAdjuntoResponseDTO } from "./dd-matriz-evaluacion-adjunto-response.dto";
+export type { DdMatrizAsistenteRequestDTO } from "./dd-matriz-asistente-request.dto";
+export type {
+  DdMatrizAsistenteEvidenciaDTO,
+  DdMatrizAsistenteResponseDTO,
+} from "./dd-matriz-asistente-response.dto";
 export type {
   DdClasificarArchivosArchivoDTO,
   DdClasificarArchivosRequestDTO,

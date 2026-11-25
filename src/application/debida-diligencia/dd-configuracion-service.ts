@@ -21,13 +21,15 @@ interface DdConfiguracionInput {
   legalSoloDerivacionSig: boolean;
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
+  asistenteIaHabilitado: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;
   linkListasUrl: string | null;
 }
 
-const CONFIG_DEFAULT: DdConfiguracionEntity = {
+/** Valores por defecto mientras no se guarde la configuracion (fila `default` ausente). */
+export const CONFIG_DEFAULT: DdConfiguracionEntity = {
   plazoDiasHabiles: 3,
   estadoCierreAutomatico: DD_CONFIG_CIERRE_ESTADOS.SIN_RESPUESTA,
   exigirEvidencia: true,
@@ -37,6 +39,7 @@ const CONFIG_DEFAULT: DdConfiguracionEntity = {
   legalSoloDerivacionSig: true,
   vigenciaMeses: 6,
   permitirReutilizacionVinculo: true,
+  asistenteIaHabilitado: false,
   manualUrl: null,
   reglamentoUrl: null,
   plantillaInformeUrl: null,

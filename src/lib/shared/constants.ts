@@ -41,6 +41,7 @@ export const PUBLIC_API_ROUTES = [
   "/api/integracion/factura",
   "/api/cron/sgc-reconciliar",
   "/api/cron/facturacion-programada",
+  "/api/cron/dd-cierre-automatico",
 ] as const;
 
 /** URL base de la aplicacion. En produccion se configura via variable de entorno. */
@@ -1572,6 +1573,8 @@ export const DD_MATRIZ_PER_PAGE_MAX = 500;
 
 /** Mensajes de validacion reutilizados por frontend y backend. */
 export const DD_MENSAJES = {
+  /** Regla «Exigir evidencia por campo aplicable» (Configuración DD); se completa con los criterios. */
+  MATRIZ_EVIDENCIA_REQUERIDA: "Sube al menos una evidencia en estos criterios (regla «Exigir evidencia por campo aplicable»):",
   EDICION_DOCUMENTACION_RECIBIDA:
     "Recibimos tu documentación y está pendiente de revisión. No se puede modificar mientras se revisa.",
   EDICION_EN_REVISION: "El expediente está en revisión. Espera el resultado antes de modificarlo.",
@@ -1584,6 +1587,8 @@ export const DD_MENSAJES = {
     "Legal observó este expediente y espera la subsanación del cliente; no puede derivarse a Legal hasta que el cliente reenvíe.",
   CIERRE_SIN_RESPUESTA:
     "Cierre por falta de respuesta de la empresa: la debida diligencia ya no puede usarse; la empresa debe presentar una nueva.",
+  CIERRE_PLAZO_VENCIDO:
+    "Cierre automático: venció el plazo para subsanar las observaciones; la debida diligencia queda NO APTO.",
   CONSENT_DATOS: "Debe aceptar el tratamiento de datos personales y derechos ARCO.",
   CONSENT_VERIFICACION: "Debe aceptar la debida diligencia reforzada.",
   DECLARACION_VERACIDAD: "Debe aceptar la declaración jurada de veracidad.",
@@ -1611,21 +1616,15 @@ export const DD_ESTADOS = {
 } as const;
 
 /** Estados agrupados en el filtro/card "Pendientes". */
-/** Estados al vencer el plazo configurable de respuesta de una DD. */
-export const DD_CONFIG_CIERRE_ESTADOS = {
-  SIN_RESPUESTA: "sin_respuesta",
-  RECHAZADA: DD_ESTADOS.RECHAZADA,
-  OBSERVADA: DD_ESTADOS.OBSERVADA,
+/** Cierre automatico de expedientes Observados con el plazo de subsanacion vencido (cron diario). */
+export const DD_CIERRE_AUTOMATICO = {
+  /** Actor que queda en el expediente y el historial. */
+  ACTOR: "sistema:cierre-automatico",
+  /** Expedientes por corrida (el resto se cierra en la siguiente). */
+  LOTE_MAX: 200,
+  /** Dias de la semana habiles (getUTCDay): lunes a viernes. No considera feriados. */
+  DIAS_HABILES: [1, 2, 3, 4, 5],
 } as const;
-
-export type DdConfigCierreEstado =
-  (typeof DD_CONFIG_CIERRE_ESTADOS)[keyof typeof DD_CONFIG_CIERRE_ESTADOS];
-
-export const DD_CONFIG_CIERRE_LABELS: Record<string, string> = {
-  [DD_CONFIG_CIERRE_ESTADOS.SIN_RESPUESTA]: "SIN RESPUESTA",
-  [DD_CONFIG_CIERRE_ESTADOS.RECHAZADA]: "RECHAZADA",
-  [DD_CONFIG_CIERRE_ESTADOS.OBSERVADA]: "OBSERVADA",
-};
 
 export const DD_CONFIG_VIGENCIAS = [
   { meses: 3, label: "3 meses" },
@@ -1676,7 +1675,8 @@ export type DdResultado = (typeof DD_RESULTADOS)[keyof typeof DD_RESULTADOS];
 
 /**
  * Estado de la declaracion jurada de vigencia en el registro externo de DD.
- * `null` en datos legacy significa "sin informacion" y no bloquea por si solo.
+ * 
+`null` en datos legacy significa "sin informacion" y no bloquea por si solo.
  */
 export const DD_DECLARACION_VIGENCIA_ESTADOS = {
   NO_CORRESPONDE: "no_corresponde",
@@ -2189,7 +2189,8 @@ export const DD_IMPORT_EVENTO_TIPOS: Record<string, number> = {
  * Cada catalogo guarda el CODIGO canonico (snake_case) y su etiqueta visible, que es
  * el termino exacto que usa el area de Asociados en la matriz oficial. Los ALIAS
  * permiten aceptar tambien la variante del Excel / de desarrollo (con o sin tilde,
- * "N.A" / "N.A." / "NO APLICA", etc.); ver `normalizarValorMatriz`. */
+ * "N.A" / "N.A." / "NO APLICA", etc.); ver 
+`normalizarValorMatriz`. */
 
 /** Tipo de vinculo evaluado: la propia empresa o una persona/entidad ligada a ella. */
 export const DD_MATRIZ_TIPOS_VINCULO = {
@@ -2357,6 +2358,45 @@ export const DD_MATRIZ_RESULTADO_FINAL_LABELS: Record<DdMatrizResultadoFinal, st
   [DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION]: "EN REVISIÓN",
   [DD_MATRIZ_RESULTADOS_FINALES.NO_APTO]: "NO APTO",
   [DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA]: "SIN RESPUESTA",
+};
+
+/**
+ * «Cierre automático» de Configuración DD: conclusion final (catalogo de la matriz) que se
+ * registra cuando un expediente Observado agota el plazo de subsanacion. Solo se ofrecen las
+ * conclusiones que tienen sentido sin intervencion de SIG; APTO, APTO CON OBSERVACIONES y
+ * EN REVISION requieren evaluar y no se asignan solas.
+ */
+export const DD_CONFIG_CIERRE_ESTADOS = {
+  SIN_RESPUESTA: DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA,
+  NO_APTO: DD_MATRIZ_RESULTADOS_FINALES.NO_APTO,
+  /** Mantiene DOCUMENTACION OBSERVADA: no cierra. */
+  DOCUMENTACION_OBSERVADA: DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+} as const;
+
+export type DdConfigCierreEstado =
+  (typeof DD_CONFIG_CIERRE_ESTADOS)[keyof typeof DD_CONFIG_CIERRE_ESTADOS];
+
+/** Etiquetas = las de la conclusion final de la matriz. */
+export const DD_CONFIG_CIERRE_LABELS: Record<string, string> = {
+  [DD_CONFIG_CIERRE_ESTADOS.SIN_RESPUESTA]: DD_MATRIZ_RESULTADO_FINAL_LABELS[DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA],
+  [DD_CONFIG_CIERRE_ESTADOS.NO_APTO]: DD_MATRIZ_RESULTADO_FINAL_LABELS[DD_MATRIZ_RESULTADOS_FINALES.NO_APTO],
+  [DD_CONFIG_CIERRE_ESTADOS.DOCUMENTACION_OBSERVADA]:
+    DD_MATRIZ_RESULTADO_FINAL_LABELS[DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA],
+};
+
+export const DD_CONFIG_CIERRE_AYUDAS: Record<string, string> = {
+  [DD_CONFIG_CIERRE_ESTADOS.SIN_RESPUESTA]:
+    "Cierre por vencimiento del plazo de respuesta: la empresa debe presentar una nueva DD.",
+  [DD_CONFIG_CIERRE_ESTADOS.NO_APTO]:
+    "Rechazo definitivo por no subsanar a tiempo; si «NO APTO bloquea toda la empresa» está activa, bloquea la empresa.",
+  [DD_CONFIG_CIERRE_ESTADOS.DOCUMENTACION_OBSERVADA]:
+    "Sigue en DOCUMENTACIÓN OBSERVADA aunque venza el plazo: no se cierra sola.",
+};
+
+/** Valores guardados antes de usar la conclusion final (se migran en BD; se aceptan al leer). */
+export const DD_CONFIG_CIERRE_ALIAS: Record<string, DdConfigCierreEstado> = {
+  rechazada: DD_CONFIG_CIERRE_ESTADOS.NO_APTO,
+  observada: DD_CONFIG_CIERRE_ESTADOS.DOCUMENTACION_OBSERVADA,
 };
 
 /** El Excel usa tambien "PENDIENTE" como resultado final: se trata como EN REVISION. */
@@ -2578,6 +2618,129 @@ export const DD_MATRIZ_CRITERIOS_OBSERVACION_EXTENDIDA: readonly string[] = [
   "corrupcion_persona",
   DD_MATRIZ_LISTA_OTROS,
 ];
+
+/* ================================================================
+   Asistente de observaciones del criterio (editor del vinculo)
+   ================================================================ */
+
+/** Criterios donde SIG puede pedir a la IA la observacion a partir de la evidencia: OEFA, OSCE, INDECOPI, lavado/corrupcion y Otros. */
+export const DD_MATRIZ_CRITERIOS_ASISTENTE: readonly string[] = [
+  ...DD_INFORME_GRUPOS_OBSERVACION.OEFA,
+  ...DD_INFORME_GRUPOS_OBSERVACION.OSCE,
+  ...DD_INFORME_GRUPOS_OBSERVACION.INDECOPI,
+  ...DD_INFORME_GRUPOS_OBSERVACION.LAVADO,
+  ...DD_INFORME_GRUPOS_OBSERVACION.OTROS,
+];
+
+/** Como llega la evidencia a la IA: el archivo completo o solo el texto que saca el OCR del servidor. */
+export const DD_ASISTENTE_MODOS = {
+  IA: "ia",
+  OCR: "ocr",
+} as const;
+export type DdAsistenteModo = (typeof DD_ASISTENTE_MODOS)[keyof typeof DD_ASISTENTE_MODOS];
+
+export const DD_ASISTENTE_MODO_LABELS: Record<DdAsistenteModo, string> = {
+  [DD_ASISTENTE_MODOS.IA]: "Ayúdate con IA",
+  [DD_ASISTENTE_MODOS.OCR]: "OCR + prompt",
+};
+
+export const DD_ASISTENTE_MODO_AYUDAS: Record<DdAsistenteModo, string> = {
+  [DD_ASISTENTE_MODOS.IA]: "La IA lee el documento completo (PDF o imagen) y responde tu indicación.",
+  [DD_ASISTENTE_MODOS.OCR]: "El servidor extrae el texto con OCR y la IA solo recibe ese texto para responder tu indicación.",
+};
+
+/** Como se obtuvo el texto de cada evidencia. */
+export const DD_ASISTENTE_METODOS_TEXTO = {
+  TEXTO_PDF: "texto_pdf",
+  OCR: "ocr",
+  DOCX: "docx",
+} as const;
+export type DdAsistenteMetodoTexto = (typeof DD_ASISTENTE_METODOS_TEXTO)[keyof typeof DD_ASISTENTE_METODOS_TEXTO];
+
+export const DD_ASISTENTE_METODO_TEXTO_LABELS: Record<DdAsistenteMetodoTexto, string> = {
+  [DD_ASISTENTE_METODOS_TEXTO.TEXTO_PDF]: "texto del PDF",
+  [DD_ASISTENTE_METODOS_TEXTO.OCR]: "OCR",
+  [DD_ASISTENTE_METODOS_TEXTO.DOCX]: "texto del Word",
+};
+
+/** Tipos de archivo que se envian tal cual a la IA (modo IA). El Word se convierte a texto antes. */
+export const DD_ASISTENTE_MIME = {
+  PDF: "application/pdf",
+  PNG: "image/png",
+  JPEG: "image/jpeg",
+  DOCX: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+} as const;
+export const DD_ASISTENTE_MIME_ARCHIVO_IA: readonly string[] = [
+  DD_ASISTENTE_MIME.PDF,
+  DD_ASISTENTE_MIME.PNG,
+  DD_ASISTENTE_MIME.JPEG,
+];
+export const DD_ASISTENTE_MIME_IMAGEN: readonly string[] = [DD_ASISTENTE_MIME.PNG, DD_ASISTENTE_MIME.JPEG];
+
+/**
+ * Limites del asistente. CloudFront corta la respuesta del origen a los 60 s: OCR + IA deben
+ * terminar antes (25 s + 25 s) y el modo IA con archivos en 45 s.
+ */
+export const DD_ASISTENTE = {
+  PROMPT_MIN: 3,
+  PROMPT_MAX: 1000,
+  ARCHIVOS_MAX: 5,
+  BYTES_MAX: 15 * 1024 * 1024,
+  OCR_PAGINAS_MAX: 10,
+  OCR_IDIOMAS: "spa+eng",
+  OCR_DPI: 200,
+  /** Si el PDF trae menos texto que esto por pagina, se considera escaneado y pasa por OCR. */
+  TEXTO_PDF_MIN_POR_PAGINA: 40,
+  /** Texto maximo (OCR) que se envia a la IA. */
+  TEXTO_MAX: 60_000,
+  TIMEOUT_IA_ARCHIVOS_MS: 45_000,
+  TIMEOUT_IA_TEXTO_MS: 25_000,
+  TIMEOUT_OCR_MS: 25_000,
+  MAX_TOKENS_RESPUESTA: 8_192,
+  /** Si un modelo no responde en este tiempo, se lanza en paralelo el siguiente y gana la primera respuesta. */
+  ESCALON_RESPALDO_MS: 6_000,
+  LIMITE_POR_VENTANA: 10,
+  VENTANA_MS: 60_000,
+  ACCION_AUDITORIA: "matriz_asistente",
+} as const;
+
+/** Indicaciones de ejemplo que el usuario puede tomar con un clic. */
+export const DD_ASISTENTE_SUGERENCIAS: readonly string[] = [
+  "Lee el documento y dame un resumen.",
+  "¿Registra sanciones, multas o procesos? Detalla número, fecha, motivo y estado.",
+  "¿Aparece el nombre o documento del vínculo? Indica en qué parte.",
+];
+
+/**
+ * Modelos por defecto (se cambian con GEMINI_ASISTENTE_MODEL, GEMINI_ASISTENTE_MODELOS_RESPALDO y
+ * OPENAI_ASISTENTE_MODEL). Si el principal esta saturado (503/429) o no responde a tiempo, se usa el
+ * respaldo dentro del mismo plazo. En nov-2026 gemini-3.8-flash, 3.7-flash y a ratos 3.6/3.5-flash no
+ * respondian por alta demanda; 3.5-flash-lite si.
+ */
+export const DD_ASISTENTE_MODELOS_DEFECTO = {
+  GEMINI: "gemini-3.6-flash",
+  GEMINI_RESPALDO: "gemini-3.5-flash,gemini-3.5-flash-lite",
+  OPENAI: "gpt-4o-mini",
+} as const;
+
+export const DD_ASISTENTE_MENSAJES = {
+  SIN_PERMISO: "Solo SIG puede usar el asistente de observaciones.",
+  CRITERIO_NO_HABILITADO: "El asistente solo está disponible para OEFA, OSCE, INDECOPI, lavado/corrupción y Otros.",
+  CRITERIO_NO_APLICA: "Este criterio no aplica al vínculo.",
+  SIN_EVIDENCIA: "Sube o automatiza una evidencia en este criterio antes de usar el asistente.",
+  EVIDENCIA_AJENA: "La evidencia elegida no pertenece a este criterio.",
+  TAMANO_EXCEDIDO: "Las evidencias elegidas superan el tamaño máximo para el asistente.",
+  FORMATO_NO_SOPORTADO: "Formato de evidencia no soportado por el asistente.",
+  IA_NO_DISPONIBLE: "El asistente de IA no está configurado en este entorno.",
+  DESHABILITADO: "El asistente de IA está deshabilitado en Configuración de Debida Diligencia (Reglas de evaluación).",
+  IA_SATURADA: "La IA está saturada o tardó demasiado en responder. Intenta nuevamente en unos minutos.",
+  OCR_NO_DISPONIBLE: "El OCR no está instalado en este entorno.",
+  SIN_TEXTO: "No se pudo leer texto de las evidencias elegidas.",
+  SIN_RESPUESTA: "La IA no devolvió una respuesta. Intenta nuevamente o ajusta la indicación.",
+  LIMITE: "Demasiadas consultas al asistente. Espera un minuto e intenta nuevamente.",
+  REVISAR: "Texto agregado a la observación. Revísalo antes de guardar.",
+} as const;
+
 export const DD_MATRIZ_ADJUNTOS_MAX = 30;
 export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
 export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
@@ -3755,7 +3918,8 @@ export const ANEXOS_BLOQUEANTES: string[] = [ANEXOS_KEYS.VIGENCIA_PODER, ANEXOS_
 
 /**
  * Modos de subsanación que declara el administrador cuando el SGC devuelve el trámite:
- *  - `nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
+ *  - 
+`nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
  *    el contrato nuevo esté adjunto antes de poder firmarlo.
  *  - `mismo_contrato`: el cliente vuelve a firmar el contrato que ya tenía (puede firmar de inmediato).
  */
@@ -3769,7 +3933,8 @@ export type SgcSubsanacionModo = (typeof SGC_SUBSANACION_MODOS)[keyof typeof SGC
  * Sugerencias (no cerradas) para el motivo de subsanación que declara el administrador cuando
  * el SGC devuelve el trámite. La casuística es **libre**: el admin puede escribir cualquier
  * motivo, y puede repetirse N veces (una por cada devolución). El `modo` define si el cliente
- * debe esperar a un contrato corregido del admin (`nuevo_contrato`) o puede firmar el vigente.
+ * debe esperar a un contrato corregido del admin (
+`nuevo_contrato`) o puede firmar el vigente.
  */
 export const SGC_SUBSANACION_SUGERENCIAS: { modo: SgcSubsanacionModo; titulo: string; texto: string }[] = [
   {

@@ -31,6 +31,21 @@ import type {
 } from "@/domain/models/debida-diligencia";
 import type { DdDocumentoEstado, DdDocumentoTipo, DdEstado } from "@/lib/shared/constants";
 
+/** Conclusion final de la matriz (fila de empresa) que evalua el cierre automatico. */
+export interface DdConclusionMatrizCierre {
+  expedienteId: string;
+  /** Guardada en la matriz; null = la matriz la deriva del estado del expediente. */
+  resultadoFinal: string | null;
+  finalFecha: Date | null;
+  estadoExpediente: string;
+  fechaRevision: Date | null;
+  /**
+   * Observaciones registradas en el sistema (SIG o Legal). 0 = nunca se observo en la plataforma
+   * (p. ej. importado del Excel como DOCUMENTACION OBSERVADA): el cliente no fue notificado.
+   */
+  observacionesRegistradas: number;
+}
+
 /** Estado al que se lleva un expediente luego de una revision. */
 export interface DdEstadoExpedienteData {
   estado: DdEstado;
@@ -163,6 +178,22 @@ export interface IDebidaDiligenciaRepository {
   listarHistorial(expedienteId: string): Promise<DdHistorialEventoEntity[]>;
   /** Actualiza el estado del expediente y sus fechas de workflow. */
   actualizarEstado(id: string, data: DdEstadoExpedienteData): Promise<DdExpedienteEntity>;
+  /**
+   * Conclusion final de la fila de empresa de la matriz de expedientes abiertos que pueden estar
+   * en DOCUMENTACION OBSERVADA y con al menos una observacion registrada en el sistema
+   * (prefiltro; el servicio confirma con resultadoFinalEfectivo).
+   * Con `limite`, solo las que llevan desde esa fecha o antes; con `expedienteIds`, solo esos.
+   */
+  listarConclusionesMatrizCierre(params: {
+    limite?: Date;
+    expedienteIds?: string[];
+    max: number;
+  }): Promise<DdConclusionMatrizCierre[]>;
+  /** Registra la conclusion final en la fila de empresa de la matriz (cierre automatico). */
+  registrarResultadoFinalMatriz(
+    expedienteId: string,
+    data: { resultadoFinal: string; comentario: string | null; actor: string; fecha: Date },
+  ): Promise<void>;
   /** Refleja la decisión legal en la fila de empresa de la matriz. */
   actualizarLegalMatriz(
     expedienteId: string,

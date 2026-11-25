@@ -39,6 +39,7 @@ import type {
   DdVinculoReputacionInput,
 } from "@/domain/models/debida-diligencia";
 import type {
+  DdConclusionMatrizCierre,
   DdEstadoExpedienteData,
   IDebidaDiligenciaRepository,
 } from "@/domain/ports/debida-diligencia-repository";
@@ -948,6 +949,77 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       metadata: (row.metadata as Record<string, unknown> | null) ?? null,
       createdAt: row.createdAt,
     }));
+  }
+
+  async listarConclusionesMatrizCierre(params: {
+    limite?: Date;
+    expedienteIds?: string[];
+    max: number;
+  }): Promise<DdConclusionMatrizCierre[]> {
+    const observada = DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
+    const rows = await prisma.ddMatrizVinculo.findMany({
+      where: {
+        tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
+        ...(params.expedienteIds ? { expedienteId: { in: params.expedienteIds } } : {}),
+        expediente: {
+          estado: { notIn: [DD_ESTADOS.APROBADA, DD_ESTADOS.RECHAZADA] },
+          /* Observado dentro del sistema (SIG o Legal): los importados del Excel no tienen observaciones. */
+          observaciones: { some: {} },
+        },
+        /* Prefiltro de la conclusion de la matriz (el servicio la confirma con resultadoFinalEfectivo):
+         * guardada DOCUMENTACION OBSERVADA o sin guardar con el expediente Observado. */
+        AND: [
+          {
+            OR: [
+              { resultadoFinal: observada },
+              { resultadoFinal: null, expediente: { estado: DD_ESTADOS.OBSERVADA } },
+            ],
+          },
+          ...(params.limite
+            ? [{
+                /* Inicio del plazo: cuando se registro la conclusion o, sin fecha, cuando se observo. */
+                OR: [
+                  { finalFecha: { lte: params.limite } },
+                  { finalFecha: null, expediente: { fechaRevision: { lte: params.limite } } },
+                ],
+              }]
+            : []),
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      take: params.max,
+      select: {
+        expedienteId: true,
+        resultadoFinal: true,
+        finalFecha: true,
+        expediente: {
+          select: { estado: true, fechaRevision: true, _count: { select: { observaciones: true } } },
+        },
+      },
+    });
+    return rows.map((row) => ({
+      expedienteId: row.expedienteId,
+      resultadoFinal: row.resultadoFinal,
+      finalFecha: row.finalFecha,
+      estadoExpediente: row.expediente.estado,
+      fechaRevision: row.expediente.fechaRevision,
+      observacionesRegistradas: row.expediente._count.observaciones,
+    }));
+  }
+
+  async registrarResultadoFinalMatriz(
+    expedienteId: string,
+    data: { resultadoFinal: string; comentario: string | null; actor: string; fecha: Date },
+  ): Promise<void> {
+    await prisma.ddMatrizVinculo.updateMany({
+      where: { expedienteId, tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA },
+      data: {
+        resultadoFinal: data.resultadoFinal,
+        finalFecha: data.fecha,
+        finalPor: data.actor,
+        finalComentario: data.comentario,
+      },
+    });
   }
 
   async actualizarEstado(id: string, data: DdEstadoExpedienteData): Promise<DdExpedienteEntity> {

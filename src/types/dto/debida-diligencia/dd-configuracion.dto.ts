@@ -9,6 +9,7 @@ export interface DdConfiguracionDTO {
   legalSoloDerivacionSig: boolean;
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
+  asistenteIaHabilitado: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;
@@ -27,6 +28,7 @@ export interface DdConfiguracionRequestDTO {
   legalSoloDerivacionSig: boolean;
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
+  asistenteIaHabilitado: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;

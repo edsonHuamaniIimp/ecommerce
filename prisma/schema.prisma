@@ -1530,6 +1530,8 @@ model DdConfiguracion {
   legalSoloDerivacionSig     Boolean  @default(true) @map("legal_solo_derivacion_sig")
   vigenciaMeses              Int      @default(6) @map("vigencia_meses")
   permitirReutilizacionVinculo Boolean @default(true) @map("permitir_reutilizacion_vinculo")
+  /// Habilita el asistente de IA (IA / OCR + prompt) en la observacion de los criterios de la Matriz DD.
+  asistenteIaHabilitado      Boolean  @default(false) @map("asistente_ia_habilitado")
   manualUrl                  String?  @map("manual_url") @db.VarChar(500)
   reglamentoUrl              String?  @map("reglamento_url") @db.VarChar(500)
   plantillaInformeUrl        String?  @map("plantilla_informe_url") @db.VarChar(500)

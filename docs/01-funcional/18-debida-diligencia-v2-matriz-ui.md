@@ -239,3 +239,49 @@ Pendiente para la siguiente vertical:
 - resultado final y bloqueo calculados por relación comercial;
 - filtros por relación y país;
 - validación de los 54 campos contra el Excel oficial con datos reales.
+
+## 10. Asistente de la observación del criterio (IA y OCR + IA)
+
+En el modo edición del vínculo (`/dashboard/debida-diligencia/matriz/[id]`), al hacer
+clic en un criterio se abre el panel **Observación del criterio**. En los criterios
+**OEFA**, **INDECOPI**, **lavado/corrupción** (empresa y persona) y **Otros**
+(`DD_MATRIZ_CRITERIOS_ASISTENTE`), SIG ve dos botones:
+
+| Botón | Qué recibe la IA |
+|---|---|
+| **Ayúdate con IA** | El PDF o la imagen de la evidencia, completos. |
+| **OCR + prompt** | Solo el texto que el servidor extrae: capa de texto del PDF o, si es escaneado o imagen, OCR con Tesseract (español e inglés, hasta 10 páginas). |
+
+Flujo:
+
+1. SIG elige el botón, marca las evidencias del criterio (hasta 5, 15 MB) y escribe su
+   indicación (p. ej. "Lee el documento y dame un resumen"), o toma una sugerencia.
+2. **Enviar**: el texto generado se agrega a la observación del criterio. Si ya había
+   texto, se agrega debajo; nunca se borra lo escrito.
+3. No se guarda nada hasta **Guardar borrador** o **Guardar evaluación**. SIG revisa el
+   texto antes de guardar.
+
+Reglas:
+
+- Solo SIG (`dd:matriz` + `dd:revision`) y solo en los criterios habilitados que
+  aplican al vínculo. El servidor valida que las evidencias sean de ese vínculo y criterio.
+- El Word (.docx) se envía siempre como texto (la IA no lo lee directo).
+- La IA responde en español, en texto plano, solo con la información de las evidencias,
+  y la respuesta se recorta al límite de la observación del criterio.
+- Tiempos: OCR hasta 25 s y respuesta de la IA hasta 25 s (modo OCR) o 45 s (modo IA);
+  CloudFront corta a los 60 s.
+- Límite de 10 consultas por minuto por usuario. Cada uso queda en auditoría
+  (`matriz_asistente`: criterio, vínculo, evidencias y modelo; sin el contenido).
+- Proveedor: Gemini (`GEMINI_API_KEY`, modelo `GEMINI_ASISTENTE_MODEL`, por defecto
+  `gemini-3.6-flash`) o, si no hay clave, OpenAI (`OPENAI_API_KEY`). Sin clave el asistente
+  responde "no configurado".
+- Modelos escalonados: si el modelo no responde en 6 s se lanza en paralelo el siguiente de
+  `GEMINI_ASISTENTE_MODELOS_RESPALDO` (por defecto `gemini-3.5-flash,gemini-3.5-flash-lite`), y si
+  falla (503/429/404) se lanza de inmediato; gana la primera respuesta y se cancelan las demás.
+  Si ninguno responde a tiempo: "La IA está saturada o tardó demasiado…" (503). En nov-2026
+  `gemini-3.8-flash` y `gemini-3.7-flash` no respondían y 3.6/3.5-flash fallaban a ratos.
+- El OCR necesita `poppler-utils`, `tesseract-ocr` y `tesseract-ocr-spa` (incluidos en
+  `Dockerfile.ecs`). En Windows se configuran con `TESSERACT_PATH`, `PDFTOTEXT_PATH` y
+  `PDFTOPPM_PATH`.
+- Datos personales: las evidencias (o su texto) se envían al proveedor de IA. Usar una
+  clave de pago, cuyos datos no se usan para entrenar.

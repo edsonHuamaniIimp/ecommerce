@@ -1,0 +1,33 @@
+name: DD cierre automatico
+
+# Cierra los expedientes de Debida Diligencia Observados cuyo plazo de subsanacion vencio
+# (dias habiles y estado de «Cierre automático» en Configuración DD).
+# Secretos de repositorio (ya existentes): APP_URL (dominio de la app) y SGC_CRON_SECRET
+# (mismo CRON_SECRET que valida la app en x-cron-secret).
+# Manual: Actions > Run workflow; "simular" solo lista lo que se cerraria.
+on:
+  schedule:
+    # 11:00 UTC = 06:00 Lima, todos los dias (la app solo cuenta dias habiles).
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Solo simular (no cambia expedientes)"
+        type: boolean
+        default: true
+
+jobs:
+  cerrar:
+    name: Cerrar expedientes DD vencidos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar al endpoint de cierre automatico
+        env:
+          SIMULAR: ${{ github.event_name == 'workflow_dispatch' && inputs.simular && '1' || '0' }}
+        run: |
+          curl -fsS -X POST "${{ secrets.APP_URL }}/api/cron/dd-cierre-automatico?simular=${SIMULAR}" \
+            -H "x-cron-secret: ${{ secrets.SGC_CRON_SECRET }}" \
+            --max-time 55 \
+            --retry 2 \
+            --retry-delay 10 \
+            --retry-all-errors

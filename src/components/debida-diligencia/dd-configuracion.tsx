@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { ddConfiguracionService } from "@/lib/client/api/services/dd-configuracion-service";
 import {
   BADGE_STYLES,
+  DD_CONFIG_CIERRE_AYUDAS,
   DD_CONFIG_CIERRE_ESTADOS,
   DD_CONFIG_CIERRE_LABELS,
   DD_CONFIG_VIGENCIAS,
@@ -110,6 +111,7 @@ export function DdConfiguracion() {
         legalSoloDerivacionSig: config.legalSoloDerivacionSig,
         vigenciaMeses: config.vigenciaMeses,
         permitirReutilizacionVinculo: config.permitirReutilizacionVinculo,
+        asistenteIaHabilitado: config.asistenteIaHabilitado,
         manualUrl: config.manualUrl,
         reglamentoUrl: config.reglamentoUrl,
         plantillaInformeUrl: config.plantillaInformeUrl,
@@ -199,7 +201,9 @@ export function DdConfiguracion() {
                   onChange={(event) => setCampo("plazoDiasHabiles", Number(event.target.value))}
                   className="mt-1 h-9 text-sm"
                 />
-                <p className="mt-1 text-[11px] text-muted-foreground">Tiempo para subsanar observaciones.</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Lunes a viernes (sin feriados), contados desde que el expediente queda Observado.
+                </p>
               </div>
               <div>
                 <Label className="text-xs"><span>Cierre automático</span></Label>
@@ -218,7 +222,9 @@ export function DdConfiguracion() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="mt-1 text-[11px] text-muted-foreground">Estado al vencer el plazo.</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {DD_CONFIG_CIERRE_AYUDAS[config.estadoCierreAutomatico] ?? "Estado al vencer el plazo."}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -261,6 +267,12 @@ export function DdConfiguracion() {
                 description="Legal no puede tomar casos sin derivación previa."
                 checked={config.legalSoloDerivacionSig}
                 onChange={(valor) => setCampo("legalSoloDerivacionSig", valor)}
+              />
+              <Toggle
+                label="Asistente IA en observaciones de criterios"
+                description="Muestra «Ayúdate con IA» y «OCR + prompt» en la Matriz DD (OEFA, OSCE, INDECOPI, lavado/corrupción y Otros)."
+                checked={config.asistenteIaHabilitado}
+                onChange={(valor) => setCampo("asistenteIaHabilitado", valor)}
               />
             </CardContent>
           </Card>
