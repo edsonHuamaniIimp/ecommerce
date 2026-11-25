@@ -14,6 +14,7 @@ import { solicitudesService } from "@/lib/client/api/services/solicitudes-servic
 import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
 import { repararTextoSgc } from "@/lib/shared/utils/sgc";
+import { ComentarioAreaLegalSgc } from "@/components/sgc/comentario-area-legal-sgc";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useMaestraLabels } from "@/hooks/use-maestra-labels";
@@ -703,6 +704,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                                   </li>
                                 ))}
                               </ul>
+                            )}
+                            {obsSgc.length > 0 && !obsSgcCorregidas && (
+                              <ComentarioAreaLegalSgc motivo={row.sgcDevolucionMotivo} className="mt-1.5" />
                             )}
                             {obsSgc.length === 0 && row.revisionAsociado?.comentario && (
                               <span className="mt-0.5 block text-[10px] text-muted-foreground">
@@ -1456,6 +1460,9 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               </li>
                             ))}
                           </ul>
+                        )}
+                        {!observacionesSgcSubsanadas(detailRow) && (
+                          <ComentarioAreaLegalSgc motivo={detailRow.sgcDevolucionMotivo} className="mt-1.5" />
                         )}
                       </div>
                     </div>

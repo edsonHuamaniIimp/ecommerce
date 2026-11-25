@@ -592,6 +592,65 @@ describe("SgcIntegracionApplicationService.consultarExpediente — devolucion si
   });
 });
 
+describe("SgcIntegracionApplicationService.consultarExpediente — comentario del revisor desde history[]", () => {
+  const abierta = {
+    observationId: "obs-ruc",
+    documentId: "sgc-ruc",
+    category: "annex",
+    title: "Ficha RUC",
+    message: "Corrige el adjunto «Ficha RUC» y vuelve a enviarlo.",
+    status: SGC_OBSERVACION_ESTADOS.OPEN,
+    requiresDocumentChange: true,
+    createdAt: "2026-11-25 20:11:51+00",
+  };
+  const detalleSgc = (history: unknown[]) => ({
+    contractId: "contract-1",
+    lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+    stage: SGC_STAGES.DRAFTING,
+    version: 9,
+    updatedAt: "2026-11-25 20:11:52+00",
+    documents: [{ documentId: "sgc-ruc", category: "annex", title: "Ficha RUC", currentVersionId: "v1", observations: [abierta] }],
+    missingDocuments: [],
+    history,
+  });
+  const observacionHist = {
+    id: "h1",
+    source: "observation",
+    title: "Observación bloqueante · open",
+    detail: "Adjuntos a corregir: Ficha RUC (ficha.pdf). Comentario: La ficha no debe tener más de 3 meses.",
+    actorName: "Revisor",
+    occurredAt: "2026-11-25T20:11:51Z",
+  };
+  async function motivoGuardado(history: unknown[], devolucionMotivo: string | null) {
+    const client = clientMock();
+    vi.mocked(client.consultarExpediente).mockResolvedValue(detalleSgc(history) as never);
+    const repo = sgcRepoMock(expediente({
+      contractId: "contract-1",
+      estadoEnvio: SGC_ESTADO_ENVIO.CREADO,
+      lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED,
+      observaciones: [abierta],
+      devolucionMotivo,
+    }));
+    const svc = new SgcIntegracionApplicationService(solicitudRepoMock(null), repo, client, documentoOrigenMock(), CONFIG);
+    await svc.consultarExpediente("sol-1", { regenerarContrato: false });
+    const [, data] = vi.mocked(repo.actualizarExpediente).mock.calls[0] ?? [];
+    return data && "devolucionMotivo" in data ? data.devolucionMotivo : "(sin cambio)";
+  }
+
+  it("reemplaza el motivo automatico de una ronda anterior por el comentario del historial", async () => {
+    expect(await motivoGuardado([observacionHist], "Corrige el contrato «Contrato» y vuelve a enviarlo.")).toBe(observacionHist.detail);
+  });
+
+  it("no pisa el reason completo del webhook de la misma ronda", async () => {
+    const recortado = { ...observacionHist, detail: "Adjuntos a corregir: Ficha RUC (ficha.pdf). Comentario: La ficha no de" };
+    expect(await motivoGuardado([recortado], observacionHist.detail)).toBe("(sin cambio)");
+  });
+
+  it("sin comentario en el historial conserva el respaldo anterior", async () => {
+    expect(await motivoGuardado([], null)).toBe(abierta.message);
+  });
+});
+
 describe("SgcIntegracionApplicationService.registrarIntentoSubsanacion", () => {
   it("clasifica exito, bloqueo local y error del SGC con el estado del expediente", async () => {
     const repo = sgcRepoMock(expediente({ lifecycleStatus: SGC_LIFECYCLE_STATUSES.OBSERVED }));

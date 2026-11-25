@@ -1,13 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
+  comentarioDevolucionSgc,
   comparacionTiempoConstante,
   construirIdempotencyKey,
+  debeActualizarMotivoDevolucion,
   debeNotificarDevolucionSgc,
   diagnosticarFirmaSgc,
   ordenarParaReconciliar,
   repararTextoSgc,
   hmacSha256Hex,
   mimeDesdeNombre,
+  motivoDevolucionDesdeHistorial,
   nombreArchivoSgc,
   normalizarObservacionesSgc,
   parsearFirmaSgc,
@@ -270,5 +273,54 @@ describe("repararTextoSgc", () => {
   it("normalizarObservacionesSgc conserva el texto original para el emparejamiento", () => {
     const [o] = normalizarObservacionesSgc([{ id: "o1", title: "Contrato de separaci\uFFFDn de stand v1", message: "Falta firma de separaci\uFFFDn" }]) ?? [];
     expect(o?.title).toBe("Contrato de separaci\uFFFDn de stand v1");
+  });
+});
+
+describe("comentario de la devolucion SGC desde history[]", () => {
+  const historialComisub = [
+    { source: "round", title: "Revisión 4 devuelta al área", detail: null, occurredAt: "2026-11-25T20:11:52Z" },
+    { source: "audit", title: "Trámite devuelto al área de origen", detail: null, occurredAt: "2026-11-25T20:11:51Z" },
+    {
+      source: "observation",
+      title: "Observación bloqueante · open",
+      detail: "Adjuntos a corregir: Ficha RUC (ficha-ruc.pdf), Vigencia de Poder (vigencia.pdf). Comentario: Actualizar la fi",
+      occurredAt: "2026-11-25T20:11:51Z",
+    },
+    { source: "audit", title: "Trámite reenviado por el sistema de origen: se abrió una nueva ronda de revisión", detail: null, occurredAt: "2026-11-24T20:06:29Z" },
+    { source: "observation", title: "Observación bloqueante · open", detail: "Comentario: ronda anterior.", occurredAt: "2026-11-23T16:57:24Z" },
+  ];
+
+  it("toma la observacion de la ronda vigente y marca el recorte del SGC", () => {
+    expect(motivoDevolucionDesdeHistorial(historialComisub)).toBe(
+      "Adjuntos a corregir: Ficha RUC (ficha-ruc.pdf), Vigencia de Poder (vigencia.pdf). Comentario: Actualizar la fi…",
+    );
+  });
+
+  it("no devuelve la observacion de una ronda ya reenviada", () => {
+    expect(motivoDevolucionDesdeHistorial(historialComisub.slice(3))).toBeNull();
+    expect(motivoDevolucionDesdeHistorial([])).toBeNull();
+    expect(motivoDevolucionDesdeHistorial(undefined)).toBeNull();
+  });
+
+  it("ordena por fecha aunque el SGC no lo haga", () => {
+    expect(motivoDevolucionDesdeHistorial([...historialComisub].reverse())).toMatch(/Actualizar la fi…$/);
+  });
+
+  it("reemplaza motivos automaticos o de otra ronda, pero no el reason completo del webhook", () => {
+    const hist = "Adjuntos a corregir: Ficha RUC. Comentario: Actualizar la fi…";
+    expect(debeActualizarMotivoDevolucion(null, hist)).toBe(true);
+    expect(debeActualizarMotivoDevolucion("Corrige el contrato «X» y vuelve a enviarlo.", hist)).toBe(true);
+    expect(debeActualizarMotivoDevolucion("Comentario: ronda anterior.", hist)).toBe(true);
+    expect(debeActualizarMotivoDevolucion("Adjuntos a corregir: Ficha RUC. Comentario: Actualizar la ficha RUC.", hist)).toBe(false);
+    expect(debeActualizarMotivoDevolucion(hist, hist)).toBe(false);
+    expect(debeActualizarMotivoDevolucion("Corrige el adjunto «X».", null)).toBe(false);
+  });
+
+  it("muestra solo el comentario del revisor", () => {
+    expect(comentarioDevolucionSgc("Adjuntos a corregir: Ficha RUC. Comentario: Actualizar la ficha RUC.")).toBe("Actualizar la ficha RUC.");
+    expect(comentarioDevolucionSgc("Por favor adjuntar Vigencia de Poder actualizada.")).toBe("Por favor adjuntar Vigencia de Poder actualizada.");
+    expect(comentarioDevolucionSgc("Corrige el adjunto «Ficha RUC» y vuelve a enviarlo.")).toBeNull();
+    expect(comentarioDevolucionSgc("Falta enviar «DNI».")).toBeNull();
+    expect(comentarioDevolucionSgc(null)).toBeNull();
   });
 });

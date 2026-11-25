@@ -42,7 +42,7 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory, SgcIntentoOrigen } from "@/lib/shared/constants";
-import { construirIdempotencyKey, debeNotificarDevolucionSgc, extensionArchivo, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, ordenarParaReconciliar, repararTextoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
+import { construirIdempotencyKey, debeActualizarMotivoDevolucion, debeNotificarDevolucionSgc, extensionArchivo, extraerDocumentosLegacy, motivoDevolucionDesdeHistorial, nombreArchivoSgc, normalizarObservacionesSgc, ordenarParaReconciliar, repararTextoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
@@ -364,8 +364,11 @@ export class SgcIntegracionApplicationService {
         : hayObservacionesAbiertas
           ? { observaciones }
           : { observaciones: [] as SgcObservacionDocumento[] };
-      const motivoRespaldo =
-        !preservar && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
+      /* Comentario del revisor: sin webhook, se toma de history[] (recortado por el SGC). */
+      const motivoHistorial = !preservar && devuelto ? motivoDevolucionDesdeHistorial(detalle.history) : null;
+      const motivoRespaldo = debeActualizarMotivoDevolucion(expediente.devolucionMotivo, motivoHistorial)
+        ? { devolucionMotivo: (motivoHistorial ?? "").slice(0, MAX_ERROR_LENGTH) }
+        : !preservar && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
           ? { devolucionMotivo: (observaciones[0]?.message ?? "").slice(0, MAX_ERROR_LENGTH) }
           : {};
       await this.repo.actualizarExpediente(expediente.id, {
@@ -393,7 +396,7 @@ export class SgcIntegracionApplicationService {
       const estabaDevuelto =
         expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
-      const motivoNuevo = observacionesAbiertas[0]?.message ?? null;
+      const motivoNuevo = motivoHistorial ?? observacionesAbiertas[0]?.message ?? null;
       const requiereCambio =
         observacionesAbiertas.length === 0 ||
         observacionesAbiertas.some((o) => o.requiresDocumentChange !== false);
@@ -483,8 +486,11 @@ export class SgcIntegracionApplicationService {
           : hayObservacionesAbiertas
             ? { observaciones }
             : { observaciones: [] as SgcObservacionDocumento[] };
-        const motivoRespaldo =
-          !expediente.bypassAprobado && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
+        /* Comentario del revisor: sin webhook, se toma de history[] (recortado por el SGC). */
+        const motivoHistorial = !expediente.bypassAprobado && devuelto ? motivoDevolucionDesdeHistorial(detalle.history) : null;
+        const motivoRespaldo = debeActualizarMotivoDevolucion(expediente.devolucionMotivo, motivoHistorial)
+          ? { devolucionMotivo: (motivoHistorial ?? "").slice(0, MAX_ERROR_LENGTH) }
+          : !expediente.bypassAprobado && devuelto && !expediente.devolucionMotivo && observaciones && observaciones.length > 0
             ? { devolucionMotivo: (observaciones[0]?.message ?? "").slice(0, MAX_ERROR_LENGTH) }
             : {};
         await this.repo.actualizarExpediente(expediente.id, {
@@ -507,7 +513,7 @@ export class SgcIntegracionApplicationService {
         const estabaDevuelto =
           expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
           expediente.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
-        const motivoNuevo = observacionesAbiertas[0]?.message ?? null;
+        const motivoNuevo = motivoHistorial ?? observacionesAbiertas[0]?.message ?? null;
         const requiereCambio =
           observacionesAbiertas.length === 0 ||
           observacionesAbiertas.some((o) => o.requiresDocumentChange !== false);

@@ -295,6 +295,70 @@ export function repararTextoSgc(valor: string | null | undefined): string | null
   return salida;
 }
 
+/** Textos automaticos del SGC por observacion (§8.3): no son el comentario del revisor. */
+const MENSAJE_AUTOMATICO_SGC = /^(Corrige el (contrato|adjunto)\b|Falta enviar\b)/i;
+
+export function esMensajeAutomaticoSgc(texto: string | null | undefined): boolean {
+  return MENSAJE_AUTOMATICO_SGC.test((texto ?? "").trim());
+}
+
+const FIN_DE_FRASE = /[.!?)»"”]$/;
+
+/**
+ * Motivo de la devolucion **vigente** leido de `history[]` del `GET /contracts/{id}`.
+ *
+ * El comentario del revisor viaja completo solo en `data.reason` del webhook; el detalle
+ * trae ademas una entrada `source: "observation"` con el mismo texto («Adjuntos a corregir:
+ * … Comentario: …») que el SGC **recorta** (~250 caracteres). Sirve de respaldo cuando el
+ * webhook no llega. Solo cuenta la observacion posterior al ultimo inicio/reenvio de ronda.
+ * Si el texto parece recortado (sin cierre de frase) se marca con «…».
+ */
+export function motivoDevolucionDesdeHistorial(
+  history: ReadonlyArray<{ source?: string | null; title?: string | null; detail?: string | null; occurredAt?: string | null }> | null | undefined,
+): string | null {
+  if (!Array.isArray(history) || history.length === 0) return null;
+  const ordenado = history
+    .map((h, i) => ({ h, i, t: Date.parse(String(h.occurredAt ?? "")) }))
+    .sort((a, b) => (Number.isFinite(b.t) && Number.isFinite(a.t) && b.t !== a.t ? b.t - a.t : a.i - b.i));
+  for (const { h } of ordenado) {
+    const titulo = h.title ?? "";
+    if (/iniciad|reenviad|enviado a revisi/i.test(titulo) && h.source !== "observation") return null;
+    if (h.source !== "observation") continue;
+    const detalle = repararTextoSgc((h.detail ?? "").trim());
+    if (!detalle) continue;
+    return FIN_DE_FRASE.test(detalle) ? detalle : `${detalle}…`;
+  }
+  return null;
+}
+
+/**
+ * Decide si el motivo del historial reemplaza al guardado: siempre que el guardado falte,
+ * sea un texto automatico del SGC o sea de otra ronda. No pisa el `reason` completo del
+ * webhook de la misma ronda (el del historial es su prefijo recortado).
+ */
+export function debeActualizarMotivoDevolucion(actual: string | null | undefined, desdeHistorial: string | null): boolean {
+  if (!desdeHistorial) return false;
+  const guardado = (actual ?? "").trim();
+  if (!guardado || esMensajeAutomaticoSgc(guardado)) return guardado !== desdeHistorial;
+  const prefijo = desdeHistorial.replace(/…$/, "").trim();
+  return !repararTextoSgc(guardado).startsWith(prefijo);
+}
+
+/**
+ * Comentario del revisor para mostrar al cliente: la parte posterior a «Comentario:» si
+ * existe; si no, el motivo completo salvo que sea un texto automatico del SGC.
+ */
+export function comentarioDevolucionSgc(motivo: string | null | undefined): string | null {
+  const texto = repararTextoSgc((motivo ?? "").trim());
+  if (!texto) return null;
+  const marca = texto.search(/Comentario:/i);
+  if (marca >= 0) {
+    const comentario = texto.slice(marca + "Comentario:".length).trim();
+    return comentario && comentario !== "…" ? comentario : null;
+  }
+  return esMensajeAutomaticoSgc(texto) ? null : texto;
+}
+
 const MAX_OBSERVACIONES = 20;
 const MAX_MENSAJE_OBSERVACION = 500;
 const MAX_TEXTO_OBSERVACION = 200;
