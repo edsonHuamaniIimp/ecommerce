@@ -50,6 +50,7 @@ import {
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_ETAPAS_ENVIO,
   DD_HISTORIAL_TIPOS,
   DD_ORIGENES,
   DD_OBSERVACION_AREAS,
@@ -450,11 +451,11 @@ export class DebidaDiligenciaApplicationService {
     if (expediente && !ddUtils.puedeEditar(expediente.estado)) {
       const mensaje =
         expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
-          ? "Recibimos tu documentación y está pendiente de revisión. No se puede modificar mientras se revisa."
+          ? DD_MENSAJES.EDICION_DOCUMENTACION_RECIBIDA
           : expediente.estado === DD_ESTADOS.EN_REVISION
-            ? "El expediente está en revisión. Espera el resultado antes de modificarlo."
+            ? DD_MENSAJES.EDICION_EN_REVISION
             : expediente.estado === DD_ESTADOS.EN_LEGAL
-              ? "El expediente está en revisión legal. Espera el resultado antes de modificarlo."
+              ? DD_MENSAJES.EDICION_EN_LEGAL
               : expediente.estado === DD_ESTADOS.APROBADA
                 ? "La debida diligencia aprobada no se puede editar. Inicia una nueva cuando llegue a su fecha de cese."
                 : "El expediente fue rechazado. Inicia una nueva debida diligencia.";
@@ -743,6 +744,11 @@ export class DebidaDiligenciaApplicationService {
         to: destino,
         codigo: actualizado.codigo,
         razonSocial: actualizado.empresa.razonSocial,
+        etapa: volveraLegal
+          ? DD_ETAPAS_ENVIO.LEGAL
+          : esPrimerEnvio
+            ? DD_ETAPAS_ENVIO.RECIBIDA
+            : DD_ETAPAS_ENVIO.REVISION,
       });
     }
     return actualizado;

@@ -140,7 +140,7 @@ export function DdVinculoSwitcher({ expedienteId, actualId }: Props) {
                         {vinculo.documento ? ` · ${vinculo.documento}` : ""}
                       </span>
                     </span>
-                    <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} />
+                    <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} estadoExpediente={vinculo.expedienteEstado} />
                   </CommandItem>
                 ))}
               </CommandGroup>

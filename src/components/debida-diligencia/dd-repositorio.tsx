@@ -340,7 +340,7 @@ export function DdRepositorio() {
           fila={{
             id: empresa.expedienteId,
             codigo: empresa.codigo,
-            estado: "en_revision",
+            estado: empresa.estado,
             empresa: { razonSocial: empresa.razonSocial, ruc: empresa.ruc },
           }}
           puedeMatriz

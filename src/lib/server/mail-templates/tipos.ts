@@ -1,3 +1,5 @@
+import type { DdEtapaEnvio } from "@/lib/shared/constants";
+
 /** Contrato de las plantillas de correo: un tipo por plantilla y sus datos. */
 
 export interface PlantillaEmail {
@@ -91,8 +93,8 @@ export interface DatosPlantilla {
     numero: string;
     fechaEmision?: string | null;
   };
-  /** Debida Diligencia: expediente recibido y en revision. */
-  "dd-recibida": { codigo: string; razonSocial: string };
+  /** Debida Diligencia: expediente enviado (primer envio = documentacion recibida; subsanacion = en revision o en Legal). */
+  "dd-recibida": { codigo: string; razonSocial: string; etapa?: DdEtapaEnvio };
   /** Debida Diligencia: expediente observado (correcciones solicitadas). */
   "dd-observada": { codigo: string; razonSocial: string; observaciones: string[] };
   /** Debida Diligencia: expediente aprobado. */

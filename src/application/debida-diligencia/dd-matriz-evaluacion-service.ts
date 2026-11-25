@@ -436,7 +436,7 @@ export class DdMatrizEvaluacionApplicationService {
         throw new DomainError(DD_MENSAJES.REVISION_NO_INICIADA, API_ERROR_CODES.CONFLICT, 409);
       }
       if (normalizarResultadoFinal(dto.resultadoFinal) === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA) {
-        throw new DomainError("\"Documentación recibida\" se asigna sola cuando el cliente envía; no se registra a mano.", API_ERROR_CODES.VALIDATION, 400);
+        throw new DomainError(DD_MENSAJES.DOCUMENTACION_RECIBIDA_AUTOMATICA, API_ERROR_CODES.VALIDATION, 400);
       }
       if (!resultadoFinalEditable(vinculo.resultadoFinal, vinculo.expediente.estado)) {
         throw new DomainError(

@@ -63,7 +63,6 @@ import type {
   DdMatrizEvaluacionFilaDTO,
   DdMatrizEvaluacionResponseDTO,
   DdMatrizEvaluacionResumenDTO,
-  DdVinculoObservadoRequestDTO,
 } from "@/types/dto/debida-diligencia";
 
 import { DdPaisBandera } from "./dd-pais-bandera";
@@ -106,7 +105,6 @@ import {
   DD_RUTAS,
   PER_PAGE_OPCIONES,
   REGEX_PAIS,
-  type DdDocumentoTipo,
   type DdMatrizResultadoFinal,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
@@ -1311,7 +1309,7 @@ export function DdMatrizBandeja() {
                               variant="outline"
                               size="sm"
                               className="h-7 shrink-0 gap-1 px-2 text-[10px]"
-                              onClick={() => setRevisionFila({ id: grupo.expedienteId, codigo: grupo.codigo, estado: "en_revision", empresa: { razonSocial: grupo.empresaRazonSocial, ruc: grupo.empresaRuc } })}
+                              onClick={() => setRevisionFila({ id: grupo.expedienteId, codigo: grupo.codigo, estado: grupo.filas[0]?.expedienteEstado ?? DD_ESTADOS.EN_REVISION, empresa: { razonSocial: grupo.empresaRazonSocial, ruc: grupo.empresaRuc } })}
                             >
                               <FileText className="h-3 w-3" />
                               <span>Revisar expediente</span>

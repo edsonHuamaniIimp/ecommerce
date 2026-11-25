@@ -2,6 +2,7 @@ import {
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_RESULTADOS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_REPUTACION_ESTADOS,
@@ -13,6 +14,18 @@ import type {
   DdMatrizEvaluacionDetalleDTO,
   DdMatrizEvaluacionFilaDTO,
 } from "@/types/dto/debida-diligencia";
+import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
+
+/** Resultados que aun no son una conclusion (el proceso sigue abierto). */
+const FINALES_EN_PROCESO = new Set<string>([
+  DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA,
+  DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION,
+]);
+
+/** true si el resultado es una conclusion registrada (no vacio, ni en revision, ni documentacion recibida). */
+export function esConclusionFinal(resultado: string | null | undefined): boolean {
+  return Boolean(resultado) && !FINALES_EN_PROCESO.has(resultado as string);
+}
 
 export interface DdInformeGrupo {
   expedienteId: string;
@@ -23,6 +36,7 @@ export interface DdInformeGrupo {
   totalVinculos: number;
   pendientes: number;
   conObservaciones: number;
+  /** Resultado efectivo de la empresa (incluye DOCUMENTACION RECIBIDA / EN REVISION derivados del estado). */
   resultadoFinal: string | null;
   actualizadoEn: string;
 }
@@ -95,7 +109,7 @@ export function agruparInformes(filas: DdMatrizEvaluacionFilaDTO[]): DdInformeGr
         totalVinculos: grupo.length,
         pendientes: grupo.filter((fila) => !fila.resultadoFinal).length,
         conObservaciones: grupo.filter(tieneObservacion).length,
-        resultadoFinal: empresa.resultadoFinal ?? null,
+        resultadoFinal: resultadoFinalEfectivo(empresa.resultadoFinal, empresa.expedienteEstado),
         actualizadoEn,
       };
     })

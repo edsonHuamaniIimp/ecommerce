@@ -6,20 +6,20 @@ import { dateUtils } from "@/lib/shared/utils/date";
 import { ALERTA_TIPOS, DD_RUTAS, PERMISSIONS, ROLES } from "@/lib/shared/constants";
 import type {
   DdNotificacionAprobada,
-  DdNotificacionBase,
   DdNotificacionObservada,
+  DdNotificacionRecibida,
   DdNotificacionRechazada,
   IDebidaDiligenciaNotificacionPort,
 } from "@/domain/ports/debida-diligencia-notificacion";
 
 /** Adaptador de notificaciones por correo y campana interna del modulo DD. */
 export class DebidaDiligenciaNotificacion implements IDebidaDiligenciaNotificacionPort {
-  async expedienteRecibido(datos: DdNotificacionBase): Promise<void> {
+  async expedienteRecibido(datos: DdNotificacionRecibida): Promise<void> {
     await enviarEmailPlantilla({
       plantilla: "dd-recibida",
       to: datos.to,
       idioma: null,
-      datos: { codigo: datos.codigo, razonSocial: datos.razonSocial },
+      datos: { codigo: datos.codigo, razonSocial: datos.razonSocial, etapa: datos.etapa },
     }).catch(() => undefined);
   }
 

@@ -35,7 +35,7 @@ import {
   DD_RUTAS,
   PER_PAGE_OPCIONES,
 } from "@/lib/shared/constants";
-import { agruparInformes } from "@/lib/shared/utils/dd-informe";
+import { agruparInformes, esConclusionFinal } from "@/lib/shared/utils/dd-informe";
 import { dateUtils } from "@/lib/shared/utils/date";
 import type { DdMatrizEvaluacionResponseDTO } from "@/types/dto/debida-diligencia";
 
@@ -88,7 +88,7 @@ export function DdInformeBandeja() {
   }, [filtros.page, filtros.perPage, filtros.search, filtros.resultadoFinal, refreshKey]);
 
   const grupos = useMemo(() => agruparInformes(data?.data ?? []), [data]);
-  const conFinal = grupos.filter((grupo) => grupo.resultadoFinal).length;
+  const conFinal = grupos.filter((grupo) => esConclusionFinal(grupo.resultadoFinal)).length;
   const pendientes = grupos.reduce((total, grupo) => total + grupo.pendientes, 0);
   const conObservaciones = grupos.reduce((total, grupo) => total + grupo.conObservaciones, 0);
 

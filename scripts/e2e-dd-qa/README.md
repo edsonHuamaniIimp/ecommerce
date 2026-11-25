@@ -28,3 +28,8 @@ Resultados y hallazgos en `docs/01-funcional/26-dd-smoke-e2e-qa.md`.
 - `ronda2-setup.mjs`: crea 30 empresas y usuarios `e2e-r01..r30@example.invalid` (una vez).
 - `ronda2.mjs`: bloques V (vigencia), S (subsanación), X (seguridad), M (matriz) y N (casos con empresa propia). `E2E_SOLO=V,S` ejecuta solo algunos. Los casos de vigencia siembran por BD una DD importada clonada de QA.
 - Resultados: `ultima-corrida-ronda2.txt` y `docs/01-funcional/27-dd-ronda2-adversarial-qa.md`.
+
+## Ronda 6 (estado "Documentación recibida")
+
+- `ronda6.mjs`: bloques B (primer envío y bloqueos), T y V (disparadores que inician la revisión), C (ciclos completos con subsanación y Legal) y L (listados). Usa empresas R70..R81 (crearlas con `E2E_TOTAL=81 node ronda2-setup.mjs`); cada corrida necesita empresas sin DD en el evento.
+- Resultados: `docs/01-funcional/28-dd-ronda6-documentacion-recibida-qa.md`.

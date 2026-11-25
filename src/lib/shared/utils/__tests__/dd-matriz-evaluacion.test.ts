@@ -424,5 +424,11 @@ describe("Documentacion recibida en el resultado final", () => {
     expect(m.resultadoFinalEditable(null, E.DOCUMENTACION_RECIBIDA)).toBe(false);
     expect(m.resultadoFinalEditable(null, E.EN_REVISION)).toBe(true);
     expect(m.estadoExpedienteDeResultadoFinal(F.DOCUMENTACION_RECIBIDA)).toBe(E.DOCUMENTACION_RECIBIDA);
+    /* El codigo no lleva tilde; la etiqueta si. Se reconoce escrito de cualquier forma. */
+    for (const texto of ["DOCUMENTACIÓN RECIBIDA", "DOCUMENTACION RECIBIDA", "documentacion_recibida", " Documentación  recibida "]) {
+      expect(m.normalizarResultadoFinal(texto)).toBe(F.DOCUMENTACION_RECIBIDA);
+    }
+    expect(E.DOCUMENTACION_RECIBIDA).toMatch(/^[a-z_]+$/);
+    expect(F.DOCUMENTACION_RECIBIDA).toMatch(/^[a-z_]+$/);
   });
 });

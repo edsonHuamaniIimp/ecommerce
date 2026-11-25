@@ -9,7 +9,9 @@
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
   DD_MENSAJES,
+  DD_OBSERVACION_ESTADOS,
   DD_ORIGENES,
+  DD_PASO,
   DD_RESULTADOS,
   DD_PORCENTAJE_MAX,
   REGEX_DNI,
@@ -673,6 +675,51 @@ export const ddUtils = {
   /** Etiqueta para empresas sin expediente. */
   etiquetaSinIniciar(): string {
     return DD_ESTADO_SIN_INICIAR_LABEL;
+  },
+
+  /**
+   * Observaciones que el cliente aun debe corregir: abiertas y, si son de un documento,
+   * solo mientras ese documento no este aprobado. Incluye las de vinculos (representante,
+   * socio o vinculo faltante), que no tienen documento.
+   */
+  observacionesAbiertasCliente<T extends { estado: string; documentoTipo?: string | null }>(
+    observaciones: readonly T[],
+    documentos: readonly { tipo: string; estado: string }[],
+  ): T[] {
+    return observaciones.filter((observacion) => {
+      if (observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA) return false;
+      if (!observacion.documentoTipo) return true;
+      const documento = documentos.find((item) => item.tipo === observacion.documentoTipo);
+      return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
+    });
+  },
+
+  /**
+   * Pasos del formulario donde el cliente corrige lo observado: los vinculos en
+   * "Representante y vinculos" y los documentos (o documentos marcados como observados) en
+   * "Documentos". Una observacion general sin documento ni vinculo no apunta a un paso.
+   */
+  pasosConObservacion(
+    observacionesAbiertas: readonly { documentoTipo?: string | null; vinculoTipo?: string | null }[],
+    documentosObservados = 0,
+  ): number[] {
+    const pasos = new Set<number>();
+    for (const observacion of observacionesAbiertas) {
+      if (observacion.vinculoTipo) pasos.add(DD_PASO.VINCULOS);
+      else if (observacion.documentoTipo) pasos.add(DD_PASO.DOCUMENTOS);
+    }
+    if (documentosObservados > 0) pasos.add(DD_PASO.DOCUMENTOS);
+    return [...pasos].sort((a, b) => a - b);
+  },
+
+  /**
+   * Paso con el que abre el formulario. En subsanacion va al primer paso con algo que corregir
+   * (vinculos antes que documentos); sin pasos señalados, a Documentos como antes. Si no hay
+   * subsanacion, empieza en el paso 1.
+   */
+  pasoInicialFormulario(params: { enSubsanacion: boolean; pasosConObservacion: readonly number[] }): number {
+    if (!params.enSubsanacion) return DD_PASO.CONSENTIMIENTOS;
+    return params.pasosConObservacion[0] ?? DD_PASO.DOCUMENTOS;
   },
 };
 

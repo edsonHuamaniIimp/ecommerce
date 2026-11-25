@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getPlantillaEmail } from "../index";
+import { DD_ETAPAS_ENVIO } from "@/lib/shared/constants";
 import type { DatosPlantilla } from "../tipos";
 
 const DATOS: { [K in keyof DatosPlantilla]: DatosPlantilla[K] } = {
@@ -134,5 +135,18 @@ describe("getPlantillaEmail", () => {
     expect(html).toContain("Enviar solicitud de factura");
     expect(html).toContain("Mis documentos");
     expect(html).toContain("/dashboard/mis-pagos");
+  });
+});
+
+describe("dd-recibida: estado segun la etapa del envio", () => {
+  it("primer envio informa Documentacion recibida; subsanacion En revision; Legal En revision legal", () => {
+    const base = { codigo: "DD-2026-0142", razonSocial: "Minera Cordillera S.A.C." };
+    const recibida = getPlantillaEmail("dd-recibida", null, { ...base, etapa: DD_ETAPAS_ENVIO.RECIBIDA }).html;
+    const revision = getPlantillaEmail("dd-recibida", null, { ...base, etapa: DD_ETAPAS_ENVIO.REVISION }).html;
+    const legal = getPlantillaEmail("dd-recibida", null, { ...base, etapa: DD_ETAPAS_ENVIO.LEGAL }).html;
+    expect(recibida).toContain("Documentación recibida (pendiente de revisión)");
+    expect(revision).toContain("En revisión por Logística");
+    expect(legal).toContain("En revisión legal");
+    expect(getPlantillaEmail("dd-recibida", "en", { ...base, etapa: DD_ETAPAS_ENVIO.RECIBIDA }).html).toContain("Documents received");
   });
 });

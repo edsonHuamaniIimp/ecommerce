@@ -210,7 +210,7 @@ export function DdVinculosEvidencias({ expedienteId }: Props) {
                         <Paperclip className="h-3 w-3" />
                         <span>{vinculo.adjuntos.length}</span>
                       </span>
-                      <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} />
+                      <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} estadoExpediente={vinculo.expediente.estado} />
                       <Link
                         href={`${DD_RUTAS.MATRIZ}/${vinculo.id}`}
                         target="_blank"

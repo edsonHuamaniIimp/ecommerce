@@ -95,12 +95,24 @@ describe("agruparInformes", () => {
     expect(primero?.actualizadoEn).toBe("2026-01-03T00:00:00.000Z");
   });
 
-  it("cuenta pendientes cuando no hay resultado final", () => {
+  it("cuenta pendientes cuando no hay resultado final y muestra el efectivo del estado", () => {
     const [grupo] = agruparInformes([fila({ id: "empresa" })]);
     expect(grupo).toBeDefined();
     if (!grupo) return;
     expect(grupo.pendientes).toBe(1);
-    expect(grupo.resultadoFinal).toBeNull();
+    expect(grupo.resultadoFinal).toBe(DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION);
+  });
+
+  it("una DD en Documentacion recibida se ve como DOCUMENTACION RECIBIDA y no cuenta como conclusion", async () => {
+    const { DD_ESTADOS } = await import("@/lib/shared/constants");
+    const { esConclusionFinal } = await import("@/lib/shared/utils/dd-informe");
+    const [grupo] = agruparInformes([fila({ id: "empresa", expedienteEstado: DD_ESTADOS.DOCUMENTACION_RECIBIDA })]);
+    expect(grupo?.resultadoFinal).toBe(DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA);
+    expect(esConclusionFinal(grupo?.resultadoFinal)).toBe(false);
+    expect(esConclusionFinal(DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION)).toBe(false);
+    expect(esConclusionFinal(null)).toBe(false);
+    expect(esConclusionFinal(DD_MATRIZ_RESULTADOS_FINALES.APTO)).toBe(true);
+    expect(esConclusionFinal(DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA)).toBe(true);
   });
 });
 

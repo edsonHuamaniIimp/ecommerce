@@ -59,11 +59,11 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_OBSERVACION_AREA_LABELS,
-  DD_OBSERVACION_ESTADOS,
   DD_OBSERVACION_VINCULO_TIPOS,
   DD_PAIS_DEFAULT,
   DD_TIPOS_DOCUMENTO_REPRESENTANTE,
   DD_TIPOS_DOCUMENTO_VINCULO,
+  DD_PASO,
   DD_PASOS,
   DD_RUTAS,
   REGEX_DNI,
@@ -215,12 +215,20 @@ export function DdWizard({
 }: Props) {
   const router = useRouter();
   const { confirm, confirmDialog } = useConfirm();
-  const [paso, setPaso] = useState(() =>
-    expedienteInicial?.estado === DD_ESTADOS.OBSERVADA ||
-    expedienteInicial?.documentos.some((documento) => documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO)
-      ? 4
-      : 1,
-  );
+  /* En subsanacion abre en el primer paso con algo que corregir (vinculos o documentos). */
+  const [paso, setPaso] = useState(() => {
+    const documentosIniciales = expedienteInicial?.documentos ?? [];
+    const observadosIniciales = documentosIniciales.filter(
+      (documento) => documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO,
+    ).length;
+    return ddUtils.pasoInicialFormulario({
+      enSubsanacion: expedienteInicial?.estado === DD_ESTADOS.OBSERVADA || observadosIniciales > 0,
+      pasosConObservacion: ddUtils.pasosConObservacion(
+        ddUtils.observacionesAbiertasCliente(expedienteInicial?.observaciones ?? [], documentosIniciales),
+        observadosIniciales,
+      ),
+    });
+  });
   /** Subsanacion: el expediente ya fue completado; el cliente solo corrige puntos puntuales. */
   const modoSubsanacion = expedienteInicial?.estado === DD_ESTADOS.OBSERVADA;
   const [pasoMaximo, setPasoMaximo] = useState(paso);
@@ -251,15 +259,15 @@ export function DdWizard({
   const documentosObservados = documentos.filter(
     (documento) => documento.estado === DD_DOCUMENTO_ESTADOS.OBSERVADO,
   );
-  const observacionesAbiertas = (expedienteInicial?.observaciones ?? []).filter((observacion) => {
-    if (observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA) return false;
-    if (!observacion.documentoTipo) return true;
-    const documento = documentos.find((item) => item.tipo === observacion.documentoTipo);
-    return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
-  });
-  const observacionesGenerales = observacionesAbiertas.filter(
-    (observacion) => !observacion.vinculoTipo,
+  const observacionesAbiertas = ddUtils.observacionesAbiertasCliente(
+    expedienteInicial?.observaciones ?? [],
+    documentos,
   );
+  /* Pasos donde hay algo que corregir (se marcan en el stepper y el aviso ofrece ir a ellos). */
+  const pasosObservados = ddUtils.pasosConObservacion(observacionesAbiertas, documentosObservados.length);
+  /* Aviso completo de observaciones (todas las abiertas, con botones a cada paso a corregir). */
+  const mostrarAvisoObservaciones =
+    expedienteInicial?.estado === DD_ESTADOS.OBSERVADA && observacionesAbiertas.length > 0;
   const observacionesRepresentante = [...new Set(
     observacionesAbiertas
       .filter((observacion) => observacion.vinculoTipo === DD_OBSERVACION_VINCULO_TIPOS.REPRESENTANTE)
@@ -287,7 +295,10 @@ export function DdWizard({
     },
     {},
   );
-  const observacionesAgrupadas = ddUtils.agruparObservacionesPorComentario(observacionesGenerales);
+  /* El aviso cuenta y muestra TODAS las abiertas (generales, de documentos y de vinculos),
+   * igual que "Mi debida diligencia". Antes solo contaba las generales y una observacion de
+   * vinculo faltante salia como "0 observaciones abiertas" (caso MOTORYSA, DD-2026-0613). */
+  const observacionesAgrupadas = ddUtils.agruparObservacionesPorComentario(observacionesAbiertas);
   const textosObservaciones = new Set(observacionesAgrupadas.map((observacion) => observacion.texto.trim()));
   const documentosVisibles: {
     tipo: DdDocumentoTipo;
@@ -857,6 +868,7 @@ export function DdWizard({
             <DdStepper
             actual={paso}
             completados={pasosCompletados.filter((numero) => numero !== paso)}
+            conObservacion={pasosObservados}
             navegables={pasosNavegables}
             onStepClick={irAPaso}
           />
@@ -864,19 +876,19 @@ export function DdWizard({
         </CardHeader>
 
         <CardContent className="space-y-6 pt-5">
-          {modoSubsanacion && paso !== 4 && documentosObservados.length > 0 ? (
+          {modoSubsanacion && !mostrarAvisoObservaciones && paso !== DD_PASO.DOCUMENTOS && documentosObservados.length > 0 ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3">
               <p className="text-xs text-foreground">
                 Tu expediente fue observado. Solo debes corregir lo observado:{" "}
                 <strong>{documentosObservados.length} documento(s)</strong> en el paso Documentos. Puedes revisar los
                 demás pasos libremente.
               </p>
-              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => irAPaso(4)}>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => irAPaso(DD_PASO.DOCUMENTOS)}>
                 <span>Ir a los documentos observados</span>
               </Button>
             </div>
           ) : null}
-          {expedienteInicial?.estado === DD_ESTADOS.OBSERVADA && observacionesAbiertas.length > 0 ? (
+          {mostrarAvisoObservaciones ? (
             <Alert className="border-warning/40 bg-warning/10">
               <Info className="h-4 w-4 text-warning" />
               <AlertDescription>
@@ -892,18 +904,46 @@ export function DdWizard({
                   </p>
                 ) : null}
                 {observacionesAgrupadas.map((observacion) => (
-                  <p key={observacion.id} className="mt-1 text-xs text-foreground">
-                    <span className="font-semibold">
-                      {DD_OBSERVACION_AREA_LABELS[observacion.area] ?? observacion.area}:
-                    </span>{" "}
-                    {observacion.texto}
-                  </p>
+                  <div key={observacion.id} className="mt-1 text-xs text-foreground">
+                    <p className="whitespace-pre-line">
+                      <span className="font-semibold">
+                        {DD_OBSERVACION_AREA_LABELS[observacion.area] ?? observacion.area}:
+                      </span>{" "}
+                      {observacion.texto}
+                    </p>
+                    {observacion.vinculos.length > 0 ? (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        <span className="font-semibold text-foreground">
+                          Vínculo{observacion.vinculos.length === 1 ? "" : "s"}:
+                        </span>{" "}
+                        {observacion.vinculos.join(", ")}
+                      </p>
+                    ) : null}
+                  </div>
                 ))}
                 {comentariosDocumentos.map((texto) => (
                   <p key={texto} className="mt-1 text-xs text-foreground">
                     <span className="font-semibold">Documento observado:</span> {texto}
                   </p>
                 ))}
+                {pasosObservados.some((numero) => numero !== paso) ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {pasosObservados
+                      .filter((numero) => numero !== paso)
+                      .map((numero) => (
+                        <Button
+                          key={numero}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => irAPaso(numero)}
+                        >
+                          <span>Corregir en {DD_PASOS.find((definicion) => definicion.numero === numero)?.label ?? `paso ${numero}`}</span>
+                        </Button>
+                      ))}
+                  </div>
+                ) : null}
               </AlertDescription>
             </Alert>
           ) : null}

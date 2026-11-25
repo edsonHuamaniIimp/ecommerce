@@ -1,4 +1,4 @@
-import { DD_RUTAS, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { DD_ETAPAS_ENVIO, DD_RUTAS, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { PIE_EN, envoltura, esc, fila, listaHtml } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
@@ -530,7 +530,7 @@ export const plantillasEn: PlantillasEmail = {
     ),
   }),
 
-  "dd-recibida": ({ codigo, razonSocial }) => ({
+  "dd-recibida": ({ codigo, razonSocial, etapa }) => ({
     subject: `Due diligence received (${codigo}) - IIMP`,
     html: envoltura(
       "Due diligence received",
@@ -538,7 +538,7 @@ export const plantillasEn: PlantillasEmail = {
         <p>The due diligence for <strong>${esc(razonSocial)}</strong> was received.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
           ${fila("File", esc(codigo))}
-          ${fila("Status", "Under Logistics review")}
+          ${fila("Status", etapa === DD_ETAPAS_ENVIO.RECIBIDA ? "Documents received (pending review)" : etapa === DD_ETAPAS_ENVIO.LEGAL ? "Under legal review" : "Under Logistics review")}
         </table>
         <p style="font-size:13px;color:#475569">Logistics will review the documents. If there are findings, you will receive an email at this contact and may correct and request a new evaluation.</p>
         <div style="text-align:center;margin:20px 0">

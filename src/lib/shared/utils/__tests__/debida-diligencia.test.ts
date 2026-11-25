@@ -547,3 +547,41 @@ describe("ddUtils.validarRepresentante - documento repetido", () => {
     expect(ddUtils.validarRepresentante(datos("08423452"))).toBeNull();
   });
 });
+
+describe("observaciones del cliente en el formulario (caso vinculo faltante)", () => {
+  const abierta = { estado: "abierta" };
+  const docs = [{ tipo: "ficha_ruc", estado: "cargado" }, { tipo: "poderes", estado: "aprobado" }];
+
+  it("cuenta las de vinculos (faltante, representante, socio) y omite documentos aprobados o resueltas", () => {
+    const lista = ddUtils.observacionesAbiertasCliente(
+      [
+        { ...abierta, id: "1", documentoTipo: null, vinculoTipo: "faltante" },
+        { ...abierta, id: "2", documentoTipo: null, vinculoTipo: "representante" },
+        { ...abierta, id: "3", documentoTipo: "ficha_ruc", vinculoTipo: null },
+        { ...abierta, id: "4", documentoTipo: "poderes", vinculoTipo: null },
+        { estado: "resuelta", id: "5", documentoTipo: null, vinculoTipo: null },
+      ],
+      docs,
+    );
+    expect(lista.map((o) => o.id)).toEqual(["1", "2", "3"]);
+  });
+
+  it("solo vinculo faltante: el paso a corregir es Representante y vinculos y abre ahi", () => {
+    const pasos = ddUtils.pasosConObservacion([{ documentoTipo: null, vinculoTipo: "faltante" }]);
+    expect(pasos).toEqual([3]);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: pasos })).toBe(3);
+  });
+
+  it("documentos observados: abre en Documentos; con vinculos y documentos abre primero en vinculos", () => {
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: ddUtils.pasosConObservacion([{ documentoTipo: "ficha_ruc" }]) })).toBe(4);
+    expect(ddUtils.pasosConObservacion([], 2)).toEqual([4]);
+    expect(ddUtils.pasosConObservacion([{ vinculoTipo: "beneficiario" }, { documentoTipo: "poderes" }])).toEqual([3, 4]);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: [3, 4] })).toBe(3);
+  });
+
+  it("observacion general sin documento ni vinculo: abre en Documentos como antes; sin subsanacion en el paso 1", () => {
+    expect(ddUtils.pasosConObservacion([{ documentoTipo: null, vinculoTipo: null }])).toEqual([]);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: true, pasosConObservacion: [] })).toBe(4);
+    expect(ddUtils.pasoInicialFormulario({ enSubsanacion: false, pasosConObservacion: [3] })).toBe(1);
+  });
+});

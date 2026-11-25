@@ -23,6 +23,7 @@ import {
   type DdMatrizResultadoFinal,
   type DdMatrizSiNoNa,
 } from "@/lib/shared/constants";
+import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 
 const SIN_DATO = <span className="text-[11px] text-muted-foreground">Pendiente</span>;
 
@@ -44,10 +45,21 @@ const ESTILO_FINAL: Record<DdMatrizResultadoFinal, string> = {
   [DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA]: BADGE_STYLES.NEUTRAL,
 };
 
-export function DdMatrizResultadoFinalBadge({ valor }: { valor: string | null }) {
-  if (!valor) return <Etiqueta texto="Sin evaluar" estilo={BADGE_STYLES.NEUTRAL} />;
-  const codigo = valor as DdMatrizResultadoFinal;
-  return <Etiqueta texto={DD_MATRIZ_RESULTADO_FINAL_LABELS[codigo] ?? valor} estilo={ESTILO_FINAL[codigo] ?? BADGE_STYLES.NEUTRAL} />;
+/**
+ * Resultado final del vinculo. Con `estadoExpediente` muestra el efectivo (p. ej. DOCUMENTACION RECIBIDA
+ * o EN REVISION cuando aun no hay resultado guardado), igual que la bandeja de la matriz.
+ */
+export function DdMatrizResultadoFinalBadge({
+  valor,
+  estadoExpediente,
+}: {
+  valor: string | null;
+  estadoExpediente?: string | null;
+}) {
+  const efectivo = estadoExpediente === undefined ? valor : resultadoFinalEfectivo(valor, estadoExpediente);
+  if (!efectivo) return <Etiqueta texto="Sin evaluar" estilo={BADGE_STYLES.NEUTRAL} />;
+  const codigo = efectivo as DdMatrizResultadoFinal;
+  return <Etiqueta texto={DD_MATRIZ_RESULTADO_FINAL_LABELS[codigo] ?? efectivo} estilo={ESTILO_FINAL[codigo] ?? BADGE_STYLES.NEUTRAL} />;
 }
 
 /** Resultado de un area (ACEPTADO / OBSERVADO / NO APLICA). */

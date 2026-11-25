@@ -24,8 +24,18 @@ const APLICAR = process.argv.includes("--aplicar");
 const SALIDA = arg("salida", "/tmp/reporte-doc-recibida.json");
 const USUARIO = arg("usuario", "admin@iimp.org.pe");
 
-const ESTADO_DESDE = "en_revision";
-const ESTADO_HACIA = "doc_recibida";
+/* Espejo de src/lib/shared/constants.ts: el script corre suelto en el contenedor (sin build) y no puede
+ * importar TypeScript. src/lib/shared/__tests__/scripts-espejo-constantes.test.ts falla si se desincronizan. */
+const DD_ESTADOS = { EN_REVISION: "en_revision", DOCUMENTACION_RECIBIDA: "doc_recibida" };
+const DD_ORIGENES = { FLUJO_REGULAR: "flujo_regular" };
+const DD_HISTORIAL_TIPOS = { ENVIO: "envio", REENVIO: "reenvio" };
+const DD_IMPORTACION_REVISOR = "importacion_masiva";
+const DD_AUDITORIA_TIPO = "debida_diligencia";
+
+const ESTADO_DESDE = DD_ESTADOS.EN_REVISION;
+const ESTADO_HACIA = DD_ESTADOS.DOCUMENTACION_RECIBIDA;
+const ACCION_AUDITORIA = "backfill_documentacion_recibida";
+const MOTIVOS = { IMPORTADA: "importada", CON_TRABAJO_SIG: "sig_ya_trabajo" };
 const SENALES = [
   "borrador_matriz",
   "evaluacion_matriz",
@@ -48,10 +58,10 @@ const CONSULTA = `
     exists (select 1 from dd_matriz_adjunto a join dd_matriz_vinculo v on v.id = a.vinculo_id where v.expediente_id = d.id) as evidencias,
     exists (select 1 from debida_diligencia_reputacion r where r.expediente_id = d.id) as comunicaciones,
     exists (select 1 from debida_diligencia_observacion o where o.expediente_id = d.id) as observaciones,
-    exists (select 1 from debida_diligencia_historial h where h.expediente_id = d.id and h.tipo not in ('envio', 'reenvio')) as historial_sig,
-    exists (select 1 from debida_diligencia_historial h where h.expediente_id = d.id and h.tipo = 'reenvio') as reenviada,
+    exists (select 1 from debida_diligencia_historial h where h.expediente_id = d.id and h.tipo not in ($2, $3)) as historial_sig,
+    exists (select 1 from debida_diligencia_historial h where h.expediente_id = d.id and h.tipo = $3) as reenviada,
     d.vinculos_completos,
-    (d.revisado_por is not null and d.revisado_por <> 'importacion_masiva') as revisor
+    (d.revisado_por is not null and d.revisado_por <> $4) as revisor
   from debida_diligencia d
   left join empresa e on e.id = d.empresa_id
   left join evento ev on ev.id = d.evento_id
@@ -66,14 +76,14 @@ const CONSULTA = `
   await c.connect();
   if (!APLICAR) await c.query("SET default_transaction_read_only = on");
 
-  const filas = (await c.query(CONSULTA, [ESTADO_DESDE])).rows;
+  const filas = (await c.query(CONSULTA, [ESTADO_DESDE, DD_HISTORIAL_TIPOS.ENVIO, DD_HISTORIAL_TIPOS.REENVIO, DD_IMPORTACION_REVISOR])).rows;
   const convertir = [];
   const conservar = [];
   for (const f of filas) {
     const senales = SENALES.filter((k) => f[k]);
     const base = { codigo: f.codigo, empresa: f.razon_social, evento: f.evento, origen: f.origen, fechaEnvio: f.fecha_envio };
-    if (f.origen !== "flujo_regular") conservar.push({ ...base, motivo: "importada" });
-    else if (senales.length > 0) conservar.push({ ...base, motivo: "SIG ya trabajo", senales });
+    if (f.origen !== DD_ORIGENES.FLUJO_REGULAR) conservar.push({ ...base, motivo: MOTIVOS.IMPORTADA });
+    else if (senales.length > 0) conservar.push({ ...base, motivo: MOTIVOS.CON_TRABAJO_SIG, senales });
     else convertir.push({ ...base, id: f.id });
   }
 
@@ -92,13 +102,14 @@ const CONSULTA = `
         if (r.rowCount !== 1) continue;
         aplicadas += 1;
         await c.query(
-          "insert into audit_log (id, tipo, entidad, actor, mensaje, metadata, created_at) values ($1, 'debida_diligencia', $2, $3, $4, $5, $6)",
+          "insert into audit_log (id, tipo, entidad, actor, mensaje, metadata, created_at) values ($1, $2, $3, $4, $5, $6, $7)",
           [
             crypto.randomUUID(),
+            DD_AUDITORIA_TIPO,
             f.codigo,
             USUARIO,
             "Ajuste de estado: En revisión -> Documentación recibida (SIG aún no había iniciado la revisión).",
-            JSON.stringify({ accion: "backfill_documentacion_recibida", desde: ESTADO_DESDE, hacia: ESTADO_HACIA, lote }),
+            JSON.stringify({ accion: ACCION_AUDITORIA, desde: ESTADO_DESDE, hacia: ESTADO_HACIA, lote }),
             ahora,
           ],
         );
@@ -117,13 +128,13 @@ const CONSULTA = `
     aConvertir: convertir.length,
     aplicadas,
     conservadas: {
-      importadas: conservar.filter((x) => x.motivo === "importada").length,
-      portalConTrabajoSig: conservar.filter((x) => x.motivo !== "importada").length,
+      importadas: conservar.filter((x) => x.motivo === MOTIVOS.IMPORTADA).length,
+      portalConTrabajoSig: conservar.filter((x) => x.motivo === MOTIVOS.CON_TRABAJO_SIG).length,
     },
   };
   fs.writeFileSync(SALIDA, JSON.stringify({ resumen, convertir: convertir.map(({ id: _id, ...r }) => r), conservar }, null, 2));
   console.log("@@RESUMEN " + JSON.stringify(resumen));
-  console.log("@@PORTAL_CON_TRABAJO " + JSON.stringify(conservar.filter((x) => x.motivo !== "importada").map((x) => `${x.codigo}:${x.senales.join("+")}`)));
+  console.log("@@PORTAL_CON_TRABAJO " + JSON.stringify(conservar.filter((x) => x.motivo === MOTIVOS.CON_TRABAJO_SIG).map((x) => `${x.codigo}:${x.senales.join("+")}`)));
   await c.end();
 })().catch((e) => {
   console.error("@@ERR", e.message);

@@ -1301,7 +1301,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                   <div className="space-y-2 border-t border-border pt-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Conclusión final</h3>
                     <p className="text-[10px] leading-snug text-muted-foreground">
-                      Registra la conclusión final del vínculo. Los estados automáticos también se pueden registrar manualmente.
+                      {documentacionRecibida
+                        ? "La conclusión final se habilita cuando SIG inicia la revisión."
+                        : "Registra la conclusión final del vínculo. Los estados automáticos también se pueden registrar manualmente."}
                     </p>
                     {finalLegacy ? (
                       <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[10px] leading-snug text-amber-900">
@@ -1393,8 +1395,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                             : "Selecciona un estado final para habilitar el comentario."
                         }
                       />
-                      <p className={`text-[10px] ${documentoObservadoFinal || comentarioFinal.trim() ? "text-muted-foreground" : "font-medium text-warning"}`}>
-                        {documentoObservadoFinal
+                      <p className={`text-[10px] ${documentacionRecibida || documentoObservadoFinal || comentarioFinal.trim() ? "text-muted-foreground" : "font-medium text-warning"}`}>
+                        {documentacionRecibida
+                          ? "Se habilita al iniciar la revisión."
+                          : documentoObservadoFinal
                           ? "Opcional para DOCUMENTACIÓN OBSERVADA. Solo visible para el equipo interno."
                           : comentarioFinal.trim()
                             ? "Solo visible para el equipo interno."

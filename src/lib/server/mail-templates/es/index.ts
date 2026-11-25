@@ -1,4 +1,4 @@
-import { DD_RUTAS, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { DD_ETAPAS_ENVIO, DD_RUTAS, INVITACION_CUENTA_MINUTOS_VIGENCIA, REGISTRO_CODIGO, RESULTADOS_APROBACION, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
 import { getAppUrl } from "@/lib/server/app-url";
 import { PIE_ES, envoltura, esc, fila, listaHtml } from "../i18n";
 import type { PlantillasEmail } from "../tipos";
@@ -530,7 +530,7 @@ export const plantillasEs: PlantillasEmail = {
     ),
   }),
 
-  "dd-recibida": ({ codigo, razonSocial }) => ({
+  "dd-recibida": ({ codigo, razonSocial, etapa }) => ({
     subject: `Debida diligencia recibida (${codigo}) - IIMP`,
     html: envoltura(
       "Debida diligencia recibida",
@@ -538,7 +538,7 @@ export const plantillasEs: PlantillasEmail = {
         <p>La debida diligencia de <strong>${esc(razonSocial)}</strong> fue recibida correctamente.</p>
         <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
           ${fila("Expediente", esc(codigo))}
-          ${fila("Estado", "En revisión por Logística")}
+          ${fila("Estado", etapa === DD_ETAPAS_ENVIO.RECIBIDA ? "Documentación recibida (pendiente de revisión)" : etapa === DD_ETAPAS_ENVIO.LEGAL ? "En revisión legal" : "En revisión por Logística")}
         </table>
         <p style="font-size:13px;color:#475569">Logística revisará los documentos. Si hay observaciones, recibirás un correo en este mismo contacto y podrás corregir y solicitar una nueva evaluación.</p>
         <div style="text-align:center;margin:20px 0">

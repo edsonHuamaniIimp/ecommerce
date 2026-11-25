@@ -58,11 +58,27 @@ el código permite que SIG o Legal registren el resultado final y que la bandeja
 |---|---|---|
 | `borrador` | Borrador | Formulario aún editable |
 | `pendiente` | Pendiente | Enviado, aún no tomado por revisión |
+| `doc_recibida` | Documentación recibida | Primer envío del cliente; SIG aún no inicia la revisión |
 | `en_revision` | En revisión | En SIG o en revisión de áreas |
 | `observada` | Observada | Cliente debe corregir documentos u observaciones |
 | `en_legal` | En revisión legal | Derivado a Legal |
 | `aprobada` | APTO | Expediente aprobado |
 | `rechazada` | NO APTO | Rechazado por Legal o por decisión final |
+
+**Documentación recibida (`doc_recibida`, desde 2026-11-25).** Orden lineal:
+`borrador → doc_recibida → en_revision → …`.
+
+- Solo el **primer envío** del cliente deja la DD en `doc_recibida`. La subsanación vuelve a
+  `en_revision` (o a `en_legal` si observó Legal); nunca regresa a `doc_recibida`.
+- Pasa a `en_revision` cuando SIG: guarda un borrador o una evaluación en cualquier vínculo de
+  la matriz, sube o automatiza una evidencia, deriva a Comunicaciones o declara los vínculos
+  completos. Abrir el detalle o la matriz no cuenta. Queda historial "Revisión iniciada" y
+  auditoría con el motivo exacto.
+- Mientras está en `doc_recibida` no se registra ninguna conclusión (aprobar, observar,
+  derivar a Legal, documentación observada ni resultado final): el servidor responde 409.
+- El código es corto porque la columna `estado` es `VarChar(20)`.
+- Backfill: `scripts/dd-documentacion-recibida/backfill-documentacion-recibida.cjs` (simulación
+  por defecto) pasa a `doc_recibida` las DD del portal en `en_revision` sin trabajo de SIG.
 
 `SIN RESPUESTA` no es un estado del expediente legacy: pertenece a la relación comercial.
 No debe confundirse con `DD_ESTADOS` ni usarse para cerrar el expediente sin decisión.
@@ -103,6 +119,7 @@ puede quedar observada y, después del análisis, concluir `SIN OBSERVACIONES`.
 | `apto` | APTO | Sin observaciones relevantes y sin pendientes de áreas/Legal | Habilita continuar |
 | `apto_con_observaciones` | APTO CON OBSERVACIONES | Observaciones menores, subsanadas o con seguimiento | Habilita con control; puede requerir nueva evaluación al cambiar de relación |
 | `documentacion_observada` | DOCUMENTACIÓN OBSERVADA | Falta documento o evidencia | Cliente debe subsanar; no es una aprobación |
+| `documentacion_recibida` | DOCUMENTACIÓN RECIBIDA | Derivado del estado `doc_recibida`: el cliente envió y SIG no inició | No es decisión final; no se registra a mano |
 | `en_revision` | EN REVISIÓN | SIG, Comunicaciones o Legal aún no concluyen | No es decisión final |
 | `no_apto` | NO APTO | Legal rechaza o existe un riesgo crítico | Bloquea la relación/empresa según la regla global |
 | `sin_respuesta` | SIN RESPUESTA | Venció el plazo sin respuesta del cliente | Cierra la relación; requiere nueva DD |

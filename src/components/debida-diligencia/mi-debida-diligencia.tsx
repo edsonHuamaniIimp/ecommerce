@@ -50,8 +50,6 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_OBSERVACION_AREA_LABELS,
-  DD_DOCUMENTO_ESTADOS,
-  DD_OBSERVACION_ESTADOS,
   DD_RUTAS,
   DD_IMPORTACION_REVISOR,
   DD_IMPORTACION_REVISOR_LABEL,
@@ -97,12 +95,10 @@ export function MiDebidaDiligencia() {
     data?.puedeRegularizarDeclaracionVigencia === true;
   const externoApto = estadoExterno?.aptoParaContratar === true;
   const editable = ddUtils.puedeEditar(expediente?.estado);
-  const observacionesAbiertas = (expediente?.observaciones ?? []).filter((observacion) => {
-    if (observacion.estado !== DD_OBSERVACION_ESTADOS.ABIERTA) return false;
-    if (!observacion.documentoTipo) return true;
-    const documento = expediente?.documentos.find((item) => item.tipo === observacion.documentoTipo);
-    return documento?.estado !== DD_DOCUMENTO_ESTADOS.APROBADO;
-  });
+  const observacionesAbiertas = ddUtils.observacionesAbiertasCliente(
+    expediente?.observaciones ?? [],
+    expediente?.documentos ?? [],
+  );
   const observacionesAgrupadas = useMemo(
     () => ddUtils.agruparObservacionesPorComentario(observacionesAbiertas).map((grupo) => ({
       ...grupo,

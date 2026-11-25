@@ -460,7 +460,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
                         <TableCell>
                           <EstadoAreaExtendido resultado={fila.cmpResultado} conclusion={fila.cmpConclusion} compliance />
                         </TableCell>
-                        <TableCell className="text-center"><DdMatrizResultadoFinalBadge valor={fila.resultadoFinal} /></TableCell>
+                        <TableCell className="text-center"><DdMatrizResultadoFinalBadge valor={fila.resultadoFinal} estadoExpediente={fila.expedienteEstado} /></TableCell>
                         <TableCell className="text-center">
                           <Button asChild variant="outline" size="sm" className="h-7 gap-1 text-[11px]">
                             <Link href={`${DD_RUTAS.MATRIZ}/${fila.id}`} title="Abrir detalle del vínculo">

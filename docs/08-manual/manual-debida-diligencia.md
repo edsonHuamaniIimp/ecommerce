@@ -118,7 +118,7 @@ Cuando el IIMP te solicite documentos adicionales, aparecerán en este paso:
 - **Declaración jurada de vigencia de información.**
 - **Adjunto PDF adicional.**
 
-Antes de enviar, revisa el resumen, acepta la declaración de veracidad y confirma el envío. El expediente pasa a **En revisión** y se notifica al contacto declarado.
+Antes de enviar, revisa el resumen, acepta la declaración de veracidad y confirma el envío. El expediente pasa a **Documentación recibida** y se notifica al contacto declarado. Cuando el equipo de cumplimiento inicia la revisión, pasa a **En revisión**.
 
 ![Formulario de Debida Diligencia](img/dd-07-formulario.png)  
 *Figura 2 — Formulario de la empresa: consentimientos y pasos de la evaluación.*
@@ -136,6 +136,8 @@ Si el equipo de cumplimiento solicita correcciones:
 3. Usa **Subir nueva versión** en cada documento marcado.
 4. Vuelve a enviar. No se permite reenviar mientras quede un documento observado sin reemplazar.
 
+Al reenviar, el expediente vuelve a **En revisión**.
+
 Las versiones anteriores se conservan y pueden consultarse en el historial del documento.
 
 ---
@@ -144,7 +146,7 @@ Las versiones anteriores se conservan y pueden consultarse en el historial del d
 
 Cuando envías el formulario:
 
-- El expediente queda **En revisión**.
+- El expediente queda en **Documentación recibida** hasta que el equipo de cumplimiento inicie la revisión; desde ese momento está **En revisión**.
 - El equipo de cumplimiento del IIMP verifica la información y los documentos.
 - Si todo está conforme, la DD se aprueba y queda vigente por **6 meses**.
 - Si se requiere alguna corrección, recibirás las observaciones en **Mi debida diligencia**.
@@ -162,6 +164,7 @@ Mientras la DD está pendiente, puedes consultar el estado, pero no se considera
 |---|---|
 | **Borrador** | Iniciaste el formulario y aún no lo enviaste. |
 | **Pendiente** | El expediente está registrado, pero todavía no ingresó a revisión. |
+| **Documentación recibida** | Enviaste el formulario y el equipo de cumplimiento aún no inicia la revisión. No se puede modificar. |
 | **En revisión** | El equipo de cumplimiento está evaluando tu expediente. |
 | **Observada** | Se solicitaron correcciones. Revisa **Mi debida diligencia**. |
 | **Aprobada / APTO** | La evaluación fue aprobada y tienes vigencia de 6 meses. |

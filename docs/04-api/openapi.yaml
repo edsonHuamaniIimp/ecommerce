@@ -1801,7 +1801,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [borrador, pendiente, en_revision, observada, aprobada, rechazada]
+            enum: [borrador, pendiente, doc_recibida, en_revision, en_legal, observada, aprobada, rechazada]
         - name: resultado
           in: query
           schema:
@@ -3507,6 +3507,9 @@ components:
                   type: integer
                 pendientes:
                   type: integer
+                documentacionRecibida:
+                  type: integer
+                  description: Enviadas por el cliente que SIG aún no empieza a revisar (estado doc_recibida).
                 enRevision:
                   type: integer
                 observadas:
@@ -3597,7 +3600,7 @@ components:
         cmpResultado: { type: string, nullable: true }
         cmpConclusion: { type: string, nullable: true, enum: [aceptado, aceptado_con_observaciones, rechazado] }
         cmpFecha: { type: string, format: date-time, nullable: true }
-        resultadoFinal: { type: string, nullable: true, enum: [apto, apto_con_observaciones, no_apto, documentacion_observada, en_revision] }
+        resultadoFinal: { type: string, nullable: true, enum: [apto, apto_con_observaciones, no_apto, documentacion_observada, en_revision, sin_respuesta, documentacion_recibida], description: documentacion_recibida solo se deriva del estado doc_recibida (no se registra a mano) }
         finalFecha: { type: string, format: date-time, nullable: true }
     DdMatrizEvaluacionResponse:
       type: object

@@ -9,6 +9,7 @@ import {
   DD_ACCIONES_LEGAL,
   DD_ACCIONES_REVISION,
   DD_ESTADOS,
+  DD_ETAPAS_ENVIO,
   DD_MENSAJES,
   DD_FILTRO_LEGAL_SEGUIMIENTO,
   PERMISSIONS,
@@ -135,13 +136,14 @@ describe("enviar - subsanacion de observacion legal", () => {
   });
 
   it("el primer envio queda en Documentacion recibida (no en revision)", async () => {
-    const { servicio, repo } = crearServicio({ ...expedienteObservadoPorLegal(null), estado: DD_ESTADOS.BORRADOR } as DdExpedienteEntity);
+    const { servicio, repo, notificaciones } = crearServicio({ ...expedienteObservadoPorLegal(null), estado: DD_ESTADOS.BORRADOR, emailRepresentante: "rep@example.com" } as DdExpedienteEntity);
     await servicio.enviar(sesionCliente);
     expect(repo.actualizarEstado).toHaveBeenCalledWith(
       "exp-1",
       expect.objectContaining({ estado: DD_ESTADOS.DOCUMENTACION_RECIBIDA }),
     );
     expect(repo.registrarHistorial).toHaveBeenCalledWith("exp-1", expect.objectContaining({ titulo: "Documentación recibida" }));
+    expect(notificaciones.expedienteRecibido).toHaveBeenCalledWith(expect.objectContaining({ etapa: DD_ETAPAS_ENVIO.RECIBIDA }));
   });
 
   it("no alerta a Legal cuando la observacion no fue de Legal", async () => {

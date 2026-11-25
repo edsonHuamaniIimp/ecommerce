@@ -1572,6 +1572,12 @@ export const DD_MATRIZ_PER_PAGE_MAX = 500;
 
 /** Mensajes de validacion reutilizados por frontend y backend. */
 export const DD_MENSAJES = {
+  EDICION_DOCUMENTACION_RECIBIDA:
+    "Recibimos tu documentación y está pendiente de revisión. No se puede modificar mientras se revisa.",
+  EDICION_EN_REVISION: "El expediente está en revisión. Espera el resultado antes de modificarlo.",
+  EDICION_EN_LEGAL: "El expediente está en revisión legal. Espera el resultado antes de modificarlo.",
+  DOCUMENTACION_RECIBIDA_AUTOMATICA:
+    "\"Documentación recibida\" se asigna sola cuando el cliente envía; no se registra a mano.",
   REVISION_NO_INICIADA:
     "Documentación recibida: SIG aún no inició la revisión. Guarda un borrador o una evaluación en algún vínculo, sube una evidencia o deriva a Comunicaciones; después podrás registrar la conclusión.",
   LEGAL_OBSERVADA_ESPERA_CLIENTE:
@@ -1714,6 +1720,14 @@ export const DD_ESTADO_EVALUACION_LABELS: Record<DdEstadoEvaluacion, string> = {
 };
 
 /** Pasos del formulario de Debida Diligencia (misma fuente para stepper y wizard). */
+/** Numero de cada paso del formulario DD (mismo orden que DD_PASOS). */
+export const DD_PASO = {
+  CONSENTIMIENTOS: 1,
+  EMPRESA: 2,
+  VINCULOS: 3,
+  DOCUMENTOS: 4,
+} as const;
+
 export const DD_PASOS: { numero: number; label: string; corto: string }[] = [
   { numero: 1, label: "Consentimientos", corto: "Consentimientos" },
   { numero: 2, label: "Empresa y vínculos comerciales", corto: "Empresa y vínculos" },
@@ -2023,6 +2037,18 @@ export const DD_HISTORIAL_TIPO_LABELS: Record<DdHistorialTipo, string> = {
   [DD_HISTORIAL_TIPOS.REVALIDACION_OBSERVADA]: "Declaración de vigencia observada",
   [DD_HISTORIAL_TIPOS.INICIO_REVISION]: "Inicio de revisión",
 };
+
+/** Etapa en que queda la DD al enviarla; define el estado que se informa al cliente por correo. */
+export const DD_ETAPAS_ENVIO = {
+  /** Primer envio: Documentacion recibida. */
+  RECIBIDA: "recibida",
+  /** Subsanacion de una observacion de SIG: En revision. */
+  REVISION: "revision",
+  /** Subsanacion de una observacion de Legal: En revision legal. */
+  LEGAL: "legal",
+} as const;
+
+export type DdEtapaEnvio = (typeof DD_ETAPAS_ENVIO)[keyof typeof DD_ETAPAS_ENVIO];
 
 /** Acciones que puede tomar Logística al revisar un expediente. */
 export const DD_ACCIONES_REVISION = {

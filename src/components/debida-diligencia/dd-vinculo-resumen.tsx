@@ -20,7 +20,7 @@ export function DdVinculoResumen({ detalle }: { detalle: DdMatrizEvaluacionDetal
       ))}
       <span className="inline-flex items-center gap-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Final</span>
-        <DdMatrizResultadoFinalBadge valor={detalle.resultadoFinal} />
+        <DdMatrizResultadoFinalBadge valor={detalle.resultadoFinal} estadoExpediente={detalle.expediente.estado} />
       </span>
     </div>
   );

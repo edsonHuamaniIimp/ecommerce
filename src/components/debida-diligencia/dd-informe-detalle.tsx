@@ -61,6 +61,7 @@ import {
 import {
   casosReputacionConObservacion,
   detalleTieneObservacion,
+  esConclusionFinal,
   evidenciasConHallazgo,
   evidenciasInforme,
   observacionesInforme,
@@ -69,6 +70,7 @@ import {
   vinculosConObservaciones,
   resumenInforme,
 } from "@/lib/shared/utils/dd-informe";
+import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { nombrePais } from "@/lib/shared/utils/pais";
 import type {
@@ -298,8 +300,12 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   }
 
   const exp = empresa.expediente;
-  const final = empresa.resultadoFinal as DdMatrizResultadoFinal | null;
-  const finalLabel = final ? (DD_MATRIZ_RESULTADO_FINAL_LABELS[final] ?? final) : "EN REVISIÓN";
+  /* Efectivo: sin resultado guardado se deriva del estado (DOCUMENTACION RECIBIDA, EN REVISION, APTO legacy...). */
+  const finalEfectivo = resultadoFinalEfectivo(empresa.resultadoFinal, exp.estado);
+  /* Conclusion registrada: la recomendacion y el texto de cierre solo se llenan con una conclusion real. */
+  const final = esConclusionFinal(finalEfectivo) ? finalEfectivo : null;
+  const recibida = finalEfectivo === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA;
+  const finalLabel = DD_MATRIZ_RESULTADO_FINAL_LABELS[(finalEfectivo ?? DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION) as DdMatrizResultadoFinal];
   const tiposRelacion = exp.tipoRelacionComercial.map((tipo) => DD_VINCULO_LABELS[tipo] ?? tipo);
   const pais = exp.paisConstitucion ? nombrePais(exp.paisConstitucion) : "Perú";
   const reportDate = empresa.finalFecha ?? empresa.updatedAt;
@@ -399,7 +405,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <DdMatrizResultadoFinalBadge valor={final} />
+                  <DdMatrizResultadoFinalBadge valor={finalEfectivo} />
                   <p className="mt-1.5 text-[10px] text-muted-foreground">Fecha: {dateUtils.format(reportDate)}</p>
                 </div>
               </div>
@@ -531,7 +537,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                               <span>Con observaciones</span>
                             </Badge>
                           ) : null}
-                          <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} />
+                          <DdMatrizResultadoFinalBadge valor={vinculo.resultadoFinal} estadoExpediente={exp.estado} />
                         </div>
 
                         {abierto ? (
@@ -826,12 +832,14 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 }`}
               >
                 <p className="text-sm font-bold text-foreground">
-                  {final ? finalLabel : "El expediente aún no tiene conclusión final."}
+                  {final ? finalLabel : recibida ? finalLabel : "El expediente aún no tiene conclusión final."}
                 </p>
                 <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                   {final
                     ? `La empresa ${exp.empresaRazonSocial} tiene resultado ${finalLabel} en la evaluación consolidada${tiposRelacion.length > 0 ? ` de la relación ${tiposRelacion.join(", ")}` : ""}.`
-                    : "Los resultados por vínculo se muestran arriba y el informe podrá consolidarse cuando SIG registre la decisión final."}
+                    : recibida
+                      ? "El cliente envió su documentación y SIG aún no inició la revisión. El informe podrá consolidarse cuando SIG registre la decisión final."
+                      : "Los resultados por vínculo se muestran arriba y el informe podrá consolidarse cuando SIG registre la decisión final."}
                 </p>
                 {empresa.finalComentario ? (
                   <p className="mt-2 text-[11px] leading-relaxed text-foreground">{empresa.finalComentario}</p>
@@ -1128,7 +1136,9 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 {empresa.finalComentario ??
                   (final
                     ? `La evaluación consolidada de ${exp.empresaRazonSocial} concluye con resultado ${finalLabel}.`
-                    : "El expediente se encuentra pendiente de conclusión final.")}
+                    : recibida
+                      ? "Documentación recibida: el expediente aún no inicia la revisión de SIG."
+                      : "El expediente se encuentra pendiente de conclusión final.")}
               </p>
             </div>
           </div>

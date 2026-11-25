@@ -1,8 +1,14 @@
+import type { DdEtapaEnvio } from "@/lib/shared/constants";
+
 /** Datos base de una notificacion de debida diligencia. */
 export interface DdNotificacionBase {
   to: string;
   codigo: string;
   razonSocial: string;
+}
+
+export interface DdNotificacionRecibida extends DdNotificacionBase {
+  etapa: DdEtapaEnvio;
 }
 
 export interface DdNotificacionObservada extends DdNotificacionBase {
@@ -19,7 +25,7 @@ export interface DdNotificacionRechazada extends DdNotificacionBase {
 
 /** Puerto de notificaciones del modulo (correo + campana interna). */
 export interface IDebidaDiligenciaNotificacionPort {
-  expedienteRecibido(datos: DdNotificacionBase): Promise<void>;
+  expedienteRecibido(datos: DdNotificacionRecibida): Promise<void>;
   expedienteObservado(datos: DdNotificacionObservada): Promise<void>;
   expedienteAprobado(datos: DdNotificacionAprobada): Promise<void>;
   expedienteRechazado(datos: DdNotificacionRechazada): Promise<void>;

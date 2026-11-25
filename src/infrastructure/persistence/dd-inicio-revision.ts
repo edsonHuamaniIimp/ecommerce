@@ -30,9 +30,10 @@ export async function iniciarRevisionSiRecibida(
       tipo: DD_HISTORIAL_TIPOS.INICIO_REVISION,
       area: DD_OBSERVACION_AREAS.LOGISTICA,
       estado: DD_ESTADOS.EN_REVISION,
-      titulo: "SIG inició la revisión",
-      detalle: motivo.slice(0, 1500),
+      titulo: "Revisión iniciada",
+      detalle: "Logística inició la revisión de la documentación.",
       actor,
+      metadata: { motivo: motivo.slice(0, 500) },
     },
   });
   await prisma.auditLog.create({
@@ -41,7 +42,7 @@ export async function iniciarRevisionSiRecibida(
       entidad: expediente?.codigo ?? expedienteId,
       actor,
       mensaje: `SIG inició la revisión: ${motivo}`.slice(0, 1000),
-      metadata: { accion: "inicio_revision", desde: DD_ESTADOS.DOCUMENTACION_RECIBIDA, hacia: DD_ESTADOS.EN_REVISION },
+      metadata: { accion: DD_HISTORIAL_TIPOS.INICIO_REVISION, desde: DD_ESTADOS.DOCUMENTACION_RECIBIDA, hacia: DD_ESTADOS.EN_REVISION },
     },
   });
   return true;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { cn } from "@/lib/shared/utils";
 
 import { DD_PASOS } from "@/lib/shared/constants";
@@ -13,12 +13,14 @@ interface Props {
   completados?: number[];
   /** Pasos a los que se puede navegar. */
   navegables?: number[];
+  /** Pasos con observaciones abiertas del IIMP (se marcan en alerta aunque esten completos). */
+  conObservacion?: number[];
   /** Navegacion al hacer click en un paso habilitado. */
   onStepClick?: (numero: number) => void;
 }
 
 /** Stepper horizontal del formulario de Debida Diligencia (4 pasos). */
-export function DdStepper({ actual, completados, navegables, onStepClick }: Props) {
+export function DdStepper({ actual, completados, navegables, conObservacion = [], onStepClick }: Props) {
   const hechos = completados ?? DD_PASOS.filter((p) => p.numero < actual).map((p) => p.numero);
   const permitidos = navegables ?? [actual, ...hechos];
 
@@ -27,7 +29,8 @@ export function DdStepper({ actual, completados, navegables, onStepClick }: Prop
       <ol className="grid grid-cols-4">
         {DD_PASOS.map((paso, indice) => {
           const activo = paso.numero === actual;
-          const completado = hechos.includes(paso.numero);
+          const observado = conObservacion.includes(paso.numero);
+          const completado = hechos.includes(paso.numero) && !observado;
           const puedeNavegar = permitidos.includes(paso.numero) && Boolean(onStepClick);
           return (
             <li key={paso.numero} className="relative flex flex-col items-center">
@@ -45,8 +48,8 @@ export function DdStepper({ actual, completados, navegables, onStepClick }: Prop
                 disabled={!puedeNavegar}
                 onClick={() => onStepClick?.(paso.numero)}
                 aria-current={activo ? "step" : undefined}
-                aria-label={puedeNavegar ? `Ir al paso ${paso.label}` : paso.label}
-                title={puedeNavegar ? `Ir a ${paso.label}` : "Completa los pasos anteriores"}
+                aria-label={`${puedeNavegar ? `Ir al paso ${paso.label}` : paso.label}${observado ? " (tiene observaciones)" : ""}`}
+                title={observado ? `${paso.label}: tiene observaciones por corregir` : puedeNavegar ? `Ir a ${paso.label}` : "Completa los pasos anteriores"}
                 className={cn(
                   "z-10 flex w-full flex-col items-center border-0 bg-transparent p-0",
                   puedeNavegar ? "cursor-pointer" : "cursor-default",
@@ -56,12 +59,20 @@ export function DdStepper({ actual, completados, navegables, onStepClick }: Prop
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors",
                     completado && "border-success bg-success text-success-foreground",
-                    activo && !completado && "border-primary bg-primary text-primary-foreground ring-4 ring-primary/10",
-                    !activo && !completado && "border-border bg-card text-muted-foreground",
+                    observado && "border-warning bg-warning/15 text-warning",
+                    observado && activo && "ring-4 ring-warning/20",
+                    activo && !completado && !observado && "border-primary bg-primary text-primary-foreground ring-4 ring-primary/10",
+                    !activo && !completado && !observado && "border-border bg-card text-muted-foreground",
                     puedeNavegar && !activo && "hover:border-primary/60",
                   )}
                 >
-                  {completado ? <Check className="h-4 w-4" aria-hidden="true" /> : paso.numero}
+                  {observado ? (
+                    <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                  ) : completado ? (
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    paso.numero
+                  )}
                 </span>
                 <span
                   className={cn(
