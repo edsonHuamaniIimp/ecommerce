@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- script CommonJS que corre suelto en contenedores (sin build) */
 /**
  * Reimportacion manual de Debida Diligencia desde el Excel oficial (ya convertido a JSON).
  *

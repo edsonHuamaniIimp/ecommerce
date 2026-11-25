@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- script CommonJS que corre suelto en contenedores (sin build) */
 /**
  * Convierte el Excel oficial "RESULTADO DEBIDA DILIGENCIA FINAL_MOSTRAR.xlsx" a JSON para reimportar-dd.cjs.
  * El archivo trae filas de notas arriba: se detecta la fila del encabezado ("FECHA DE INGRESO SOLICITUD").
