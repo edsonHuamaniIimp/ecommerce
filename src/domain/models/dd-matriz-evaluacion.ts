@@ -159,6 +159,12 @@ export interface DdMatrizListarParams {
   /** Solo vinculos sin pais conocido. */
   sinPais?: boolean;
   resultadoFinal?: string;
+  /** Procedencia de la DD: portal (flujo_regular) o carga masiva (importado). */
+  origen?: string;
+  /** Vigencia de la DD aprobada: por_vencer | vencida | revalidacion_pendiente. */
+  vigencia?: string;
+  /** Evento activo de la sesion: la revalidacion pendiente solo aplica a DD de otros eventos. */
+  eventoActivoId?: string;
   /** Solo filas sin ningun resultado final registrado. */
   sinEvaluar?: boolean;
   /** Si es true, la pagina cuenta expedientes/empresas y devuelve todos sus sujetos. */

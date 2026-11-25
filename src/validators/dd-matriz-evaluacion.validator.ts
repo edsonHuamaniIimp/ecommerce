@@ -7,6 +7,8 @@ import {
   DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_EXPORT_MAX,
+  DD_MATRIZ_FILTRO_VIGENCIA,
+  DD_ORIGENES,
   DD_MATRIZ_FINAL_COMENTARIO_MAX,
   DD_MATRIZ_LISTAS,
   DD_MATRIZ_RESULTADOS_FINALES,
@@ -67,6 +69,8 @@ export const ddMatrizEvaluacionQuerySchema = z.object({
     .optional(),
   fechaDesde: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
   fechaHasta: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
+  origen: z.enum(valores(DD_ORIGENES)).optional(),
+  vigencia: z.enum(valores(DD_MATRIZ_FILTRO_VIGENCIA)).optional(),
   sinPais: z
     .enum(["true", "false"])
     .transform((v) => v === "true")
@@ -98,6 +102,8 @@ export const ddMatrizEvaluacionExportarSchema = z.object({
   fechaDesde: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
   fechaHasta: z.string().trim().regex(REGEX_FECHA_ISO, "Fecha inválida: usa AAAA-MM-DD").optional(),
   sinPais: z.boolean().optional(),
+  origen: z.enum(valores(DD_ORIGENES)).optional(),
+  vigencia: z.enum(valores(DD_MATRIZ_FILTRO_VIGENCIA)).optional(),
   resultadoFinal: z.string().trim().max(40).optional(),
   sinEvaluar: z.boolean().optional(),
 });

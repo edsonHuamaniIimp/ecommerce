@@ -2516,6 +2516,19 @@ export const DD_MATRIZ_EXPORT_MAX = 5000;
 
 /** Filtros de la lista de la matriz de evaluacion. */
 export const DD_MATRIZ_FILTRO_TODOS = "todos";
+
+/** Filtro de vigencia de la Matriz DD (solo DD aprobadas): mismas reglas que la bandeja DD anterior. */
+export const DD_MATRIZ_FILTRO_VIGENCIA = {
+  POR_VENCER: "por_vencer",
+  VENCIDA: "vencida",
+  REVALIDACION_PENDIENTE: "revalidacion_pendiente",
+} as const;
+export type DdMatrizFiltroVigencia = (typeof DD_MATRIZ_FILTRO_VIGENCIA)[keyof typeof DD_MATRIZ_FILTRO_VIGENCIA];
+export const DD_MATRIZ_FILTRO_VIGENCIA_LABELS: Record<DdMatrizFiltroVigencia, string> = {
+  [DD_MATRIZ_FILTRO_VIGENCIA.POR_VENCER]: "Por vencer",
+  [DD_MATRIZ_FILTRO_VIGENCIA.VENCIDA]: "Vencidas",
+  [DD_MATRIZ_FILTRO_VIGENCIA.REVALIDACION_PENDIENTE]: "Revalidación pendiente",
+};
 export const DD_MATRIZ_FILTRO_SIN_EVALUAR = "sin_evaluar";
 export const DD_MATRIZ_FILTRO_SIN_PAIS = "sin_pais";
 

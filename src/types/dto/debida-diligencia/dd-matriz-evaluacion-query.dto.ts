@@ -17,6 +17,10 @@ export interface DdMatrizEvaluacionQueryDTO {
   /** Solo vinculos sin pais conocido. */
   sinPais?: boolean;
   resultadoFinal?: string;
+  /** Procedencia: flujo_regular (portal) o importado (carga masiva). */
+  origen?: string;
+  /** Vigencia de las DD aprobadas: por_vencer | vencida | revalidacion_pendiente. */
+  vigencia?: string;
   sinEvaluar?: boolean;
   /** Pagina por expediente/empresa y devuelve todos sus sujetos evaluados. */
   porEmpresa?: boolean;

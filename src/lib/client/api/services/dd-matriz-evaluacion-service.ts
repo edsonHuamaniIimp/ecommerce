@@ -33,6 +33,8 @@ export const ddMatrizEvaluacionService = {
     if (params.pais) qs.set("pais", params.pais);
     if (params.fechaDesde) qs.set("fechaDesde", params.fechaDesde);
     if (params.fechaHasta) qs.set("fechaHasta", params.fechaHasta);
+    if (params.origen) qs.set("origen", params.origen);
+    if (params.vigencia) qs.set("vigencia", params.vigencia);
     if (params.sinPais) qs.set("sinPais", "true");
     if (params.resultadoFinal) qs.set("resultadoFinal", params.resultadoFinal);
     if (params.sinEvaluar) qs.set("sinEvaluar", "true");

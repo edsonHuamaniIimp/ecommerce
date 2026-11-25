@@ -560,6 +560,15 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     ).rejects.toMatchObject({ status: 403 });
   });
 
+  it("listar y exportar pasan procedencia y vigencia, con el evento activo de la sesion", async () => {
+    const { servicio, repo } = crear(vinculo());
+    repo.listar.mockResolvedValue({ data: [], total: 0 });
+    await servicio.listar(sesion([]), { origen: "importado", vigencia: "por_vencer" });
+    expect(repo.listar).toHaveBeenCalledWith(expect.objectContaining({ origen: "importado", vigencia: "por_vencer", eventoActivoId: "evento-1" }));
+    await servicio.exportar(sesion([]), { origen: "flujo_regular", vigencia: "vencida" });
+    expect(repo.listarParaExportar).toHaveBeenCalledWith(expect.objectContaining({ origen: "flujo_regular", vigencia: "vencida", eventoActivoId: "evento-1" }));
+  });
+
   describe("guardado borrador", () => {
     it("guarda criterios, observaciones por criterio y texto SIG sin resultado, conclusion ni sello", async () => {
       const { servicio, repo } = crear(vinculo());

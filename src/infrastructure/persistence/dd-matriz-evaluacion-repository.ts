@@ -24,7 +24,13 @@ import type {
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
 import {
   DD_AUDITORIA_TIPO,
+  DD_DIAS_POR_VENCER,
+  DD_DOCUMENTO_ESTADOS,
+  DD_DOCUMENTOS,
   DD_ESTADOS,
+  DD_MATRIZ_FILTRO_VIGENCIA,
+  DD_ORIGENES,
+  DD_VIGENCIA_MESES,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_ORIGENES,
   DD_MATRIZ_RESULTADOS_FINALES,
@@ -49,8 +55,56 @@ import {
   resultadoFinalEfectivo,
   resolverPais,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { dateUtils } from "@/lib/shared/utils/date";
 import { esPaisNacional, paisDeTexto } from "@/lib/shared/utils/pais";
 import { tipoDocumentoEmpresaVinculada } from "@/lib/shared/utils/debida-diligencia-v2";
+
+/**
+ * Condicion sobre el expediente para el filtro de vigencia (solo DD aprobadas). Mismas reglas que el filtro
+ * de la bandeja DD anterior: sin fecha de vencimiento se calcula desde la aprobacion (DD_VIGENCIA_MESES).
+ */
+export function condicionVigenciaExpediente(
+  vigencia: string,
+  ahora: Date,
+  eventoActivoId?: string,
+): Prisma.DebidaDiligenciaWhereInput | null {
+  const limiteVencimiento = dateUtils.addDays(dateUtils.startOfDay(ahora), DD_DIAS_POR_VENCER);
+  const limiteAprobacion = dateUtils.addMonths(ahora, -DD_VIGENCIA_MESES);
+  const limiteAprobacionPorVencer = dateUtils.addMonths(limiteVencimiento, -DD_VIGENCIA_MESES);
+  if (vigencia === DD_MATRIZ_FILTRO_VIGENCIA.POR_VENCER) {
+    return {
+      estado: DD_ESTADOS.APROBADA,
+      OR: [
+        { fechaVencimiento: { gt: ahora, lte: limiteVencimiento } },
+        { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion, lte: limiteAprobacionPorVencer } },
+      ],
+    };
+  }
+  if (vigencia === DD_MATRIZ_FILTRO_VIGENCIA.VENCIDA) {
+    return {
+      estado: DD_ESTADOS.APROBADA,
+      OR: [
+        { fechaVencimiento: { lt: ahora } },
+        { fechaVencimiento: null, OR: [{ fechaAprobacion: null }, { fechaAprobacion: { lte: limiteAprobacion } }] },
+      ],
+    };
+  }
+  if (vigencia === DD_MATRIZ_FILTRO_VIGENCIA.REVALIDACION_PENDIENTE) {
+    return {
+      estado: DD_ESTADOS.APROBADA,
+      origen: DD_ORIGENES.IMPORTADO,
+      OR: [
+        { fechaVencimiento: { gt: ahora } },
+        { fechaVencimiento: null, fechaAprobacion: { gt: limiteAprobacion } },
+      ],
+      documentos: {
+        none: { tipo: DD_DOCUMENTOS.DECLARACION_VIGENCIA, estado: DD_DOCUMENTO_ESTADOS.APROBADO },
+      },
+      ...(eventoActivoId ? { eventoId: { not: eventoActivoId } } : {}),
+    };
+  }
+  return null;
+}
 
 /** Tamano de lote al crear filas automaticas. */
 const LOTE_CREACION = 500;
@@ -705,6 +759,11 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
             : []),
         ],
       });
+    }
+    if (params.origen) and.push({ expediente: { origen: params.origen } });
+    if (params.vigencia) {
+      const condicion = condicionVigenciaExpediente(params.vigencia, dateUtils.now(), params.eventoActivoId);
+      if (condicion) and.push({ expediente: condicion });
     }
     if (params.sinEvaluar) {
       and.push({

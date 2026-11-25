@@ -14,5 +14,7 @@ export interface DdMatrizEvaluacionExportarRequestDTO {
   fechaHasta?: string;
   sinPais?: boolean;
   resultadoFinal?: string;
+  origen?: string;
+  vigencia?: string;
   sinEvaluar?: boolean;
 }

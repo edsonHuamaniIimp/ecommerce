@@ -249,7 +249,10 @@ respaldo.
 
 ## 8. Procedimiento previsto para producción
 
-Este procedimiento no se ejecutó en producción. Requiere autorización explícita,
+> **Actualización 2026-11-25:** producción sí recibió datos: la carga original del 21-oct-2026 (solo estados, sin separar eventos
+> ni enriquecer con la matriz) y la reimportación del 25-nov-2026. Ver `reimportacion-dd-produccion-2026-11-25.md`.
+
+Este procedimiento (carga completa con matriz) no se ejecutó en producción. Requiere autorización explícita,
 ventana de mantenimiento y respaldo verificado.
 
 ### 8.1 Preflight

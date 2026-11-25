@@ -94,6 +94,9 @@ import {
   DD_MATRIZ_AREA_CONCLUSION_LABELS,
   DD_MATRIZ_FILTRO_FECHA,
   DD_MATRIZ_FILTRO_FECHA_LABELS,
+  DD_MATRIZ_FILTRO_VIGENCIA_LABELS,
+  DD_ORIGEN_LABELS,
+  DD_ORIGENES,
   type DdMatrizFiltroFecha,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_TIPO_VINCULO_LABELS,
@@ -130,6 +133,10 @@ interface Filtros {
   fechaDesde: string;
   fechaHasta: string;
   resultadoFinal: string;
+  /** Procedencia de la DD (portal / carga masiva) o "todos". */
+  origen: string;
+  /** Vigencia de las DD aprobadas o "todos". */
+  vigencia: string;
 }
 
 const FILTROS_INICIALES: Filtros = {
@@ -144,6 +151,8 @@ const FILTROS_INICIALES: Filtros = {
   fechaDesde: "",
   fechaHasta: "",
   resultadoFinal: DD_MATRIZ_FILTRO_TODOS,
+  origen: DD_MATRIZ_FILTRO_TODOS,
+  vigencia: DD_MATRIZ_FILTRO_TODOS,
 };
 
 interface GrupoEmpresa {
@@ -172,6 +181,8 @@ function filtrosComunes(filtros: Filtros): DdMatrizEvaluacionExportarRequestDTO 
     ...rangoDeFiltroFecha(filtros.fechaPreset, filtros),
     resultadoFinal:
       filtros.resultadoFinal !== DD_MATRIZ_FILTRO_TODOS && !sinEvaluar ? filtros.resultadoFinal : undefined,
+    origen: filtros.origen !== DD_MATRIZ_FILTRO_TODOS ? filtros.origen : undefined,
+    vigencia: filtros.vigencia !== DD_MATRIZ_FILTRO_TODOS ? filtros.vigencia : undefined,
     sinEvaluar: sinEvaluar || undefined,
   };
 }
@@ -476,7 +487,7 @@ export function DdMatrizBandeja() {
   };
 
   const filtrosActivos =
-    [filtros.eventoId, filtros.tipo, filtros.ambito, filtros.resultadoFinal].filter(
+    [filtros.eventoId, filtros.tipo, filtros.ambito, filtros.resultadoFinal, filtros.origen, filtros.vigencia].filter(
       (valor) => valor !== DD_MATRIZ_FILTRO_TODOS,
     ).length +
     (filtros.paises.length > 0 ? 1 : 0) +
@@ -972,7 +983,7 @@ export function DdMatrizBandeja() {
           </div>
 
           {filtersOpen ? (
-            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
               <div className="space-y-1">
                 <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mxb-tipo">Tipo de sujeto</label>
                 <Select value={filtros.tipo} onValueChange={(valor) => aplicar({ tipo: valor })}>
@@ -1005,6 +1016,30 @@ export function DdMatrizBandeja() {
                     <SelectItem value={DD_MATRIZ_FILTRO_TODOS}><span>Todos</span></SelectItem>
                     <SelectItem value={DD_MATRIZ_FILTRO_SIN_EVALUAR}><span>Sin evaluar</span></SelectItem>
                     {Object.entries(DD_MATRIZ_RESULTADO_FINAL_LABELS).map(([valor, label]) => (
+                      <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mxb-origen">Procedencia</label>
+                <Select value={filtros.origen} onValueChange={(valor) => aplicar({ origen: valor })}>
+                  <SelectTrigger id="mxb-origen" className="h-8 border-border text-xs"><SelectValue placeholder="Procedencia" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_MATRIZ_FILTRO_TODOS}><span>Todas</span></SelectItem>
+                    {Object.values(DD_ORIGENES).map((valor) => (
+                      <SelectItem key={valor} value={valor}><span>{DD_ORIGEN_LABELS[valor]}</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase text-muted-foreground" htmlFor="mxb-vigencia">Vigencia</label>
+                <Select value={filtros.vigencia} onValueChange={(valor) => aplicar({ vigencia: valor })}>
+                  <SelectTrigger id="mxb-vigencia" className="h-8 border-border text-xs"><SelectValue placeholder="Vigencia" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={DD_MATRIZ_FILTRO_TODOS}><span>Todas</span></SelectItem>
+                    {Object.entries(DD_MATRIZ_FILTRO_VIGENCIA_LABELS).map(([valor, label]) => (
                       <SelectItem key={valor} value={valor}><span>{label}</span></SelectItem>
                     ))}
                   </SelectContent>

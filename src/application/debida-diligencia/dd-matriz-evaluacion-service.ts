@@ -220,6 +220,9 @@ export class DdMatrizEvaluacionApplicationService {
       fechaHasta: query.fechaHasta,
       sinPais: query.sinPais,
       resultadoFinal: query.resultadoFinal,
+      origen: query.origen,
+      vigencia: query.vigencia,
+      eventoActivoId: session.eventoId ?? undefined,
       sinEvaluar: query.sinEvaluar,
       porEmpresa: query.porEmpresa,
     });
@@ -255,6 +258,9 @@ export class DdMatrizEvaluacionApplicationService {
       fechaHasta: filtros.fechaHasta,
       sinPais: filtros.sinPais,
       resultadoFinal: filtros.resultadoFinal,
+      origen: filtros.origen,
+      vigencia: filtros.vigencia,
+      eventoActivoId: session.eventoId ?? undefined,
       sinEvaluar: filtros.sinEvaluar,
     });
     if (items.length > DD_MATRIZ_EXPORT_MAX) {
