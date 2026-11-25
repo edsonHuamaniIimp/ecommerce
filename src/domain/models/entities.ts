@@ -270,6 +270,8 @@ export interface SolicitudRow {
   userId: string | null;
   /** Tipo de solicitud (`reserva_empresa`); null para el flujo regular. */
   tipo?: string | null;
+  /** Plantilla de contrato persistida (`TIPOS_CONTRATO`); null = se deduce de `tipo`. */
+  tipoContrato?: string | null;
   /** Nombre del usuario solicitante (user_role.nombre + apellidos). */
   nombreUsuario?: string | null;
   bloqueId: string | null;

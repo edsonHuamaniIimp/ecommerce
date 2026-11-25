@@ -1,4 +1,4 @@
-﻿import type { TipoComprobante, TipoDescuentoGlobal } from "@/lib/shared/constants";
+﻿import type { TipoComprobante, TipoContrato, TipoDescuentoGlobal } from "@/lib/shared/constants";
 
 export interface ReservaAdminRequestDTO {
   eventoId: string;
@@ -7,6 +7,8 @@ export interface ReservaAdminRequestDTO {
   moneda?: "USD" | "PEN";
   /** Comprobante que se usara en la solicitud/contrato (factura o boleta). */
   tipoComprobante?: TipoComprobante;
+  /** Plantilla de contrato; por defecto la del Operador Internacional. */
+  tipoContrato?: TipoContrato;
   /** Descuento comercial sobre el neto (0..100, maximo 2 decimales). */
   descuentoPorcentaje?: number;
   descuentoMonto?: number;

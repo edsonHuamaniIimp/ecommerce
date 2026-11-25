@@ -73,6 +73,7 @@ export interface ISolicitudesRepository {
       auditoria?: { actor?: string | null; ip?: string | null },
       moneda?: { moneda: string; tipoCambio: number | null },
       tipo?: string | null,
+      tipoContrato?: string | null,
     ): Promise<string>;
   touchAuditoria(solicitudId: string, actor: string | null, ip: string | null): Promise<void>;
   crearAlertaReserva(data: { userId: string; tipo: string; clave: AlertaClave; datos: AlertaDatos; url?: string; solicitudId?: string }): Promise<void>;

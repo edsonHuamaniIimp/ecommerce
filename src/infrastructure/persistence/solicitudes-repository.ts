@@ -357,6 +357,7 @@ async function mapRow(row: SolicitudConRelaciones): Promise<SolicitudRow> {
     email: row.email,
     userId: row.userId,
     tipo: row.tipo ?? null,
+    tipoContrato: row.tipoContrato ?? null,
     nombreUsuario,
     standApiId,
     bloqueId,
@@ -825,6 +826,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     auditoria?: { actor?: string | null; ip?: string | null },
     moneda?: { moneda: string; tipoCambio: number | null },
     tipo?: string | null,
+    tipoContrato?: string | null,
   ): Promise<string> {
     const created = await prisma.solicitud.create({
       data: {
@@ -832,6 +834,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
         userId: userId ?? null,
         email: email ?? null,
         tipo: tipo ?? null,
+        tipoContrato: tipoContrato ?? null,
         datosFacturacion: (datosFacturacion ?? undefined) as never,
         moneda: moneda?.moneda ?? "USD",
         tipoCambio: moneda?.tipoCambio ?? 1,

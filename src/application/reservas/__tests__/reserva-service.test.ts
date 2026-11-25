@@ -16,7 +16,7 @@ import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 import type { IEventoRepository } from "@/domain/ports/evento-repository";
 import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
-import { ESTADOS_PAGO_SOLICITUD, TIPOS_SOLICITUD } from "@/lib/shared/constants";
+import { ESTADOS_PAGO_SOLICITUD, TIPOS_CONTRATO, TIPOS_SOLICITUD } from "@/lib/shared/constants";
 
 /** Repositorio de auth falso (idioma del correo + empresa del solicitante). */
 function authRepoFalso(perfil: { ruc?: string | null; razonSocial?: string | null; configCuotas?: { maxCuotas: number; fechas: string[]; porcentajes?: number[] } | null } | null = null): IAuthRepository {
@@ -415,6 +415,7 @@ describe("ReservaApplicationService - moneda del contrato", () => {
       { actor: "user-1", ip: null },
       { moneda: "PEN", tipoCambio: 3.75 },
       undefined,
+      null,
     );
     expect(solicitudesRepo.guardarPlanCuotas).toHaveBeenCalledWith(
       "sol-1",
@@ -542,6 +543,10 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
     expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[3]).toEqual(
       expect.objectContaining({ tipoComprobante: "boleta" }),
     );
+    /* Sin elegir plantilla se persiste la del Operador Internacional (la de este flujo). */
+    expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[7]).toBe(
+      TIPOS_CONTRATO.OPERADOR_INTERNACIONAL,
+    );
     expect(contratoService.generar).toHaveBeenCalledWith(expect.objectContaining({
       solicitudId: "sol-1",
       userEmail: "representante@empresa.pe",
@@ -557,6 +562,27 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
     expect(res.estado).toBe("pendiente");
     expect(res.estadoPago).toBe(ESTADOS_PAGO_SOLICITUD.PENDIENTE_PAGO);
     expect(enviarEmailPlantilla).not.toHaveBeenCalled();
+  });
+
+  it("persiste la plantilla estandar elegida en la reserva administrativa y rechaza una desconocida", async () => {
+    const { svc, solicitudesRepo } = crearServicioAdmin();
+    const base = {
+      eventoId: "evt-1",
+      empresaRuc: "20123456789",
+      standIds: ["g1"],
+      moneda: "USD",
+      tipoComprobante: "factura",
+      cuotas: [{ porcentaje: 100, fechaVencimiento: "2026-11-15" }],
+      actorEmail: "admin@iimp.org.pe",
+    };
+
+    const res = await svc.crearAdministrativa({ ...base, tipoContrato: TIPOS_CONTRATO.ESTANDAR });
+    expect(res.ok).toBe(true);
+    expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[7]).toBe(TIPOS_CONTRATO.ESTANDAR);
+    /* La reserva sigue siendo del flujo reserva_empresa: solo cambia la plantilla. */
+    expect(vi.mocked(solicitudesRepo.crearSolicitud).mock.calls[0]?.[6]).toBe(TIPOS_SOLICITUD.RESERVA_EMPRESA);
+
+    await expect(svc.crearAdministrativa({ ...base, tipoContrato: "otra" })).rejects.toThrow(/plantilla de contrato/i);
   });
 
   it("aplica descuento fijo exacto y lo guarda en el snapshot", async () => {

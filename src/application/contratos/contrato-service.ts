@@ -25,7 +25,8 @@ import type { DatosContrato, PlanCuotasSolicitud } from "@/domain/models/entitie
 import type { PlanoItem } from "@/lib/shared/planos/registry";
 import type { StorageAdapter } from "@/lib/server/storage";
 import { DomainError } from "@/lib/server/router";
-import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_DOCUMENTO_SOLICITUD, TIPOS_SOLICITUD, type Idioma, type TipoDescuentoGlobal } from "@/lib/shared/constants";
+import { API_ERROR_CODES, CUOTA_MONTO_MINIMO, ESTADOS_DOCUMENTO_SOLICITUD, ESTADOS_SOLICITUD, IDIOMAS, MAX_CUOTAS_PAGO, MAX_CUOTAS_PERSONALIZADAS, MODOS_PAGO, ORIGENES_DOCUMENTO, PERMISSIONS, TIPOS_DESCUENTO, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPOS_CONTRATO, TIPOS_DOCUMENTO_SOLICITUD, type Idioma, type TipoContrato, type TipoDescuentoGlobal } from "@/lib/shared/constants";
+import { resolverTipoContrato } from "@/lib/shared/utils/tipo-contrato";
 import { ALERTA_CLAVES } from "@/lib/shared/alert-templates";
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
@@ -101,6 +102,12 @@ export const PLANTILLAS_CONTRATO: Record<Idioma, string[]> = {
 export const PLANTILLAS_CONTRATO_RESERVA_EMPRESA: Record<Idioma, string[]> = {
   [IDIOMAS.ES]: ["plantillas", "contrato-p38-operador-tags.docx"],
   [IDIOMAS.EN]: ["plantillas", "contrato-p38-operador-tags.docx"],
+};
+
+/** Plantilla DOCX por tipo de contrato (`solicitud.tipo_contrato`). */
+export const PLANTILLAS_POR_TIPO_CONTRATO: Record<TipoContrato, Record<Idioma, string[]>> = {
+  [TIPOS_CONTRATO.ESTANDAR]: PLANTILLAS_CONTRATO,
+  [TIPOS_CONTRATO.OPERADOR_INTERNACIONAL]: PLANTILLAS_CONTRATO_RESERVA_EMPRESA,
 };
 
 /**
@@ -434,7 +441,9 @@ export class ContratoApplicationService {
     const planParaTabla = descuentosDetalle
       ? { ...(planPersistido ?? { modalidad: "", cuotas: [] }), descuentosPorStand: descuentosDetalle }
       : planPersistido;
-    const tablaEconomica = detalle.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA
+    /* Plantilla persistida en la solicitud: toda (re)generacion la respeta. */
+    const tipoContrato = resolverTipoContrato(detalle.tipoContrato, detalle.tipo);
+    const tablaEconomica = tipoContrato === TIPOS_CONTRATO.OPERADOR_INTERNACIONAL
       ? this.construirTablaEconomica({
           stands: detalle.standsDetalle,
           plan: planParaTabla,
@@ -478,7 +487,7 @@ export class ContratoApplicationService {
       porcentajes,
       modalidad,
       moneda,
-      tipoSolicitud: detalle.tipo ?? null,
+      tipoContrato,
       contrato: input.contrato ?? contratoSnapshot,
       pais: detalle.pais ?? null,
       tablaEconomica,
@@ -881,8 +890,8 @@ export class ContratoApplicationService {
     porcentajes: number[];
     modalidad: string;
     moneda: MonedaContrato;
-    /** `reserva_empresa` usa la plantilla oficial del Operador Internacional. */
-    tipoSolicitud?: string | null;
+    /** Plantilla del contrato; el borrador del flujo estandar no la envia (usa la estandar). */
+    tipoContrato?: TipoContrato;
     /** Pais ISO alpha-2 del operador (clausulas). */
     pais?: string | null;
     /** Detalle economico por stand (Anexo 1 de Pabellones Internacionales). */
@@ -899,7 +908,8 @@ export class ContratoApplicationService {
     base: string;
   }): Promise<ContratoGenerado> {
     const { idioma, empresa, modulos, gruposPabellon, importes, plan, firmaExhibidorBase64, base } = params;
-    const esContratoOperador = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA;
+    const tipoContrato = params.tipoContrato ?? TIPOS_CONTRATO.ESTANDAR;
+    const esContratoOperador = tipoContrato === TIPOS_CONTRATO.OPERADOR_INTERNACIONAL;
     const esCompleto = params.modalidad === MODOS_PAGO.COMPLETO;
     const esMitad = params.modalidad === MODOS_PAGO.CUOTAS;
     const esTresCuotas = params.modalidad === MODOS_PAGO.TRES_CUOTAS;
@@ -1179,9 +1189,7 @@ export class ContratoApplicationService {
     };
 
     /* Render DOCX en el idioma resuelto (respaldo al español si falta la plantilla). */
-    const plantillas = params.tipoSolicitud === TIPOS_SOLICITUD.RESERVA_EMPRESA
-      ? PLANTILLAS_CONTRATO_RESERVA_EMPRESA
-      : PLANTILLAS_CONTRATO;
+    const plantillas = PLANTILLAS_POR_TIPO_CONTRATO[tipoContrato];
     const rutaPlantilla = path.join(process.cwd(), ...plantillas[idioma]);
     const rutaRespaldo = path.join(process.cwd(), ...plantillas[IDIOMAS.ES]);
     const plantilla = fs.readFileSync(fs.existsSync(rutaPlantilla) ? rutaPlantilla : rutaRespaldo);

@@ -17,6 +17,8 @@ import { convertirNeto, esMonedaContrato, tipoCambioValido, type MonedaContrato 
 import { configCuotasValida, cuotasCoincidenConfig, fechasCuotasEstructuralmenteValidas, modalidadDeCuotas, porcentajesValidos, planCuotasConFechas } from "@/lib/shared/utils/cuotas";
 import { esStandComercialReservable, resolverPrecioStand } from "@/lib/shared/utils/precio-stand";
 import { validarEmpresaReservaAdministrativa } from "@/lib/shared/utils/reserva-admin-readiness";
+import { normalizarDocumentoPersona, normalizarTipoDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { esTipoContrato, resolverTipoContrato } from "@/lib/shared/utils/tipo-contrato";
 import { getAppUrl } from "@/lib/server/app-url";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
@@ -149,6 +151,8 @@ export class ReservaApplicationService {
     moneda?: string;
     /** Comprobante elegido para la solicitud; si falta se usa el de la empresa. */
     tipoComprobante?: string;
+    /** Plantilla de contrato; si falta se usa la del Operador Internacional. */
+    tipoContrato?: string;
     /** Descuento comercial sobre el neto (0..100, hasta 2 decimales). */
     descuentoPorcentaje?: number;
     /** Descuento fijo sobre el neto, en la moneda del contrato. */
@@ -181,6 +185,10 @@ export class ReservaApplicationService {
     }
 
     const tipoComprobante = input.tipoComprobante ?? empresa.tipoComprobante;
+    if (input.tipoContrato !== undefined && !esTipoContrato(input.tipoContrato)) {
+      throw new DomainError("La plantilla de contrato no es valida.", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const tipoContratoElegido = resolverTipoContrato(input.tipoContrato, TIPOS_SOLICITUD.RESERVA_EMPRESA);
     const descuentoPorcentaje = input.descuentoPorcentaje ?? 0;
     const descuentoMonto = input.descuentoMonto ?? 0;
     const descuentosPorStand = input.descuentosPorStand ?? [];
@@ -230,7 +238,11 @@ export class ReservaApplicationService {
       empresa.emailFacturacion ??
       undefined;
     const esBoleta = tipoComprobante === TIPOS_COMPROBANTE.BOLETA;
-    const representanteDni = String(empresa.representanteLegalDni ?? "").replace(/\D/g, "");
+    /* Boleta: el documento del titular puede ser DNI, carne o pasaporte (se conservan las letras). */
+    const tipoDocumentoBoleta = normalizarTipoDocumentoPersona(
+      empresa.representanteLegalTipoDocumento || TIPOS_DOCUMENTO_PERSONA.DNI,
+    );
+    const representanteDni = normalizarDocumentoPersona(tipoDocumentoBoleta, empresa.representanteLegalDni);
     const userSub = empresa.representanteUserId ?? undefined;
 
     const result = await this.crear({
@@ -244,7 +256,7 @@ export class ReservaApplicationService {
         razonSocial: esBoleta
           ? (empresa.representanteLegalNombre ?? empresa.razonSocial)
           : empresa.razonSocial,
-        tipoDocumento: esBoleta ? TIPOS_DOCUMENTO_PERSONA.DNI : empresa.tipoDocumento,
+        tipoDocumento: esBoleta ? tipoDocumentoBoleta : empresa.tipoDocumento,
         numeroDocumento: esBoleta ? representanteDni : empresa.ruc,
         email: contactEmail ?? "",
         tipoComprobante,
@@ -259,6 +271,7 @@ export class ReservaApplicationService {
       descuentoMonto,
       descuentosPorStand,
       tipo: TIPOS_SOLICITUD.RESERVA_EMPRESA,
+      tipoContrato: tipoContratoElegido,
       omitirRevisiones: true,
       requerirStandComercial: true,
       permitirPreReservaAjena: true,
@@ -332,6 +345,8 @@ export class ReservaApplicationService {
     moneda?: string;
     /** Tipo de solicitud con flujo propio. Null/undefined = flujo regular. */
     tipo?: string | null;
+    /** Plantilla de contrato persistida en la solicitud (null = se deduce del tipo). */
+    tipoContrato?: string | null;
     /** Evento de la sesion: los stands deben pertenecer a el. */
     eventoId?: string;
     /** Hold creado al abrir el wizard; se convierte en reserva. */
@@ -515,6 +530,7 @@ export class ReservaApplicationService {
           { actor: request.actorEmail ?? request.userSub ?? null, ip: request.ip ?? null },
           { moneda, tipoCambio },
           request.tipo,
+          request.tipoContrato ?? null,
         );
         if (!request.omitirRevisiones) {
           for (const area of areasRevisionLocal([], { sgcEnabled: isSgcEnabled() })) {

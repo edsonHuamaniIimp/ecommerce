@@ -52,7 +52,7 @@ import { reservasAdminService } from "@/lib/client/api/services/reservas-admin-s
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MAESTRA_TABLAS, MODOS_DESCUENTO, TIPOS_DESCUENTO, type ModoDescuento, type TipoDescuentoGlobal, MONEDAS, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_PERSONA, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante } from "@/lib/shared/constants";
+import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MAESTRA_TABLAS, MODOS_DESCUENTO, TIPOS_DESCUENTO, type ModoDescuento, type TipoDescuentoGlobal, MONEDAS, TIPOS_COMPROBANTE, TIPOS_CONTRATO, TIPOS_CONTRATO_LABELS, TIPOS_DOCUMENTO_PERSONA, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante, type TipoContrato } from "@/lib/shared/constants";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { convertirNeto, formatearMonto, tipoCambioValido } from "@/lib/shared/utils/moneda";
@@ -150,6 +150,7 @@ function empresaAccesoDesdeDTO(empresa: EmpresaDTO): EmpresaAccesoDTO {
     representanteUserId: empresa.representanteUserId ?? null,
     representanteLegalNombre: empresa.representanteLegalNombre,
     representanteLegalDni: empresa.representanteLegalDni,
+    representanteLegalTipoDocumento: empresa.representanteLegalTipoDocumento,
     representanteCorreo: empresa.representanteCorreo,
     direccionFiscal: empresa.direccionFiscal,
     emailContacto: empresa.emailContacto,
@@ -187,6 +188,8 @@ export function ReservarEmpresaPanel() {
     OPCIONES_DESCUENTO_LABELS,
   );
   const [tipoComprobante, setTipoComprobante] = useState<string>(UI_SENTINEL.SELECCIONAR);
+  /** Plantilla del contrato; por defecto la del Operador Internacional (la de este flujo). */
+  const [tipoContrato, setTipoContrato] = useState<TipoContrato>(TIPOS_CONTRATO.OPERADOR_INTERNACIONAL);
   const [tipoCambio, setTipoCambio] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const esStandSeleccionableAdmin = (stand: GessStandDTO): boolean =>
@@ -741,6 +744,7 @@ export function ReservarEmpresaPanel() {
   const abrirModal = () => {
     setCarritoAbierto(false);
     setFilasCuotas(crearCuotaFilaInicial(total));
+    setTipoContrato(TIPOS_CONTRATO.OPERADOR_INTERNACIONAL);
     setPaso(0);
     setModalOpen(true);
   };
@@ -796,6 +800,7 @@ export function ReservarEmpresaPanel() {
         standIds: [...selected],
         moneda: monedaSeleccionada ? monedaPago : undefined,
         tipoComprobante: comprobanteSeleccionado ? (tipoComprobante as TipoComprobante) : undefined,
+        tipoContrato,
         descuentoPorcentaje: aplicarDescuento && !esDescuentoPorStand && tipoDescuento === TIPOS_DESCUENTO.PORCENTAJE ? descuentoNumero : 0,
         descuentoMonto: aplicarDescuento && !esDescuentoPorStand && tipoDescuento === TIPOS_DESCUENTO.MONTO ? descuentoNumero : 0,
         ...(esDescuentoPorStand
@@ -1325,6 +1330,27 @@ export function ReservarEmpresaPanel() {
                 {puedePagarEnSoles
                   ? `Tipo de cambio: S/ ${tipoCambio} por USD.`
                   : "El evento no tiene tipo de cambio configurado; solo se permite USD."}
+              </p>
+            </div>
+            <div className={`space-y-1 ${paso === 0 ? "" : "hidden"}`}>
+              <Label htmlFor="reserva-tipo-contrato">Plantilla de contrato</Label>
+              <Select
+                value={tipoContrato}
+                onValueChange={(value) => setTipoContrato(value as TipoContrato)}
+              >
+                <SelectTrigger id="reserva-tipo-contrato">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(TIPOS_CONTRATO).map((tipo) => (
+                    <SelectItem key={tipo} value={tipo}>
+                      <span>{TIPOS_CONTRATO_LABELS[tipo]}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Se guarda en la solicitud; al regenerar el contrato se usa la misma plantilla.
               </p>
             </div>
             <div className={`space-y-1 ${paso === 1 ? "sm:col-span-3" : "hidden"}`}>
@@ -1881,6 +1907,10 @@ export function ReservarEmpresaPanel() {
                 <p className="font-medium text-foreground">
                   {TIPO_COMPROBANTE_LABELS[tipoComprobante] ?? tipoComprobante}
                 </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Plantilla de contrato</span>
+                <p className="font-medium text-foreground">{TIPOS_CONTRATO_LABELS[tipoContrato]}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Tipo de pago</span>

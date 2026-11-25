@@ -1318,6 +1318,27 @@ export const TIPOS_SOLICITUD = {
 
 export type TipoSolicitud = (typeof TIPOS_SOLICITUD)[keyof typeof TIPOS_SOLICITUD];
 
+/**
+ * Plantilla de contrato de una solicitud. Se persiste en `solicitud.tipo_contrato`
+ * y toda generacion/regeneracion del contrato la respeta. Sin valor persistido se
+ * deduce del tipo de solicitud (ver `resolverTipoContrato`).
+ */
+export const TIPOS_CONTRATO = {
+  /** Contrato del flujo estandar (portal del cliente). */
+  ESTANDAR: "estandar",
+  /** Contrato del Operador Internacional (flujo de /dashboard/reservar-empresa). */
+  OPERADOR_INTERNACIONAL: "operador_internacional",
+} as const;
+
+export type TipoContrato = (typeof TIPOS_CONTRATO)[keyof typeof TIPOS_CONTRATO];
+
+export const TIPOS_CONTRATO_VALORES = Object.values(TIPOS_CONTRATO) as [TipoContrato, ...TipoContrato[]];
+
+export const TIPOS_CONTRATO_LABELS: Record<TipoContrato, string> = {
+  [TIPOS_CONTRATO.ESTANDAR]: "Contrato estándar",
+  [TIPOS_CONTRATO.OPERADOR_INTERNACIONAL]: "Contrato Operador Internacional",
+};
+
 /** Estados de la solicitud de factura programada (solicitudes internas). */
 export const ESTADOS_FACTURACION_PROGRAMADA = {
   PENDIENTE: "pendiente",

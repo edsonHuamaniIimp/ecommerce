@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPOS_DESCUENTO, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN } from "@/lib/shared/constants";
+import { MAX_RESERVA_ADMIN_STANDS, MONEDAS, TIPOS_COMPROBANTE, TIPOS_CONTRATO_VALORES, TIPOS_DESCUENTO, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN } from "@/lib/shared/constants";
 
 export const reservaRequestSchema = z.object({
   standIds: z.array(z.string()).min(1),
@@ -33,6 +33,7 @@ export const reservaAdminSchema = z.object({
   standIds: z.array(z.string()).min(1).max(MAX_RESERVA_ADMIN_STANDS),
   moneda: z.enum([MONEDAS.USD, MONEDAS.PEN]).optional(),
   tipoComprobante: z.enum([TIPOS_COMPROBANTE.FACTURA, TIPOS_COMPROBANTE.BOLETA]).optional(),
+  tipoContrato: z.enum(TIPOS_CONTRATO_VALORES).optional(),
   descuentoPorcentaje: z.number().min(DESCUENTO_PORCENTAJE_MIN).max(DESCUENTO_PORCENTAJE_MAX).optional(),
   descuentoMonto: z.number().min(0).optional(),
   descuentosPorStand: z.array(z.object({

@@ -562,6 +562,8 @@ model Solicitud {
   email               String?   @db.VarChar(200)
   /// Tipo de solicitud. Null = flujo regular; `reserva_empresa` = reserva administrativa.
   tipo                String?   @db.VarChar(30)
+  /// Plantilla de contrato elegida (`estandar` | `operador_internacional`). Null = se deduce de `tipo`.
+  tipoContrato        String?   @map("tipo_contrato") @db.VarChar(30)
   documentos          Json?     @default("[]")
   /// RF-08: URL de la imagen (PNG) del recorte del pabellon con el stand destacado; se adjunta al contrato.
   recortePlanoUrl     String?   @map("recorte_plano_url") @db.VarChar(500)

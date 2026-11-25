@@ -11,7 +11,7 @@ import type { IAuthRepository } from "@/domain/ports/auth-repository";
 import type { StorageAdapter } from "@/lib/server/storage";
 import type { SolicitudRow, RevisionEntity, ReevaluacionEntity } from "@/domain/models/entities";
 import type { EmpresaEntity } from "@/domain/models/empresa";
-import { PERMISSIONS, MODOS_PAGO, TIPOS_COMPROBANTE } from "@/lib/shared/constants";
+import { PERMISSIONS, MODOS_PAGO, TIPOS_COMPROBANTE, TIPOS_CONTRATO } from "@/lib/shared/constants";
 import { cuotasPredeterminadas } from "@/lib/shared/utils/cuotas";
 import { dateUtils } from "@/lib/shared/utils/date";
 
@@ -211,6 +211,27 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     );
   });
 
+  it("flujo regular: genera y regenera siempre con la plantilla estandar (sin tipo ni tipo_contrato)", async () => {
+    const { svc, storage } = build();
+    const entrada = {
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(2),
+      userSub: "user-1",
+      userPermissions: [],
+    };
+
+    await svc.generar(entrada);
+    await svc.generar(entrada);
+
+    const docx = vi.mocked(storage.upload).mock.calls.filter(([, nombre]) => String(nombre).endsWith(".docx"));
+    expect(docx).toHaveLength(2);
+    for (const llamada of docx) {
+      const texto = textoDocx(llamada[0] as Buffer);
+      expect(texto).toContain("CONTRATO DE EXHIBICIÓN");
+      expect(texto).not.toContain("CONTRATO DE PARTICIPACIÓN DEL OPERADOR INTERNACIONAL");
+    }
+  });
+
   it("usa el snapshot de facturacion cuando la empresa no tiene cuenta vinculada", async () => {
     const { svc, auth, solicitudes, storage } = build({
       detalle: {
@@ -404,6 +425,43 @@ describe("ContratoApplicationService.generar (RF-11)", () => {
     expect(texto).not.toContain("XXXXXXXXX");
     expect(texto).not.toContain("ANEXO 3-A");
     expect(texto).not.toContain("DECLARACIÓN DE CUMPLIMIENTO DEL EXHIBIDOR");
+  });
+
+  it("respeta la plantilla estandar persistida en una reserva_empresa y la mantiene al regenerar", async () => {
+    const { svc, storage } = build({
+      detalle: {
+        tipo: "reserva_empresa",
+        tipoContrato: TIPOS_CONTRATO.ESTANDAR,
+        pais: "CH",
+        tipoStand: "Preferencial",
+        standsDetalle: [{
+          standCode: "EXT-DER-03",
+          bloqueId: "EXT-DER-03",
+          planoId: null,
+          planoCodigo: null,
+          planoNombre: null,
+          precio: 2000,
+          tipoStand: "Preferencial",
+        }],
+      },
+    });
+    const entrada = {
+      solicitudId: "11111111-1111-4111-8111-111111111111",
+      cuotas: cuotasFijas(3),
+      userSub: "user-1",
+      userPermissions: [PERMISSIONS.ADMIN_FULL],
+    };
+
+    await svc.generar(entrada);
+    /* Regenerar sin enviar el tipo: se vuelve a leer de la solicitud. */
+    await svc.generar(entrada);
+
+    for (const llamada of vi.mocked(storage.upload).mock.calls.filter(([, nombre]) => String(nombre).endsWith(".docx"))) {
+      const texto = textoDocx(llamada[0] as Buffer);
+      expect(texto).toContain("CONTRATO DE EXHIBICIÓN");
+      expect(texto).not.toContain("CONTRATO DE PARTICIPACIÓN DEL OPERADOR INTERNACIONAL");
+      expect(texto).not.toContain("Detalle económico por stand");
+    }
   });
 
   it("genera el contrato P38 en soles con simbolo y cuentas PEN", async () => {

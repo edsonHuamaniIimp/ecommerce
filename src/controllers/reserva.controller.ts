@@ -77,6 +77,7 @@ export const reservaController = {
       standIds: body.standIds,
       moneda: body.moneda,
       tipoComprobante: body.tipoComprobante,
+      tipoContrato: body.tipoContrato,
       descuentoPorcentaje: body.descuentoPorcentaje,
       descuentoMonto: body.descuentoMonto,
       descuentosPorStand: body.descuentosPorStand,
