@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/server/db";
+import { iniciarRevisionSiRecibida } from "./dd-inicio-revision";
 import type { Prisma } from "@prisma/client";
 import { normalizarTexto } from "@/lib/shared/utils/normalizar-texto";
 import type {
@@ -1133,6 +1134,10 @@ export class DdMatrizEvaluacionPrismaRepository implements IDdMatrizEvaluacionRe
 
   async eliminarAdjunto(id: string): Promise<void> {
     await prisma.ddMatrizAdjunto.deleteMany({ where: { id } });
+  }
+
+  async iniciarRevisionSiRecibida(expedienteId: string, actor: string, motivo: string): Promise<boolean> {
+    return iniciarRevisionSiRecibida(expedienteId, actor, motivo);
   }
 
   async registrarAuditoria(accion: string, entidad: string, actor: string, mensaje: string): Promise<void> {

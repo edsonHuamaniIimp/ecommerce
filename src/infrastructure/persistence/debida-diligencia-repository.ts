@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/server/db";
+import { iniciarRevisionSiRecibida } from "./dd-inicio-revision";
 import type { Prisma } from "@prisma/client";
 import type {
   DdBandejaParams,
@@ -1250,6 +1251,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     const resumen = {
       total: grupos.reduce((acc, g) => acc + g._count._all, 0),
       pendientes: (porEstado.get(DD_ESTADOS.BORRADOR) ?? 0) + (porEstado.get(DD_ESTADOS.PENDIENTE) ?? 0),
+      documentacionRecibida: porEstado.get(DD_ESTADOS.DOCUMENTACION_RECIBIDA) ?? 0,
       enRevision: porEstado.get(DD_ESTADOS.EN_REVISION) ?? 0,
       observadas: porEstado.get(DD_ESTADOS.OBSERVADA) ?? 0,
       aprobadas: porEstado.get(DD_ESTADOS.APROBADA) ?? 0,
@@ -1439,7 +1441,13 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     let vencidas = 0;
 
     for (const expediente of expedientes) {
-      if (expediente.estado === DD_ESTADOS.EN_REVISION) enRevision += 1;
+      /* El KPI del panel agrupa lo que espera a SIG: documentacion recibida y en revision. */
+      if (
+        expediente.estado === DD_ESTADOS.EN_REVISION ||
+        expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
+      ) {
+        enRevision += 1;
+      }
       else if (expediente.estado === DD_ESTADOS.OBSERVADA) observadas += 1;
       else if (expediente.estado === DD_ESTADOS.RECHAZADA) rechazadas += 1;
       else if (expediente.estado === DD_ESTADOS.BORRADOR || expediente.estado === DD_ESTADOS.PENDIENTE) {
@@ -1650,7 +1658,13 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     if (params.resultado === DD_RESULTADOS.PENDIENTE) {
       and.push({
         estado: {
-          in: [DD_ESTADOS.BORRADOR, DD_ESTADOS.PENDIENTE, DD_ESTADOS.EN_REVISION, DD_ESTADOS.OBSERVADA],
+          in: [
+            DD_ESTADOS.BORRADOR,
+            DD_ESTADOS.PENDIENTE,
+            DD_ESTADOS.DOCUMENTACION_RECIBIDA,
+            DD_ESTADOS.EN_REVISION,
+            DD_ESTADOS.OBSERVADA,
+          ],
         },
       });
     } else if (params.resultado === DD_RESULTADOS.NO_APTO) {
@@ -1730,6 +1744,7 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
       if (
         expediente.estado === DD_ESTADOS.BORRADOR ||
         expediente.estado === DD_ESTADOS.PENDIENTE ||
+        expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA ||
         expediente.estado === DD_ESTADOS.EN_REVISION ||
         expediente.estado === DD_ESTADOS.OBSERVADA
       ) {
@@ -2240,6 +2255,10 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
   async tieneCasosReputacion(expedienteId: string): Promise<boolean> {
     const total = await prisma.debidaDiligenciaReputacion.count({ where: { expedienteId } });
     return total > 0;
+  }
+
+  async iniciarRevisionSiRecibida(expedienteId: string, actor: string, motivo: string): Promise<boolean> {
+    return iniciarRevisionSiRecibida(expedienteId, actor, motivo);
   }
 
   async registrarAuditoria(accion: string, entidad: string, actor: string, mensaje: string): Promise<void> {

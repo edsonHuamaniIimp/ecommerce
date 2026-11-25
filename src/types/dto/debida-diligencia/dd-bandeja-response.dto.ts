@@ -50,6 +50,7 @@ export interface DdBandejaRowDTO {
 export interface DdBandejaResumenDTO {
   total: number;
   pendientes: number;
+  documentacionRecibida: number;
   enRevision: number;
   observadas: number;
   aprobadas: number;

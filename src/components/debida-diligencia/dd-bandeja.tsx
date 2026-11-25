@@ -30,7 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, History, RefreshCw, Search, SlidersHorizontal, Upload, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Download, Eye, FileSpreadsheet, FileText, History, Inbox, RefreshCw, Search, SlidersHorizontal, Upload, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Pagination } from "@/components/shared/pagination";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
@@ -76,6 +76,7 @@ import { etiquetaTipoDocumentoEmpresa } from "@/lib/shared/utils/documento-empre
 const RESUMEN_VACIO = {
   total: 0,
   pendientes: 0,
+  documentacionRecibida: 0,
   enRevision: 0,
   observadas: 0,
   aprobadas: 0,
@@ -85,6 +86,7 @@ const RESUMEN_VACIO = {
 };
 
 const ESTADOS_REVISABLES = new Set<string>([
+  DD_ESTADOS.DOCUMENTACION_RECIBIDA,
   DD_ESTADOS.EN_REVISION,
   DD_ESTADOS.OBSERVADA,
   DD_ESTADOS.APROBADA,
@@ -243,6 +245,11 @@ export function DdBandeja() {
             <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
               {resumen.enRevision} en revisión
             </span>
+            {resumen.documentacionRecibida > 0 ? (
+              <span className="rounded-full bg-indigo-50 px-2 py-0.5 font-mono text-xs font-bold text-indigo-700">
+                {resumen.documentacionRecibida} por iniciar
+              </span>
+            ) : null}
           </div>
           <p className="text-sm text-muted-foreground">
             Revisa documentos, resuelve observaciones y deriva nombres a Comunicaciones.
@@ -310,8 +317,9 @@ export function DdBandeja() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <StatsCard title="Pendientes" value={resumen.pendientes} icon={<Clock className="h-4 w-4" />} chip={{ texto: "Borradores y sin iniciar", variante: "muted" }} />
+        <StatsCard title="Documentación recibida" value={resumen.documentacionRecibida} icon={<Inbox className="h-4 w-4" />} chip={{ texto: "SIG aún no inicia", variante: "muted" }} />
         <StatsCard title="En revisión" value={resumen.enRevision} icon={<Eye className="h-4 w-4" />} chip={{ texto: "Requieren decisión", variante: "primary" }} />
         <StatsCard title="Observadas" value={resumen.observadas} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Esperando corrección", variante: "gold" }} />
         <StatsCard title="APTO" value={resumen.aprobadas} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Vigencia de 6 meses", variante: "primary" }} />
@@ -486,7 +494,7 @@ export function DdBandeja() {
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">No hay expedientes en este filtro.</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {estado === DD_ESTADOS.EN_REVISION
+                {estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA || estado === DD_ESTADOS.EN_REVISION
                   ? "Cuando un cliente envíe su debida diligencia aparecerá aquí."
                   : "Prueba con otro estado o limpia la búsqueda."}
               </p>

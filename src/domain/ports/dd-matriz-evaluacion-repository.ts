@@ -44,5 +44,10 @@ export interface IDdMatrizEvaluacionRepository {
   eliminarAdjunto(id: string): Promise<void>;
 
   /** Registra una accion de la matriz en `audit_log` (tipo debida_diligencia). */
+  /**
+   * Pasa la DD de "Documentacion recibida" a "En revision" (SIG empezo a trabajarla).
+   * No hace nada si ya esta en revision o mas adelante: nunca retrocede. true si hubo cambio.
+   */
+  iniciarRevisionSiRecibida(expedienteId: string, actor: string, motivo: string): Promise<boolean>;
   registrarAuditoria(accion: string, entidad: string, actor: string, mensaje: string): Promise<void>;
 }

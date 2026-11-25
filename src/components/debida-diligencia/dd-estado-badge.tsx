@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@nrivera-iimp/ui-kit-iimp";
-import { CheckCircle2, Clock, FileEdit, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FileEdit, Inbox, XCircle } from "lucide-react";
 import {
   BADGE_STYLES,
   DD_DECLARACION_VIGENCIA_ESTADOS,
@@ -73,6 +73,14 @@ export function DdEstadoBadge({
     return (
       <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.DESTRUCTIVE}`}>
         <XCircle className="h-2.5 w-2.5" />
+        <span>{label}</span>
+      </Badge>
+    );
+  }
+  if (estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA) {
+    return (
+      <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.INDIGO}`}>
+        <Inbox className="h-2.5 w-2.5" />
         <span>{label}</span>
       </Badge>
     );

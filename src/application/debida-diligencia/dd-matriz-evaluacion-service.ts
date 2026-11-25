@@ -38,6 +38,8 @@ import {
   type DdMatrizAmbito,
   type DdMatrizTipoVinculo,
   DD_ACCIONES_LEGAL,
+  DD_ESTADOS,
+  DD_MENSAJES,
 } from "@/lib/shared/constants";
 import {
   comunicacionesAprobadas,
@@ -430,6 +432,12 @@ export class DdMatrizEvaluacionApplicationService {
       dto.finalComentario !== undefined
     ) {
       if (!permisos.editarFinal) this.prohibido("El resultado final lo registra SIG o Compliance");
+      if (vinculo.expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA) {
+        throw new DomainError(DD_MENSAJES.REVISION_NO_INICIADA, API_ERROR_CODES.CONFLICT, 409);
+      }
+      if (normalizarResultadoFinal(dto.resultadoFinal) === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA) {
+        throw new DomainError("\"Documentación recibida\" se asigna sola cuando el cliente envía; no se registra a mano.", API_ERROR_CODES.VALIDATION, 400);
+      }
       if (!resultadoFinalEditable(vinculo.resultadoFinal, vinculo.expediente.estado)) {
         throw new DomainError(
           "El resultado final ya está cerrado; solo se puede modificar cuando el expediente está en revisión o con documentación observada.",
@@ -511,6 +519,7 @@ export class DdMatrizEvaluacionApplicationService {
       session.email,
       `Matriz DD: se actualizó ${vinculo.nombre} (${Object.keys(dto).filter((k) => k !== "id").join(", ") || "sin cambios"})`,
     );
+    await this.repo.iniciarRevisionSiRecibida(vinculo.expediente.expedienteId, session.email, `Guardó la evaluación del vínculo ${vinculo.nombre} en la Matriz DD.`);
 
     await this.cerrarEmpresaSiTodosAptos(actualizado, session);
 
@@ -719,6 +728,7 @@ export class DdMatrizEvaluacionApplicationService {
       session.email,
       `Matriz DD: se adjuntó ${datos.nombre} (${datos.categoria}) a ${vinculo.nombre}`,
     );
+    await this.repo.iniciarRevisionSiRecibida(vinculo.expediente.expedienteId, session.email, `Adjuntó la evidencia ${datos.nombre} al vínculo ${vinculo.nombre}.`);
     return adjunto;
   }
 
@@ -864,6 +874,7 @@ export class DdMatrizEvaluacionApplicationService {
       session.email,
       `Matriz DD: borrador guardado en ${vinculo.nombre}`,
     );
+    await this.repo.iniciarRevisionSiRecibida(vinculo.expediente.expedienteId, session.email, `Guardó un borrador en el vínculo ${vinculo.nombre} de la Matriz DD.`);
     return this.detalle(session, vinculo.id);
   }
 

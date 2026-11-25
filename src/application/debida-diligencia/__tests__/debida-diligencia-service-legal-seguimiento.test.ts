@@ -7,7 +7,9 @@ import type { IDebidaDiligenciaNotificacionPort } from "@/domain/ports/debida-di
 import type { IDebidaDiligenciaDocumentoValidator } from "@/domain/ports/debida-diligencia-documento-validator";
 import {
   DD_ACCIONES_LEGAL,
+  DD_ACCIONES_REVISION,
   DD_ESTADOS,
+  DD_MENSAJES,
   DD_FILTRO_LEGAL_SEGUIMIENTO,
   PERMISSIONS,
 } from "@/lib/shared/constants";
@@ -69,6 +71,7 @@ function crearServicio(expediente?: DdExpedienteEntity) {
     registrarAuditoria: vi.fn(),
     registrarHistorial: vi.fn().mockResolvedValue(undefined),
     listarHistorial: vi.fn().mockResolvedValue([]),
+    findExpedientePorId: vi.fn().mockResolvedValue(expediente),
   } as unknown as IDebidaDiligenciaRepository;
   const authRepo = {
     findEmpresaIdDeUsuario: vi.fn().mockResolvedValue("emp-1"),
@@ -131,6 +134,16 @@ describe("enviar - subsanacion de observacion legal", () => {
     expect(notificaciones.notificarReenvioLogistica).not.toHaveBeenCalled();
   });
 
+  it("el primer envio queda en Documentacion recibida (no en revision)", async () => {
+    const { servicio, repo } = crearServicio({ ...expedienteObservadoPorLegal(null), estado: DD_ESTADOS.BORRADOR } as DdExpedienteEntity);
+    await servicio.enviar(sesionCliente);
+    expect(repo.actualizarEstado).toHaveBeenCalledWith(
+      "exp-1",
+      expect.objectContaining({ estado: DD_ESTADOS.DOCUMENTACION_RECIBIDA }),
+    );
+    expect(repo.registrarHistorial).toHaveBeenCalledWith("exp-1", expect.objectContaining({ titulo: "Documentación recibida" }));
+  });
+
   it("no alerta a Legal cuando la observacion no fue de Legal", async () => {
     const { servicio, repo, notificaciones } = crearServicio(expedienteObservadoPorLegal(null));
     await servicio.enviar(sesionCliente);
@@ -139,5 +152,20 @@ describe("enviar - subsanacion de observacion legal", () => {
       expect.objectContaining({ estado: DD_ESTADOS.EN_REVISION }),
     );
     expect(notificaciones.notificarLegal).not.toHaveBeenCalled();
+  });
+});
+
+describe("revisar - sin iniciar la revision no hay conclusion", () => {
+  it("rechaza aprobar u observar una DD en Documentacion recibida", async () => {
+    const recibida = { ...expedienteObservadoPorLegal(null), estado: DD_ESTADOS.DOCUMENTACION_RECIBIDA } as DdExpedienteEntity;
+    const { servicio, repo } = crearServicio(recibida);
+    const sig = { email: "sig@iimp.org.pe", roles: [], permissions: [PERMISSIONS.DD_REVISION], eventoId: "evento-1" };
+    for (const accion of [DD_ACCIONES_REVISION.APROBAR, DD_ACCIONES_REVISION.OBSERVAR, DD_ACCIONES_REVISION.RECHAZAR]) {
+      await expect(servicio.revisar({ expedienteId: "exp-1", accion } as never, sig)).rejects.toMatchObject({
+        status: 409,
+        message: DD_MENSAJES.REVISION_NO_INICIADA,
+      });
+    }
+    expect(repo.actualizarEstado).not.toHaveBeenCalled();
   });
 });

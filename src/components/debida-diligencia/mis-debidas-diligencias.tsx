@@ -40,6 +40,7 @@ import type { DdMisExpedientesResponseDTO } from "@/types/dto/debida-diligencia"
 
 const ESTADOS = [
   DD_ESTADOS.BORRADOR,
+  DD_ESTADOS.DOCUMENTACION_RECIBIDA,
   DD_ESTADOS.EN_REVISION,
   DD_ESTADOS.EN_LEGAL,
   DD_ESTADOS.OBSERVADA,

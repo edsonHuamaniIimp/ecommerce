@@ -4,6 +4,7 @@ import type { DdMatrizAdjuntoEntity, DdMatrizVinculoEntity } from "@/domain/mode
 import type { IDdMatrizEvaluacionRepository } from "@/domain/ports/dd-matriz-evaluacion-repository";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIAS,
+  DD_ESTADOS,
   DD_EVENTO_TODOS,
   DD_MATRIZ_AMBITOS,
   DD_MATRIZ_CONCLUSIONES,
@@ -12,6 +13,7 @@ import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
   DD_MATRIZ_TIPOS_VINCULO,
+  DD_MENSAJES,
   PERMISSIONS,
   ROLES,
 } from "@/lib/shared/constants";
@@ -116,6 +118,7 @@ function crear(v: DdMatrizVinculoEntity, adjuntos: DdMatrizAdjuntoEntity[] = [])
     findAdjunto: vi.fn(),
     crearAdjunto: vi.fn(),
     eliminarAdjunto: vi.fn(),
+    iniciarRevisionSiRecibida: vi.fn().mockResolvedValue(false),
     registrarAuditoria: vi.fn().mockResolvedValue(undefined),
   } satisfies IDdMatrizEvaluacionRepository;
   return { repo, servicio: new DdMatrizEvaluacionApplicationService(repo) };
@@ -567,6 +570,42 @@ describe("DdMatrizEvaluacionApplicationService", () => {
     expect(repo.listar).toHaveBeenCalledWith(expect.objectContaining({ origen: "importado", vigencia: "por_vencer", eventoActivoId: "evento-1" }));
     await servicio.exportar(sesion([]), { origen: "flujo_regular", vigencia: "vencida" });
     expect(repo.listarParaExportar).toHaveBeenCalledWith(expect.objectContaining({ origen: "flujo_regular", vigencia: "vencida", eventoActivoId: "evento-1" }));
+  });
+
+  describe("Documentacion recibida", () => {
+    const recibida = () => vinculo({ expediente: { ...vinculo().expediente, estado: DD_ESTADOS.DOCUMENTACION_RECIBIDA } });
+
+    it("no deja registrar la conclusion final hasta iniciar la revision", async () => {
+      const { servicio } = crear(recibida());
+      await expect(
+        servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "APTO", finalComentario: "x" }),
+      ).rejects.toMatchObject({ status: 409, message: DD_MENSAJES.REVISION_NO_INICIADA });
+    });
+
+    it("guardar un borrador inicia la revision", async () => {
+      const { servicio, repo } = crear(recibida());
+      await servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", borrador: true, listas: { peps_prp_persona: "no" } });
+      expect(repo.iniciarRevisionSiRecibida).toHaveBeenCalledWith("exp-1", "usuario@iimp.org.pe", expect.stringContaining("borrador"));
+    });
+
+    it("guardar la evaluacion SIG y subir una evidencia tambien la inician", async () => {
+      const a = crear(recibida());
+      await a.servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", sig: { resultado: "ACEPTADO" } });
+      expect(a.repo.iniciarRevisionSiRecibida).toHaveBeenCalled();
+      const b = crear(recibida());
+      b.repo.crearAdjunto.mockResolvedValue(informe());
+      await b.servicio.registrarAdjunto(sesion([PERMISSIONS.DD_REVISION]), {
+        vinculoId: "v-1", categoria: DD_MATRIZ_ADJUNTO_CATEGORIAS.SIG_INFORME, nombre: "x.pdf", url: "/u/x.pdf", mimeType: "application/pdf", tamano: 1,
+      });
+      expect(b.repo.iniciarRevisionSiRecibida).toHaveBeenCalledWith("exp-1", "usuario@iimp.org.pe", expect.stringContaining("evidencia"));
+    });
+
+    it("no se puede registrar Documentacion recibida a mano", async () => {
+      const { servicio } = crear(vinculo());
+      await expect(
+        servicio.guardar(sesion([PERMISSIONS.DD_REVISION]), { id: "v-1", resultadoFinal: "DOCUMENTACION RECIBIDA", finalComentario: "x" }),
+      ).rejects.toMatchObject({ status: 400 });
+    });
   });
 
   describe("guardado borrador", () => {

@@ -311,6 +311,8 @@ export interface DdBandejaParams {
 export interface DdBandejaResumen {
   total: number;
   pendientes: number;
+  /** Enviadas por el cliente; SIG aun no inicia la revision. */
+  documentacionRecibida: number;
   enRevision: number;
   observadas: number;
   aprobadas: number;

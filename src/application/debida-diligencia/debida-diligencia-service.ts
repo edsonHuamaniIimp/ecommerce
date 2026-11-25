@@ -449,11 +449,15 @@ export class DebidaDiligenciaApplicationService {
     let expediente = await this.repo.findExpedientePorEmpresaEvento(empresaId, eventoId);
     if (expediente && !ddUtils.puedeEditar(expediente.estado)) {
       const mensaje =
-        expediente.estado === DD_ESTADOS.EN_REVISION
-          ? "El expediente está en revisión. Espera el resultado antes de modificarlo."
-          : expediente.estado === DD_ESTADOS.APROBADA
-            ? "La debida diligencia aprobada no se puede editar. Inicia una nueva cuando llegue a su fecha de cese."
-            : "El expediente fue rechazado. Inicia una nueva debida diligencia.";
+        expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
+          ? "Recibimos tu documentación y está pendiente de revisión. No se puede modificar mientras se revisa."
+          : expediente.estado === DD_ESTADOS.EN_REVISION
+            ? "El expediente está en revisión. Espera el resultado antes de modificarlo."
+            : expediente.estado === DD_ESTADOS.EN_LEGAL
+              ? "El expediente está en revisión legal. Espera el resultado antes de modificarlo."
+              : expediente.estado === DD_ESTADOS.APROBADA
+                ? "La debida diligencia aprobada no se puede editar. Inicia una nueva cuando llegue a su fecha de cese."
+                : "El expediente fue rechazado. Inicia una nueva debida diligencia.";
       throw new DomainError(mensaje, API_ERROR_CODES.CONFLICT, 409);
     }
 
@@ -664,8 +668,15 @@ export class DebidaDiligenciaApplicationService {
       ),
     );
     await this.repo.resolverObservaciones(expediente.id);
+    /* Orden lineal: borrador -> documentacion recibida -> en revision -> resultado.
+     * Solo el primer envio queda en "Documentacion recibida"; la subsanacion vuelve a "En revision". */
+    const esPrimerEnvio = !volveraLegal && expediente.estado !== DD_ESTADOS.OBSERVADA;
     const actualizado = await this.repo.actualizarEstado(expediente.id, {
-      estado: volveraLegal ? DD_ESTADOS.EN_LEGAL : DD_ESTADOS.EN_REVISION,
+      estado: volveraLegal
+        ? DD_ESTADOS.EN_LEGAL
+        : esPrimerEnvio
+          ? DD_ESTADOS.DOCUMENTACION_RECIBIDA
+          : DD_ESTADOS.EN_REVISION,
       fechaEnvio: dateUtils.now(),
       actualizadoPor: session.email,
     });
@@ -675,7 +686,9 @@ export class DebidaDiligenciaApplicationService {
       session.email,
       volveraLegal
         ? "El cliente subsanó la observación y reenvió el expediente a revisión legal"
-        : "El cliente envió la debida diligencia a revisión",
+        : esPrimerEnvio
+          ? "El cliente envió la debida diligencia (documentación recibida)"
+          : "El cliente reenvió la debida diligencia a revisión",
     );
 
     const observacionesAbiertas = observaciones.filter(
@@ -689,12 +702,16 @@ export class DebidaDiligenciaApplicationService {
         ? "Expediente reenviado a Legal"
         : esReenvio
           ? "Expediente reenviado a Logística"
-          : "Expediente enviado a revisión",
+          : esPrimerEnvio
+            ? "Documentación recibida"
+            : "Expediente enviado a revisión",
       detalle: volveraLegal
         ? "El cliente corrigió las observaciones y solicitó una nueva revisión legal."
         : esReenvio
           ? `El cliente respondió ${observacionesAbiertas} observación(es) y solicitó una nueva revisión.`
-          : "El cliente completó el formulario y lo envió para revisión.",
+          : esPrimerEnvio
+            ? "El cliente completó el formulario y lo envió. Queda pendiente de que SIG inicie la revisión."
+            : "El cliente completó el formulario y lo envió para revisión.",
       actor: session.email,
       metadata: {
         observacionesRespondidas: observacionesAbiertas,
@@ -1613,6 +1630,9 @@ export class DebidaDiligenciaApplicationService {
     if (dto.alcance === DD_ALCANCES_REVISION.DECLARACION_VIGENCIA) {
       return this.revisarDeclaracionVigencia(expediente, dto, session);
     }
+    if (expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA) {
+      throw new DomainError(DD_MENSAJES.REVISION_NO_INICIADA, API_ERROR_CODES.CONFLICT, 409);
+    }
     const enRevision =
       expediente.estado === DD_ESTADOS.EN_REVISION || expediente.estado === DD_ESTADOS.OBSERVADA;
     const derivarExistente =
@@ -1847,6 +1867,9 @@ export class DebidaDiligenciaApplicationService {
     if (!expediente) {
       throw new DomainError("Expediente no encontrado", API_ERROR_CODES.NOT_FOUND, 404);
     }
+    if (expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA) {
+      throw new DomainError(DD_MENSAJES.REVISION_NO_INICIADA, API_ERROR_CODES.CONFLICT, 409);
+    }
     const estadosPermitidos = new Set<string>([
       DD_ESTADOS.EN_REVISION,
       DD_ESTADOS.OBSERVADA,
@@ -2041,6 +2064,9 @@ export class DebidaDiligenciaApplicationService {
         ? "SIG declaró revisados y completos todos los vínculos de la solicitud."
         : "SIG retiró la declaración de vínculos completos.",
     );
+    if (dto.completos) {
+      await this.repo.iniciarRevisionSiRecibida(expediente.id, session.email, "SIG declaró completos los vínculos de la solicitud.");
+    }
     return (await this.repo.findExpedientePorId(expediente.id)) ?? expediente;
   }
 
@@ -2147,6 +2173,7 @@ export class DebidaDiligenciaApplicationService {
       actor: session.email,
       metadata: { vinculos: nuevos.length, existentes: existentesCount },
     });
+    await this.repo.iniciarRevisionSiRecibida(expediente.id, session.email, `Derivó ${nuevos.length} vínculo(s) a Comunicaciones.`);
     return { derivados: nuevos.length, existentes: existentesCount, total };
   }
 

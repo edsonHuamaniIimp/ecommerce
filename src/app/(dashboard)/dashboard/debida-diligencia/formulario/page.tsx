@@ -114,14 +114,20 @@ export default function DebidaDiligenciaFormularioPage() {
           <ShieldCheck className="h-8 w-8 text-muted-foreground" />
           <div className="max-w-md">
             <p className="text-sm font-semibold text-foreground">
-              {data.expediente.estado === DD_ESTADOS.EN_REVISION
-                ? "Tu debida diligencia está en revisión"
-                : data.expediente.estado === DD_ESTADOS.APROBADA
-                  ? "Tu debida diligencia ya está aprobada"
-                  : "Tu debida diligencia fue rechazada"}
+              {data.expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
+                ? "Recibimos tu documentación"
+                : data.expediente.estado === DD_ESTADOS.EN_REVISION ||
+                    data.expediente.estado === DD_ESTADOS.EN_LEGAL
+                  ? "Tu debida diligencia está en revisión"
+                  : data.expediente.estado === DD_ESTADOS.APROBADA
+                    ? "Tu debida diligencia ya está aprobada"
+                    : "Tu debida diligencia fue rechazada"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {data.expediente.estado === DD_ESTADOS.EN_REVISION
+              {data.expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
+                ? "Está pendiente de revisión. Te avisaremos si hay observaciones."
+                : data.expediente.estado === DD_ESTADOS.EN_REVISION ||
+                    data.expediente.estado === DD_ESTADOS.EN_LEGAL
                 ? "Logística está revisando los documentos. Te avisaremos si hay observaciones."
                 : data.expediente.estado === DD_ESTADOS.APROBADA
                   ? `La aprobación tiene una vigencia de ${DD_VIGENCIA_MESES} meses. Su fecha de cese es ${dateUtils.format(data.expediente.fechaVencimiento)}.`

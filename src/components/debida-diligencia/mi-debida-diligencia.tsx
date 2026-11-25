@@ -146,7 +146,13 @@ export function MiDebidaDiligencia() {
         titulo: "Revisión de Logística",
         fecha: expediente.fechaRevision,
         estado: revisado ? "completado" : enviado ? "activo" : "pendiente",
-        detalle: revisado ? "Logística revisó los documentos." : "Pendiente de revisión.",
+        detalle: revisado
+          ? "Logística revisó los documentos."
+          : expediente.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA
+            ? "Documentación recibida. Pendiente de que Logística inicie la revisión."
+            : expediente.estado === DD_ESTADOS.EN_REVISION
+              ? "Logística está revisando los documentos."
+              : "Pendiente de revisión.",
       },
       {
         titulo: observado ? "Observaciones" : "Sin observaciones",

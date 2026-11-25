@@ -105,6 +105,10 @@ export function resultadoFinalEfectivo(
   if (guardado) return guardado;
 
   const estado = normalizarTextoMatriz(estadoExpediente);
+  /* Documentacion recibida: el cliente envio y SIG aun no inicia la revision (no se registra a mano). */
+  if (estado === normalizarTextoMatriz(DD_ESTADOS.DOCUMENTACION_RECIBIDA)) {
+    return DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA;
+  }
   if (estado === normalizarTextoMatriz(DD_ESTADOS.APROBADA)) return DD_MATRIZ_RESULTADOS_FINALES.APTO;
   if (estado === normalizarTextoMatriz(DD_ESTADOS.OBSERVADA)) {
     return DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
@@ -123,6 +127,7 @@ export function resultadoFinalEfectivo(
  * Solo se puede registrar o corregir la conclusion final mientras el proceso siga
  * abierto. APTO, APTO CON OBSERVACIONES, NO APTO y SIN RESPUESTA son resultados
  * cerrados; DOCUMENTACION OBSERVADA y EN REVISION permiten continuar el flujo.
+ * DOCUMENTACION RECIBIDA tampoco se edita: SIG primero debe iniciar la revision.
  */
 export function resultadoFinalEditable(
   resultadoFinal: string | null | undefined,
@@ -141,6 +146,8 @@ export function estadoExpedienteDeResultadoFinal(
   resultadoFinal: string | null | undefined,
 ): string | null {
   switch (normalizarResultadoFinal(resultadoFinal)) {
+    case DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA:
+      return DD_ESTADOS.DOCUMENTACION_RECIBIDA;
     case DD_MATRIZ_RESULTADOS_FINALES.APTO:
       return DD_ESTADOS.APROBADA;
     case DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA:

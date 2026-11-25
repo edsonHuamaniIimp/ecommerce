@@ -33,6 +33,7 @@ import {
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
 import {
+  Inbox,
   AlertTriangle,
   Building2,
   CheckCircle2,
@@ -413,6 +414,7 @@ function ResultadoFinalStitch({ valor }: { valor: string | null }) {
     );
   }
   const estilos: Record<string, string> = {
+    [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA]: "border-indigo-300 bg-indigo-100 text-indigo-900",
     [DD_MATRIZ_RESULTADOS_FINALES.APTO]: "border-emerald-300 bg-emerald-100 text-emerald-900",
     [DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES]: "border-amber-300 bg-amber-100 text-amber-900",
     [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA]: "border-amber-300 bg-amber-100 text-amber-900",
@@ -770,10 +772,13 @@ export function DdMatrizBandeja() {
   const pendientes =
     contarFinal(resumen, null, porEmpresa) + contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION, porEmpresa);
   const sinRespuesta = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA, porEmpresa);
+  /* Enviadas por el cliente que SIG aun no empieza a revisar (no estan en "Pendientes"). */
+  const recibidas = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA, porEmpresa);
   const noAptos = contarFinal(resumen, DD_MATRIZ_RESULTADOS_FINALES.NO_APTO, porEmpresa);
 
-  /* Estos cinco se excluyen entre si: su suma es el total de la vista (empresas o vinculos). */
+  /* Estos seis se excluyen entre si: su suma es el total de la vista (empresas o vinculos). */
   const resultados = [
+    { titulo: "DOC. RECIBIDA", valor: recibidas, detalle: "Enviadas por el cliente; SIG aún no inicia la revisión", icono: <Inbox className="h-4 w-4" />, color: "text-indigo-700 bg-indigo-50" },
     { titulo: "Pendientes", valor: pendientes, detalle: "Sin evaluación final o en revisión", icono: <Clock3 className="h-4 w-4" />, color: "text-blue-700 bg-blue-50" },
     { titulo: "APTO CON OBS.", valor: observados, detalle: "Apto con observaciones / documentación", icono: <AlertTriangle className="h-4 w-4" />, color: "text-amber-700 bg-amber-50" },
     { titulo: "APTO", valor: aprobados, detalle: "Resultado final APTO", icono: <CheckCircle2 className="h-4 w-4" />, color: "text-emerald-700 bg-emerald-50" },
@@ -887,14 +892,14 @@ export function DdMatrizBandeja() {
               Resultado final · cuenta {unidadVista}
             </p>
             <p className="text-[11px] text-muted-foreground">
-              Estos cinco suman{" "}
+              Estos seis suman{" "}
               <strong className={sumaResultados === totalVista ? "text-emerald-700" : "text-destructive"}>
                 {sumaResultados} de {totalVista}
               </strong>{" "}
               {unidadVista}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
             {resultados.map((stat) => (
               <div key={stat.titulo} className="rounded-lg border border-border bg-card p-3">
                 <div className={`mb-2 inline-flex rounded-md p-1.5 ${stat.color}`}>{stat.icono}</div>

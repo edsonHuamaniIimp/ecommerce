@@ -59,6 +59,7 @@ const VACIO: DdBandejaResponseDTO = {
   resumen: {
     total: 0,
     pendientes: 0,
+    documentacionRecibida: 0,
     enRevision: 0,
     observadas: 0,
     aprobadas: 0,

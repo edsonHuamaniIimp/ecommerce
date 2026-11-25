@@ -1572,6 +1572,8 @@ export const DD_MATRIZ_PER_PAGE_MAX = 500;
 
 /** Mensajes de validacion reutilizados por frontend y backend. */
 export const DD_MENSAJES = {
+  REVISION_NO_INICIADA:
+    "Documentación recibida: SIG aún no inició la revisión. Guarda un borrador o una evaluación en algún vínculo, sube una evidencia o deriva a Comunicaciones; después podrás registrar la conclusión.",
   LEGAL_OBSERVADA_ESPERA_CLIENTE:
     "Legal observó este expediente y espera la subsanación del cliente; no puede derivarse a Legal hasta que el cliente reenvíe.",
   CIERRE_SIN_RESPUESTA:
@@ -1592,6 +1594,9 @@ export const DD_MENSAJES = {
 export const DD_ESTADOS = {
   BORRADOR: "borrador",
   PENDIENTE: "pendiente",
+  /** El cliente envio la DD; SIG aun no inicia la revision. Solo se llega desde el primer envio.
+   * Codigo corto: la columna estado (y la del historial) es VarChar(20). */
+  DOCUMENTACION_RECIBIDA: "doc_recibida",
   EN_REVISION: "en_revision",
   EN_LEGAL: "en_legal",
   OBSERVADA: "observada",
@@ -1645,6 +1650,7 @@ export type DdEstado = (typeof DD_ESTADOS)[keyof typeof DD_ESTADOS];
 export const DD_ESTADO_LABELS: Record<string, string> = {
   [DD_ESTADOS.BORRADOR]: "Borrador",
   [DD_ESTADOS.PENDIENTE]: "Pendiente",
+  [DD_ESTADOS.DOCUMENTACION_RECIBIDA]: "Documentación recibida",
   [DD_ESTADOS.EN_REVISION]: "En revisión",
   [DD_ESTADOS.EN_LEGAL]: "En revisión legal",
   [DD_ESTADOS.OBSERVADA]: "Observada",
@@ -1719,6 +1725,7 @@ export const DD_PASOS: { numero: number; label: string; corto: string }[] = [
 export const DD_BANDEJA_FILTROS: { value: string; label: string }[] = [
   { value: DD_FILTRO_TODAS, label: "Todas" },
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
+  { value: DD_ESTADOS.DOCUMENTACION_RECIBIDA, label: "Documentación recibida" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
   { value: DD_ESTADOS.APROBADA, label: "APTO" },
@@ -1733,6 +1740,7 @@ export const DD_MATRIZ_ESTADO_FILTROS: { value: string; label: string }[] = [
   { value: DD_FILTRO_TODAS, label: "Todos" },
   { value: DD_FILTRO_SIN_INICIAR, label: DD_ESTADO_SIN_INICIAR_EVENTO_LABEL },
   { value: DD_ESTADOS.PENDIENTE, label: "Pendientes" },
+  { value: DD_ESTADOS.DOCUMENTACION_RECIBIDA, label: "Documentación recibida" },
   { value: DD_ESTADOS.EN_REVISION, label: "En revisión" },
   { value: DD_ESTADOS.OBSERVADA, label: "Observadas" },
   { value: DD_ESTADOS.APROBADA, label: "APTO" },
@@ -1986,6 +1994,8 @@ export const DD_HISTORIAL_TIPOS = {
   DERIVACION_COMUNICACIONES: "derivacion_comunicaciones",
   REVALIDACION_APROBADA: "revalidacion_aprobada",
   REVALIDACION_OBSERVADA: "revalidacion_observada",
+  /** SIG empezo a trabajar la DD: pasa de Documentacion recibida a En revision. */
+  INICIO_REVISION: "inicio_revision",
 } as const;
 
 export type DdHistorialTipo = (typeof DD_HISTORIAL_TIPOS)[keyof typeof DD_HISTORIAL_TIPOS];
@@ -2011,6 +2021,7 @@ export const DD_HISTORIAL_TIPO_LABELS: Record<DdHistorialTipo, string> = {
   [DD_HISTORIAL_TIPOS.DERIVACION_COMUNICACIONES]: "Derivación a Comunicaciones",
   [DD_HISTORIAL_TIPOS.REVALIDACION_APROBADA]: "Declaración de vigencia aprobada",
   [DD_HISTORIAL_TIPOS.REVALIDACION_OBSERVADA]: "Declaración de vigencia observada",
+  [DD_HISTORIAL_TIPOS.INICIO_REVISION]: "Inicio de revisión",
 };
 
 /** Acciones que puede tomar Logística al revisar un expediente. */
@@ -2291,6 +2302,8 @@ export const DD_MATRIZ_CONCLUSION_COMPLIANCE_ALIAS: Record<string, DdMatrizConcl
 
 /** Resultado final del vinculo (lo da SIG o Compliance). */
 export const DD_MATRIZ_RESULTADOS_FINALES = {
+  /** Derivado del estado: el cliente envio y SIG aun no inicia la revision. No se registra a mano. */
+  DOCUMENTACION_RECIBIDA: "documentacion_recibida",
   APTO: "apto",
   APTO_CON_OBSERVACIONES: "apto_con_observaciones",
   DOCUMENTACION_OBSERVADA: "documentacion_observada",
@@ -2301,6 +2314,7 @@ export const DD_MATRIZ_RESULTADOS_FINALES = {
 export type DdMatrizResultadoFinal = (typeof DD_MATRIZ_RESULTADOS_FINALES)[keyof typeof DD_MATRIZ_RESULTADOS_FINALES];
 
 export const DD_MATRIZ_RESULTADO_FINAL_LABELS: Record<DdMatrizResultadoFinal, string> = {
+  [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA]: "DOCUMENTACIÓN RECIBIDA",
   [DD_MATRIZ_RESULTADOS_FINALES.APTO]: "APTO",
   [DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES]: "APTO CON OBSERVACIONES",
   [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA]: "DOCUMENTACIÓN OBSERVADA",
@@ -2313,6 +2327,7 @@ export const DD_MATRIZ_RESULTADO_FINAL_LABELS: Record<DdMatrizResultadoFinal, st
 export const DD_MATRIZ_RESULTADO_FINAL_ALIAS: Record<string, DdMatrizResultadoFinal> = {
   PENDIENTE: DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION,
   "DOCUMENTACION OBSERVADA": DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA,
+  "DOCUMENTACION RECIBIDA": DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA,
   "SIN RESPUESTA DE LA EMPRESA": DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA,
   "SIN RESPUESTA DE EMPRESA": DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA,
 };

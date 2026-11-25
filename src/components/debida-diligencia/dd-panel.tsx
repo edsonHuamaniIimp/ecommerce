@@ -377,7 +377,7 @@ export function DdPanel() {
         <StatsCard title="Aprobadas y vigentes" value={data.kpis.aprobadasVigentes} icon={<CheckCircle2 className="h-4 w-4" />} chip={{ texto: "Dentro de vigencia", variante: "primary" }} />
         <StatsCard title="Por vencer en 30 días" value={data.kpis.porVencer} icon={<AlertTriangle className="h-4 w-4" />} chip={{ texto: "Requieren renovación", variante: "gold" }} />
         <StatsCard title="DD vencidas" value={data.vigencia.vencidas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: "Deben iniciar una nueva DD", variante: "gold" }} />
-        <StatsCard title="En revisión" value={data.kpis.enRevision} icon={<Users className="h-4 w-4" />} chip={{ texto: "Logística / Comunicaciones", variante: "primary" }} />
+        <StatsCard title="En revisión" value={data.kpis.enRevision} icon={<Users className="h-4 w-4" />} chip={{ texto: "Incluye documentación recibida", variante: "primary" }} />
         <StatsCard title="Rechazadas" value={data.kpis.rechazadas} icon={<XCircle className="h-4 w-4" />} chip={{ texto: "Informe legal", variante: "muted" }} />
       </div>
 

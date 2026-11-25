@@ -246,6 +246,11 @@ export interface IDebidaDiligenciaRepository {
   /** Revisa si el expediente ya tiene casos reputacionales. */
   tieneCasosReputacion(expedienteId: string): Promise<boolean>;
   /** Registra en auditoria una accion del modulo. */
+  /**
+   * Pasa la DD de "Documentacion recibida" a "En revision" (SIG empezo a trabajarla).
+   * No hace nada si ya esta en revision o mas adelante: nunca retrocede. true si hubo cambio.
+   */
+  iniciarRevisionSiRecibida(expedienteId: string, actor: string, motivo: string): Promise<boolean>;
   registrarAuditoria(accion: string, entidad: string, actor: string, mensaje: string): Promise<void>;
 }
 

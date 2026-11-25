@@ -96,6 +96,7 @@ function crearRepo(): IDebidaDiligenciaRepository {
     listarVinculosReputacion: vi.fn().mockResolvedValue([]),
     listarVinculosConCasoReputacion: vi.fn().mockResolvedValue([]),
     actualizarDictamenMatriz: vi.fn().mockResolvedValue(undefined),
+    iniciarRevisionSiRecibida: vi.fn().mockResolvedValue(true),
     registrarAuditoria: vi.fn().mockResolvedValue(undefined),
     registrarHistorial: vi.fn().mockResolvedValue(undefined),
   } as unknown as IDebidaDiligenciaRepository;
@@ -212,6 +213,7 @@ describe("declaración de vínculos completos", () => {
       true,
       SESION.email,
     );
+    expect(repo.iniciarRevisionSiRecibida).toHaveBeenCalledWith(EXPEDIENTE.id, SESION.email, expect.any(String));
   });
 
   it("no permite declarar completos si falta un vínculo en la matriz", async () => {
@@ -272,6 +274,7 @@ describe("derivación incremental a Comunicaciones", () => {
         },
       ],
     );
+    expect(repo.iniciarRevisionSiRecibida).toHaveBeenCalledWith(EXPEDIENTE.id, SESION.email, expect.stringContaining("Comunicaciones"));
   });
 
   it("no duplica un vínculo que ya tiene caso reputacional", async () => {

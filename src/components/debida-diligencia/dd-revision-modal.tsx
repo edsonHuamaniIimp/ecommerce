@@ -42,6 +42,7 @@ import {
   DD_DOCUMENTOS,
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
+  DD_MENSAJES,
   DD_OBSERVACION_AREA_LABELS,
   DD_ORIGEN_LABELS,
   DD_ORIGENES,
@@ -114,6 +115,12 @@ const ACCIONES = [
   { value: DD_ACCIONES_REVISION.OBSERVAR, label: "DOCUMENTACIÓN OBSERVADA", detalle: "El cliente podrá corregir y solicitar una nueva evaluación." },
   { value: DD_ACCIONES_REVISION.RECHAZAR, label: "DERIVAR A LEGAL", detalle: "Legal revisará la solicitud y emitirá un informe antes de notificar al cliente." },
 ] as const;
+
+/* "Documentacion recibida" se marca sola cuando el cliente envia; no se registra a mano. */
+const FINAL_RECIBIDA = {
+  value: DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA,
+  detalle: "Automático: el cliente envió su documentación. Pasa a EN REVISIÓN cuando SIG inicia la revisión.",
+} as const;
 
 const FINALES = [
   { value: DD_MATRIZ_RESULTADOS_FINALES.APTO, detalle: "Cierra la evaluación como apta." },
@@ -216,7 +223,8 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
         const legacy =
           !respuesta.resultadoFinal &&
           finalEfectivo !== null &&
-          finalEfectivo !== DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION;
+          finalEfectivo !== DD_MATRIZ_RESULTADOS_FINALES.EN_REVISION &&
+          finalEfectivo !== DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA;
         setMatriz(respuesta);
         setFinalLegacy(legacy);
         setFinalBloqueado(
@@ -281,6 +289,8 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       caso.resultado === DD_REPUTACION_RESULTADOS.REQUIERE_DEBIDA_DILIGENCIA,
   );
   const esAprobada = detalle?.estado === DD_ESTADOS.APROBADA;
+  /* Documentacion recibida: SIG aun no inicio la revision, no hay conclusion posible. */
+  const documentacionRecibida = detalle?.estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA;
   const enLegal = detalle?.estado === DD_ESTADOS.EN_LEGAL;
   const rechazada = detalle?.estado === DD_ESTADOS.RECHAZADA;
   const retornoLegal = detalle?.decisionLegal === DD_ACCIONES_LEGAL.APROBAR;
@@ -304,7 +314,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const acciones = ACCIONES.filter(
     (opcion) => opcion.value !== DD_ACCIONES_REVISION.RECHAZAR,
   );
-  const sinDecision = enLegal || rechazadaCerrada;
+  /* Cerrado para Logistica: ni decision ni cambios de vinculos/derivacion. */
+  const cerradoParaLogistica = enLegal || rechazadaCerrada;
+  /* Sin decision: ademas, en Documentacion recibida aun no hay conclusion (si se puede derivar o declarar vinculos). */
+  const sinDecision = cerradoParaLogistica || documentacionRecibida;
   const documentoObservadoFinal =
     resultadoFinalSeleccionado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
   const hayComentarioVinculo = vinculosObservados.some((vinculo) =>
@@ -317,6 +330,13 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
     !sinDecision &&
     (!puedeDerivar || accion === DD_ACCIONES_REVISION.RECHAZAR) &&
     !(reputacionConHallazgos && accion === DD_ACCIONES_REVISION.APROBAR);
+
+  /** Si la DD paso de Documentacion recibida a En revision, habilita la conclusion final. */
+  const alIniciarRevision = (estado: string) => {
+    if (!documentacionRecibida || estado === DD_ESTADOS.DOCUMENTACION_RECIBIDA || !matriz) return;
+    setFinalBloqueado(!resultadoFinalEditable(matriz.resultadoFinal, estado));
+    setResultadoFinalSeleccionado(resultadoFinalEfectivo(matriz.resultadoFinal, estado));
+  };
 
   const cambiarDeclaracionVinculos = async (valor: boolean) => {
     if (guardandoDeclaracion) return;
@@ -337,6 +357,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
         completos: valor,
       });
       setDetalle(actualizado);
+      alIniciarRevision(actualizado.estado);
       setVinculosCompletos(Boolean(actualizado.vinculosCompletos));
       toast.success(
         valor
@@ -374,6 +395,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
       }
       const actualizado = await debidaDiligenciaService.detalle(fila.id);
       setDetalle(actualizado);
+      alIniciarRevision(actualizado.estado);
       onDone();
     } catch (e) {
       const mensaje = e instanceof Error ? e.message : "No se pudo derivar a Comunicaciones";
@@ -386,7 +408,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
 
   const cambiarAccion = (valor: string) => {
     if (sinDecision) {
-      setError("Este expediente ya no admite una decisión de Logística.");
+      setError(documentacionRecibida ? DD_MENSAJES.REVISION_NO_INICIADA : "Este expediente ya no admite una decisión de Logística.");
       return;
     }
     if (puedeDerivar && valor !== DD_ACCIONES_REVISION.RECHAZAR) {
@@ -512,6 +534,10 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
 
   const registrarResultadoFinal = async (resultado: DdMatrizResultadoFinal) => {
     if (!onResultadoFinal || guardandoFinal) return;
+    if (documentacionRecibida) {
+      setError(DD_MENSAJES.REVISION_NO_INICIADA);
+      return;
+    }
     const esDocumentacionObservada =
       resultado === DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_OBSERVADA;
     if (!esDocumentacionObservada && !comentarioFinal.trim()) {
@@ -571,7 +597,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
   const guardar = async () => {
     if (!accionPermitida) {
       setError(
-        enLegal
+        documentacionRecibida
+          ? DD_MENSAJES.REVISION_NO_INICIADA
+          : enLegal
           ? "El expediente está en revisión legal."
           : rechazada
             ? "El expediente ya fue rechazado."
@@ -982,7 +1010,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                       Documentos {marcandoDocumentos ? <span className="text-destructive">*</span> : null}
                     </h3>
                     <p className="text-[11px] text-muted-foreground">
-                      {sinDecision
+                      {documentacionRecibida
+                        ? "Revisa el contenido. Para observar documentos primero inicia la revisión (borrador, evidencia o derivación a Comunicaciones)."
+                        : sinDecision
                         ? "El expediente está cerrado para Logística; no se pueden modificar documentos ni observaciones."
                         : marcandoDocumentos
                           ? "Marca los documentos que el cliente debe subsanar. El comentario para el cliente se completa en la conclusión final."
@@ -1219,7 +1249,9 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                   ) : null}
                   {sinDecision || esAprobada ? (
                     <p className="mb-2 rounded-md border border-warning/40 bg-warning/5 p-2 text-[10px] text-warning">
-                      {enLegal
+                      {documentacionRecibida
+                        ? DD_MENSAJES.REVISION_NO_INICIADA
+                        : enLegal
                         ? "El expediente está en revisión legal. La decisión final la registra el área de Legal."
                         : rechazadaCerrada
                           ? rechazadaPorLegal
@@ -1277,13 +1309,39 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                         necesario volver a registrarlo.
                       </p>
                     ) : null}
-                    {finalBloqueado && !finalLegacy ? (
+                    {documentacionRecibida ? (
+                      <p className="rounded-md border border-indigo-300 bg-indigo-50 p-2 text-[10px] leading-snug text-indigo-900">
+                        {DD_MENSAJES.REVISION_NO_INICIADA}
+                      </p>
+                    ) : null}
+                    {finalBloqueado && !finalLegacy && !documentacionRecibida ? (
                       <p className="rounded-md border border-border bg-secondary/40 p-2 text-[10px] leading-snug text-foreground">
                         El resultado final ya está cerrado. Solo se puede modificar cuando el
                         expediente está en revisión o con documentación observada.
                       </p>
                     ) : null}
                     <div className="grid gap-1.5">
+                      <button
+                        type="button"
+                        aria-pressed={documentacionRecibida}
+                        title="Se asigna sola cuando el cliente envía su documentación"
+                        className={`w-full cursor-not-allowed rounded-lg border p-3 text-left ${
+                          documentacionRecibida
+                            ? "border-indigo-500 bg-indigo-50"
+                            : "border-border bg-card opacity-50"
+                        }`}
+                        disabled
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-foreground">
+                            {DD_MATRIZ_RESULTADO_FINAL_LABELS[FINAL_RECIBIDA.value]}
+                          </span>
+                          {documentacionRecibida ? (
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-800">Actual</span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-[10px] leading-snug text-muted-foreground">{FINAL_RECIBIDA.detalle}</p>
+                      </button>
                       {FINALES.map((opcion) => (
                         <button
                           key={opcion.value}
@@ -1295,7 +1353,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                                 : "border-primary bg-primary/10"
                               : "border-border bg-card"
                           }`}
-                          disabled={guardandoFinal !== null || finalBloqueado}
+                          disabled={guardandoFinal !== null || finalBloqueado || documentacionRecibida}
                           onClick={() => {
                             setResultadoFinalSeleccionado(opcion.value);
                             setFinalLegacy(false);
@@ -1464,6 +1522,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                       className="w-full gap-1.5 text-xs"
                       disabled={
                         finalBloqueado ||
+                        documentacionRecibida ||
                         !resultadoFinalSeleccionado ||
                         (!documentoObservadoFinal && !comentarioFinal.trim()) ||
                         (documentoObservadoFinal &&
@@ -1529,7 +1588,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                     variant="outline"
                     size="sm"
                     className="w-full gap-1.5 text-xs sm:w-auto"
-                    disabled={derivando || sinDecision || !vinculosCompletos || guardandoDeclaracion}
+                    disabled={derivando || cerradoParaLogistica || !vinculosCompletos || guardandoDeclaracion}
                     onClick={() => { void derivarNombresAComunicaciones(); }}
                   >
                     {derivando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -1539,7 +1598,7 @@ export function DdRevisionModal({ fila, puedeMatriz, onClose, onDone, onResultad
                     <Checkbox
                       checked={vinculosCompletos}
                       onCheckedChange={(valor) => { void cambiarDeclaracionVinculos(valor === true); }}
-                      disabled={guardandoDeclaracion || sinDecision}
+                      disabled={guardandoDeclaracion || cerradoParaLogistica}
                       className="mt-0.5"
                     />
                     <span>

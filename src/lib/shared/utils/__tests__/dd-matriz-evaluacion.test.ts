@@ -415,3 +415,14 @@ describe("pendientes de Comunicaciones para declarar APTO", () => {
     expect(pendientes[2]?.motivo).toContain("hallazgos");
   });
 });
+
+describe("Documentacion recibida en el resultado final", () => {
+  it("se ve como DOCUMENTACION RECIBIDA, no se edita y filtra por su estado", async () => {
+    const m = await import("@/lib/shared/utils/dd-matriz-evaluacion");
+    const { DD_ESTADOS: E, DD_MATRIZ_RESULTADOS_FINALES: F } = await import("@/lib/shared/constants");
+    expect(m.resultadoFinalEfectivo(null, E.DOCUMENTACION_RECIBIDA)).toBe(F.DOCUMENTACION_RECIBIDA);
+    expect(m.resultadoFinalEditable(null, E.DOCUMENTACION_RECIBIDA)).toBe(false);
+    expect(m.resultadoFinalEditable(null, E.EN_REVISION)).toBe(true);
+    expect(m.estadoExpedienteDeResultadoFinal(F.DOCUMENTACION_RECIBIDA)).toBe(E.DOCUMENTACION_RECIBIDA);
+  });
+});

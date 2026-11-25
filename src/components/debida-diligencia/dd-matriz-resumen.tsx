@@ -32,6 +32,7 @@ const COLORES = {
 
 /** Color de cada resultado final en la dona (el mismo criterio que sus badges). */
 const COLOR_FINAL: Record<DdMatrizResultadoFinal, string> = {
+  [DD_MATRIZ_RESULTADOS_FINALES.DOCUMENTACION_RECIBIDA]: COLORES.border,
   [DD_MATRIZ_RESULTADOS_FINALES.APTO]: COLORES.success,
   [DD_MATRIZ_RESULTADOS_FINALES.APTO_CON_OBSERVACIONES]: COLORES.warning,
   [DD_MATRIZ_RESULTADOS_FINALES.NO_APTO]: COLORES.danger,
