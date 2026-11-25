@@ -42,7 +42,7 @@ import {
   TIPOS_DOCUMENTO_SOLICITUD,
 } from "@/lib/shared/constants";
 import type { SgcDocumentCategory, SgcIntentoOrigen } from "@/lib/shared/constants";
-import { construirIdempotencyKey, debeNotificarDevolucionSgc, extensionArchivo, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, ordenarParaReconciliar, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
+import { construirIdempotencyKey, debeNotificarDevolucionSgc, extensionArchivo, extraerDocumentosLegacy, nombreArchivoSgc, normalizarObservacionesSgc, ordenarParaReconciliar, repararTextoSgc, sha256Hex, tituloSgcDocumento } from "@/lib/shared/utils/sgc";
 import type { DocumentoUrl } from "@/lib/shared/utils/sgc";
 import type { SolicitudRow } from "@/domain/models/entities";
 import { mapSolicitudToExpediente } from "@/lib/shared/mappers/sgc";
@@ -191,7 +191,7 @@ export class SgcIntegracionApplicationService {
 
       try {
         /* Intencion = solicitud + hash del contenido: un reintento identico reusa la misma
-         * clave; un payload distinto (p.ej. tipo corregido) es una intencion nueva â€” evita el
+         * clave; un payload distinto (p.ej. tipo corregido) es una intencion nueva — evita el
          * 409 "La clave idempotente ya fue usada con otro contenido". */
         const claveDe = async (p: SgcCrearExpedienteInput) =>
           `${construirIdempotencyKey(solicitudId)}/${(await sha256Hex(new TextEncoder().encode(JSON.stringify(p)))).slice(0, 16)}`;
@@ -202,7 +202,7 @@ export class SgcIntegracionApplicationService {
         } catch (err) {
           /* Guia v5: un 409 tambien significa "el code ya pertenece a otro expediente" en el SGC
            * -> reintento unico con sufijo (clave nueva, porque el payload cambia). */
-          const esCodigoDuplicado = err instanceof SgcApiError && err.status === 409 && /c[oÃ³]digo|code/i.test(err.message);
+          const esCodigoDuplicado = err instanceof SgcApiError && err.status === 409 && /c[oó]digo|code/i.test(err.message);
           if (!esCodigoDuplicado) throw err;
           payload = { ...input, code: `${codigo.slice(0, 31)}-${solicitudId.slice(0, 8)}` };
           resultado = await this.client.crearExpediente(payload, await claveDe(payload));
@@ -310,7 +310,7 @@ export class SgcIntegracionApplicationService {
   }
 
   /**
-   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, Â§3.2):
+   * Completa `fields` con los campos obligatorios que declare el tipo (guia v3, §3.2):
    * `GET /contract-types` -> `items[].fields` (required + apiSupported). Best-effort: si no se
    * puede consultar el catalogo, se crea sin `fields` (el SGC respondera si falta alguno).
    */
@@ -352,7 +352,7 @@ export class SgcIntegracionApplicationService {
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.OBSERVED ||
         detalle.lifecycleStatus === SGC_LIFECYCLE_STATUSES.REJECTED;
       /* Campo OPCIONAL: `observaciones === null` = el SGC no lo informa (no se toca).
-       * Si dejo de estar devuelto, se limpia. Respaldo del motivo si faltÃ³ el webhook. */
+       * Si dejo de estar devuelto, se limpia. Respaldo del motivo si faltó el webhook. */
       const observacionesAbiertas = (observaciones ?? []).filter(
         (o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && (o.message ?? "").trim().length > 0,
       );
@@ -418,7 +418,7 @@ export class SgcIntegracionApplicationService {
           : null;
       if (notificar) {
         const documentos = observacionesAbiertas
-          .map((o) => o.title?.trim() || o.message.slice(0, 120))
+          .map((o) => repararTextoSgc(o.title?.trim() || o.message.slice(0, 120)))
           .filter((t) => t.length > 0);
         await notificarDevolucionSgc(
           this.solicitudRepo,
@@ -446,7 +446,7 @@ export class SgcIntegracionApplicationService {
   async reconciliar(): Promise<number> {
     if (!this.config.enabled) return 0;
 
-    /* Acotado por corrida (limite del SGC: 120 solicitudes/min por clave, guia Â§1.1);
+    /* Acotado por corrida (limite del SGC: 120 solicitudes/min por clave, guia §1.1);
      * rotacion por `lastSyncedAt` ascendente (nunca sincronizados primero). */
     const expedientes = ordenarParaReconciliar(await this.repo.listarConContractId(), Date.now())
       .slice(0, SGC_RECONCILIAR_MAX_POR_CORRIDA);
@@ -531,7 +531,7 @@ export class SgcIntegracionApplicationService {
             : null;
         if (notificar) {
           const documentos = observacionesAbiertas
-            .map((o) => o.title?.trim() || o.message.slice(0, 120))
+            .map((o) => repararTextoSgc(o.title?.trim() || o.message.slice(0, 120)))
             .filter((t) => t.length > 0);
           await notificarDevolucionSgc(
             this.solicitudRepo,
@@ -582,7 +582,7 @@ export class SgcIntegracionApplicationService {
     return { sincronizados, reintentados };
   }
 
-  /** Empuja una pieza documental al SGC (reservar â†’ transferir â†’ confirmar). */
+  /** Empuja una pieza documental al SGC (reservar → transferir → confirmar). */
   async subirPiezaDocumental(solicitudId: string, pieza: SgcPiezaDocumental): Promise<SgcDocumentoEntity | null> {
     if (!this.config.enabled) return null;
 
@@ -745,7 +745,7 @@ export class SgcIntegracionApplicationService {
 
     /*
      * Tras subir la version corregida hay que reabrir el tramite (POST /resend),
-     * una sola vez por ronda (doc Â§8.1). Si no, el expediente no vuelve a avanzar.
+     * una sola vez por ronda (doc §8.1). Si no, el expediente no vuelve a avanzar.
      */
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (expediente?.contractId) {
@@ -804,7 +804,7 @@ export class SgcIntegracionApplicationService {
     });
   }
 
-  /** Declara la casuÃ­stica de subsanaciÃ³n (la elige el administrador cuando el SGC rechaza). */
+  /** Declara la casuística de subsanación (la elige el administrador cuando el SGC rechaza). */
   async declararMotivoSubsanacion(
     solicitudId: string,
     motivo: string | null,
@@ -814,7 +814,7 @@ export class SgcIntegracionApplicationService {
     const expediente = await this.repo.findExpedientePorSolicitud(solicitudId);
     if (!expediente) return null;
 
-    /* AuditorÃ­a: cada declaraciÃ³n abre una ronda nueva (1, 2, 3â€¦). */
+    /* Auditoría: cada declaración abre una ronda nueva (1, 2, 3…). */
     if (motivo) {
       const previas = await this.repo.listarSubsanaciones(expediente.id).catch(() => []);
       const ronda = previas.reduce((max, r) => Math.max(max, r.ronda), 0) + 1;
@@ -1586,7 +1586,7 @@ export class SgcIntegracionApplicationService {
 }
 
 /**
- * Valor por defecto para un campo obligatorio del tipo (guia v3, Â§3.2). Los textos usan el
+ * Valor por defecto para un campo obligatorio del tipo (guia v3, §3.2). Los textos usan el
  * nombre descriptivo del expediente ("Separacion de stand - <codigo>"); el resto, valores
  * neutros. Si el tipo exige datos de negocio especificos, revisar este mapeo.
  */

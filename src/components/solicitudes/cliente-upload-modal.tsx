@@ -11,6 +11,7 @@ import { portalEmpresaService } from "@/lib/client/api/services/portal-empresa-s
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { ANEXOS_BLOQUEANTES, ANEXOS_OTROS_EXTENSIONES, ANEXOS_REQUERIDOS, ANEXOS_UPLOAD_EXTENSIONES_TODAS, ANEXOS_UPLOAD_MAX_BYTES, ESTADOS_DOCUMENTO_SOLICITUD, FIRMA_PERFIL_EXTENSIONES, FIRMA_PERFIL_MAX_BYTES, ORIGENES_DOCUMENTO, TIPOS_DOCUMENTO_SOLICITUD, SGC_OBSERVACION_ESTADOS, extensionesPermitidasAnexo } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
+import { repararTextoSgc } from "@/lib/shared/utils/sgc";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { devolucionSgcSinDetalle, esObservacionSgcContrato, estadoCorreccionSgc, observacionContratoSgcPendiente, observacionesSgcSubsanadas, piezasObservacionSgc, type SgcObservacionLike } from "@/lib/shared/utils/solicitud-documentos";
 import { FirmaContratoWorkspace } from "./firma-contrato-workspace";
@@ -659,8 +660,8 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
               <ul className="mt-0.5 space-y-0.5 text-[11px] text-foreground">
                 {observacionesSgcAnexos.map((o, i) => (
                   <li key={o.observationId ?? `obs-sgc-${i}`}>
-                    • {o.title ?? o.nombre ?? "Documento"}
-                    {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                    • {repararTextoSgc(o.title ?? o.nombre ?? "Documento")}
+                    {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {repararTextoSgc(o.message)}
                   </li>
                 ))}
               </ul>
@@ -841,7 +842,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       {observacionSgc && (
                         observacionCorregida
                           ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
-                          : <span className="block text-[10px] text-destructive">Area legal: {observacionSgc.message}</span>
+                          : <span className="block text-[10px] text-destructive">Area legal: {repararTextoSgc(observacionSgc.message)}</span>
                       )}
                     </span>
                     {pendiente ? (
@@ -892,7 +893,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       className={`rounded-lg border px-3 py-2.5 text-xs ${corregida ? "border-border/70 bg-background" : "border-warning/50 bg-warning/5"}`}
                     >
                       <span className="flex flex-wrap items-center gap-1.5">
-                        {o.title ?? o.nombre ?? "Documentos adicionales"}
+                        {repararTextoSgc(o.title ?? o.nombre ?? "Documentos adicionales")}
                         <Badge className="pointer-events-none border-primary/20 bg-primary/10 text-[9px] text-primary">
                           <span>Archivo nuevo</span>
                         </Badge>
@@ -918,7 +919,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                                 ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                                 : <Clock className="h-3.5 w-3.5 shrink-0 text-warning" />}
                               <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[11px]" title={pieza.title}>{pieza.title}</span>
+                                <span className="block truncate text-[11px]" title={repararTextoSgc(pieza.title)}>{repararTextoSgc(pieza.title)}</span>
                                 <span className={`block truncate text-[10px] ${completa ? "text-emerald-600" : "text-muted-foreground"}`}>
                                   {estado}{enEspera ? ` · ${enEspera.nombre}` : ""}
                                 </span>
@@ -954,7 +955,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       </div>
                       {corregida
                         ? <span className="mt-1.5 block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
-                        : <span className="mt-1.5 block text-[10px] text-destructive">Area legal: {o.message}</span>}
+                        : <span className="mt-1.5 block text-[10px] text-destructive">Area legal: {repararTextoSgc(o.message)}</span>}
                     </div>
                   );
                 }
@@ -994,7 +995,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       : <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                     <span className="flex-1">
                       <span className="flex flex-wrap items-center gap-1.5">
-                        {o.title ?? o.nombre ?? "Documento adicional"}
+                        {repararTextoSgc(o.title ?? o.nombre ?? "Documento adicional")}
                         <Badge className={`pointer-events-none text-[9px] ${requiereVersionExistente ? "border-warning/30 bg-warning/10 text-warning" : "border-primary/20 bg-primary/10 text-primary"}`}>
                           <span>{requiereVersionExistente ? "Versión corregida" : "Archivo nuevo"}</span>
                         </Badge>
@@ -1008,7 +1009,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                             {pieza.estado === "Recibido"
                               ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
                               : <Clock className="h-3 w-3 shrink-0 text-warning" />}
-                            <span className="truncate">{pieza.title}</span>
+                            <span className="truncate">{repararTextoSgc(pieza.title)}</span>
                             <span className={pieza.estado === "Recibido" ? "text-emerald-600" : "text-muted-foreground"}>
                               {pieza.estado}
                             </span>
@@ -1017,7 +1018,7 @@ export function ClienteUploadModal({ solicitud, modo = "anexos", modoPrueba = fa
                       </span>
                       {corregida
                         ? <span className="block text-[10px] text-emerald-600">Corregido - pendiente de validacion del area legal</span>
-                        : <span className="block text-[10px] text-destructive">Area legal: {o.message}</span>}
+                        : <span className="block text-[10px] text-destructive">Area legal: {repararTextoSgc(o.message)}</span>}
                     </span>
                     {pendiente ? (
                       <span className="flex shrink-0 items-center gap-2">

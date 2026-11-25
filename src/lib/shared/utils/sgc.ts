@@ -237,6 +237,64 @@ export function nombreArchivoSgc(params: {
   return [base, identificador, params.hash].filter(Boolean).join("-") + "." + extension;
 }
 
+/** Secuencias UTF-8 leídas como Latin-1/Windows-1252 (p. ej. "separaciÃ³n"). */
+const MOJIBAKE_UTF8: ReadonlyArray<readonly [string, string]> = [
+  ["Ã¡", "á"], ["Ã©", "é"], ["Ã­", "í"], ["Ã³", "ó"], ["Ãº", "ú"], ["Ã±", "ñ"], ["Ã¼", "ü"],
+  ["Ã\u0081", "Á"], ["Ã‰", "É"], ["Ã\u008d", "Í"], ["Ã“", "Ó"], ["Ãš", "Ú"], ["Ã‘", "Ñ"],
+  ["Â°", "°"], ["Âº", "º"], ["Âª", "ª"], ["Â·", "·"], ["â€”", "—"], ["â€“", "–"], ["â€œ", "“"], ["â€\u009d", "”"], ["â€™", "’"],
+];
+
+/**
+ * Palabras que el SGC suele devolver con la tilde perdida (U+FFFD, "separaci\uFFFDn"): el título del
+ * contrato se registró con codificación errónea en algunos expedientes y el SGC lo repite en cada
+ * observación. Solo se reparan palabras conocidas para no adivinar la letra perdida.
+ */
+const PALABRAS_CON_TILDE = [
+  "separación", "revisión", "subsanación", "documentación", "observación", "información", "corrección",
+  "versión", "razón", "dirección", "inscripción", "exhibición", "participación", "representación",
+  "también", "después", "aún", "todavía", "público", "jurídica", "jurídico", "trámite", "páginas", "página",
+  "válido", "válida", "número", "teléfono", "electrónico", "perú", "minería", "ingeniería", "sección",
+  "cláusula", "año",
+];
+
+const CARACTER_REEMPLAZO = "\uFFFD";
+
+const PATRONES_TILDE_PERDIDA: ReadonlyArray<readonly [RegExp, string]> = PALABRAS_CON_TILDE.map((palabra) => {
+  const patron = Array.from(palabra)
+    .map((c) => (/[^\x00-\x7F]/.test(c) ? CARACTER_REEMPLAZO : c))
+    .join("");
+  return [new RegExp(`(?<!\\p{L})${patron}(?!\\p{L})`, "giu"), palabra] as const;
+});
+
+/** Conserva la capitalización del texto hallado (MAYÚSCULAS, Inicial o minúsculas). */
+function conCapitalizacion(hallado: string, palabra: string): string {
+  if (hallado === hallado.toUpperCase()) return palabra.toUpperCase();
+  const inicial = hallado.charAt(0);
+  if (inicial === inicial.toUpperCase()) return palabra.charAt(0).toUpperCase() + palabra.slice(1);
+  return palabra;
+}
+
+/**
+ * Repara texto del SGC con codificación rota **solo para mostrarlo** (mensajes de observación,
+ * títulos). No usar sobre títulos/ids que se comparan con el SGC: allí el valor debe quedar tal
+ * cual lo guarda el SGC para que el emparejamiento siga funcionando.
+ */
+export function repararTextoSgc(valor: string): string;
+export function repararTextoSgc(valor: string | null | undefined): string | null | undefined;
+export function repararTextoSgc(valor: string | null | undefined): string | null | undefined {
+  if (!valor) return valor;
+  let salida = valor;
+  if (salida.includes("Ã") || salida.includes("Â") || salida.includes("â€")) {
+    for (const [roto, bueno] of MOJIBAKE_UTF8) salida = salida.split(roto).join(bueno);
+  }
+  if (salida.includes(CARACTER_REEMPLAZO)) {
+    for (const [patron, palabra] of PATRONES_TILDE_PERDIDA) {
+      salida = salida.replace(patron, (hallado) => conCapitalizacion(hallado, palabra));
+    }
+  }
+  return salida;
+}
+
 const MAX_OBSERVACIONES = 20;
 const MAX_MENSAJE_OBSERVACION = 500;
 const MAX_TEXTO_OBSERVACION = 200;

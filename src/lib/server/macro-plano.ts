@@ -67,7 +67,7 @@ async function leerArchivo(url: string): Promise<Buffer> {
 async function pdfAPng(pdf: Buffer, anchoSalida: number): Promise<Buffer> {
   /*
    * Carga diferida: si el binario nativo no esta disponible, el error se captura
-   * arriba y la imagen del macro se omite â€” ninguna otra ruta se ve afectada.
+   * arriba y la imagen del macro se omite — ninguna otra ruta se ve afectada.
    */
   const { createCanvas } = await import("@napi-rs/canvas");
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");

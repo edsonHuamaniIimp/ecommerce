@@ -1137,14 +1137,14 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-2">
           {detailRow && (
             <>
-              {/* Info general â€” siempre visible */}
+              {/* Info general — siempre visible */}
               <DetailSection id="info" title="Informacion general" open={accordionOpen === "info"} onToggle={(id) => setAccordionOpen(accordionOpen === id ? null : id)}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div><span className="text-muted-foreground">Stand:</span> <span className="font-mono font-medium">{detailRow.standCode}</span>{detailRow.standCodes?.length > 1 && <span className="text-[10px] text-muted-foreground ml-1">({detailRow.standCodes.length} stands: {detailRow.standCodes.join(", ")})</span>}</div>
-                  <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "â€”"}</span></div>
-                  <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "â€”"}</span></div>
+                  <div><span className="text-muted-foreground">Bloque:</span> <span className="font-mono">{detailRow.bloqueId ?? "—"}</span></div>
+                  <div><span className="text-muted-foreground">Tipo:</span> <span>{detailRow.tipoStand ?? "—"}</span></div>
                   <div><span className="text-muted-foreground">Precio:</span> <span>{formatearPrecioSolicitud(detailRow.precio, detailRow.moneda, detailRow.tipoCambio)}</span></div>
-                  <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "â€”"}</span></div>
+                  <div className="col-span-2"><span className="text-muted-foreground">Empresa:</span> <span>{detailRow.empresa ?? "—"}</span></div>
                   <div className="col-span-2"><span className="text-muted-foreground">Estado:</span>{" "}
                     <Badge className={`text-[10px] ${
                       detailRow.estadoSolicitud === ESTADOS_SOLICITUD.APROBADO ? BADGE_STYLES.SUCCESS
@@ -1397,7 +1397,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
           {notificarRow && (
             <NotificarModal
               standCode={notificarRow.standCode}
-              empresa={notificarRow.empresa ?? "â€”"}
+              empresa={notificarRow.empresa ?? "—"}
               tipoStand={notificarRow.tipoStand}
               email={notificarRow.email ?? ""}
               revisiones={notificarRow.revisiones}
@@ -1534,7 +1534,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.max(0, prev.idx - 1) } : null)}
               disabled={imgCarousel.idx === 0}
             >
-              <span className="text-lg">â€¹</span>
+              <span className="text-lg">‹</span>
             </Button>
             <Image width={1200} height={800} src={imgCarousel.images[imgCarousel.idx] ?? ""} alt={`Imagen ${imgCarousel.idx + 1}`} className="max-h-[70vh] w-full object-contain" />
             <Button type="button" variant="ghost" size="icon"
@@ -1542,7 +1542,7 @@ function SolicitudesManagerContent({ eventoId }: { eventoId: string }) {
               onClick={() => setImgCarousel((prev) => prev ? { ...prev, idx: Math.min(prev.images.length - 1, prev.idx + 1) } : null)}
               disabled={imgCarousel.idx === imgCarousel.images.length - 1}
             >
-              <span className="text-lg">â€º</span>
+              <span className="text-lg">›</span>
             </Button>
             <p className="text-center text-xs text-white/60">{imgCarousel.idx + 1} / {imgCarousel.images.length}</p>
           </DialogContent>

@@ -19,6 +19,7 @@ import {
   SGC_SUBSANACION_SUGERENCIAS,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { repararTextoSgc } from "@/lib/shared/utils/sgc";
 
 const LIFECYCLE_BADGES: Record<string, string> = {
   [SGC_LIFECYCLE_STATUSES.ACTIVE]: BADGE_STYLES.SUCCESS,
@@ -244,7 +245,7 @@ export function SgcExpedientePanel({
           {data.history.map((item, idx) => (
             <div key={item.id || `${idx}-${item.occurredAt ?? ""}`} className="text-xs">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{item.title}</span>
+                <span className="font-medium">{repararTextoSgc(item.title)}</span>
                 <span className="shrink-0 text-[10px] text-muted-foreground">{dateUtils.formatDateTime(item.occurredAt)}</span>
               </div>
               <p className="text-[11px] text-muted-foreground">

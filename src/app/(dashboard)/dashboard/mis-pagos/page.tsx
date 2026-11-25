@@ -38,7 +38,7 @@ export default function MisPagosPage() {
             {empresaVerComo && (
               <Badge className="gap-1.5 bg-info/10 text-[11px] font-semibold text-info">
                 <Eye className="h-3 w-3" />
-                <span>Viendo como {empresaVerComo.razonSocial} Â· Solo lectura</span>
+                <span>Viendo como {empresaVerComo.razonSocial} · Solo lectura</span>
               </Badge>
             )}
           </div>

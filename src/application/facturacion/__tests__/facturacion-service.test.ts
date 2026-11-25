@@ -388,7 +388,7 @@ describe("FacturacionApplicationService — unit tests rigurosos", () => {
   });
 
   // ==================== PLAN DEL CLIENTE (contrato) ====================
-  describe("plan definido por el cliente (plan_cuotas) â€” no editable", () => {
+  describe("plan definido por el cliente (plan_cuotas) — no editable", () => {
     it("rechaza agregar cuota cuando el plan viene del contrato", async () => {
       const repo = mockRepo();
       vi.mocked(repo.detalle).mockResolvedValue({ ...sampleRow, planCliente: true });

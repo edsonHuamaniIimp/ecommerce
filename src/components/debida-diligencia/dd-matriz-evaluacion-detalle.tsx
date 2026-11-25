@@ -221,7 +221,7 @@ function Adjuntos({ vinculoId, adjuntos, categorias, puedeEditar, onCambio }: Ad
                 <span className="truncate">{a.nombre}</span>
               </a>
               <span className="flex shrink-0 items-center gap-2 text-[10px] text-muted-foreground">
-                <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[a.categoria as DdMatrizAdjuntoCategoria] ?? a.categoria} � {formatearTamano(a.tamano)}</span>
+                <span>{DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS[a.categoria as DdMatrizAdjuntoCategoria] ?? a.categoria} · {formatearTamano(a.tamano)}</span>
                 <DdEvidenciaPreviewButton url={a.url} nombre={a.nombre} mimeType={a.mimeType} detalles={ddEvidenciaDetalles.deAdjunto(a)} />
                 {puedeEditar ? (
                   <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-destructive" title="Quitar adjunto" onClick={() => { void quitar(a); }}>

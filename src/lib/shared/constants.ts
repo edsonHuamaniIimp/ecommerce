@@ -1664,8 +1664,7 @@ export type DdResultado = (typeof DD_RESULTADOS)[keyof typeof DD_RESULTADOS];
 
 /**
  * Estado de la declaracion jurada de vigencia en el registro externo de DD.
- * 
-ull` en datos legacy significa "sin informacion" y no bloquea por si solo.
+ * `null` en datos legacy significa "sin informacion" y no bloquea por si solo.
  */
 export const DD_DECLARACION_VIGENCIA_ESTADOS = {
   NO_CORRESPONDE: "no_corresponde",
@@ -2143,8 +2142,7 @@ export const DD_IMPORT_EVENTO_TIPOS: Record<string, number> = {
  * Cada catalogo guarda el CODIGO canonico (snake_case) y su etiqueta visible, que es
  * el termino exacto que usa el area de Asociados en la matriz oficial. Los ALIAS
  * permiten aceptar tambien la variante del Excel / de desarrollo (con o sin tilde,
- * "N.A" / "N.A." / "NO APLICA", etc.); ver 
-ormalizarValorMatriz`. */
+ * "N.A" / "N.A." / "NO APLICA", etc.); ver `normalizarValorMatriz`. */
 
 /** Tipo de vinculo evaluado: la propia empresa o una persona/entidad ligada a ella. */
 export const DD_MATRIZ_TIPOS_VINCULO = {
@@ -3706,8 +3704,7 @@ export const ANEXOS_BLOQUEANTES: string[] = [ANEXOS_KEYS.VIGENCIA_PODER, ANEXOS_
 
 /**
  * Modos de subsanación que declara el administrador cuando el SGC devuelve el trámite:
- *  - 
-uevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
+ *  - `nuevo_contrato`: el admin subirá una versión corregida; el cliente **espera** a que
  *    el contrato nuevo esté adjunto antes de poder firmarlo.
  *  - `mismo_contrato`: el cliente vuelve a firmar el contrato que ya tenía (puede firmar de inmediato).
  */
@@ -3721,8 +3718,7 @@ export type SgcSubsanacionModo = (typeof SGC_SUBSANACION_MODOS)[keyof typeof SGC
  * Sugerencias (no cerradas) para el motivo de subsanación que declara el administrador cuando
  * el SGC devuelve el trámite. La casuística es **libre**: el admin puede escribir cualquier
  * motivo, y puede repetirse N veces (una por cada devolución). El `modo` define si el cliente
- * debe esperar a un contrato corregido del admin (
-uevo_contrato`) o puede firmar el vigente.
+ * debe esperar a un contrato corregido del admin (`nuevo_contrato`) o puede firmar el vigente.
  */
 export const SGC_SUBSANACION_SUGERENCIAS: { modo: SgcSubsanacionModo; titulo: string; texto: string }[] = [
   {

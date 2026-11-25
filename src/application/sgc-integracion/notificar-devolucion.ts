@@ -3,6 +3,7 @@ import { ALERTA_TIPOS } from "@/lib/shared/constants";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { getAppUrl } from "@/lib/server/app-url";
 import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
+import { repararTextoSgc } from "@/lib/shared/utils/sgc";
 import type { ISolicitudesRepository } from "@/domain/ports/solicitudes-repository";
 
 /**
@@ -18,7 +19,7 @@ export async function notificarDevolucionSgc(
   try {
     const detalle = await solicitudes.detalle(solicitudId);
     if (!detalle) return;
-    const justificacion = motivo?.trim() || "El SGC devolvio el tramite; revisa los documentos observados.";
+    const justificacion = repararTextoSgc(motivo?.trim()) || "El SGC devolvio el tramite; revisa los documentos observados.";
     const lista = documentos.length > 0 ? documentos : ["Documentos de la solicitud"];
 
     if (detalle.userId) {

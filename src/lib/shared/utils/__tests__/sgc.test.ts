@@ -5,6 +5,7 @@ import {
   debeNotificarDevolucionSgc,
   diagnosticarFirmaSgc,
   ordenarParaReconciliar,
+  repararTextoSgc,
   hmacSha256Hex,
   mimeDesdeNombre,
   nombreArchivoSgc,
@@ -242,5 +243,32 @@ describe("diagnosticarFirmaSgc", () => {
     expect(await diagnosticarFirmaSgc({ secret: SECRETO, header: "basura", payload, ahoraSegundos: ahora })).toBe("header_invalido");
     expect(await diagnosticarFirmaSgc({ secret: SECRETO, header, payload, ahoraSegundos: ahora + 3600 })).toBe("fuera_de_ventana");
     expect(await diagnosticarFirmaSgc({ secret: "otro", header, payload, ahoraSegundos: ahora })).toBe("firma_no_coincide");
+  });
+});
+
+describe("repararTextoSgc", () => {
+  it("repara la tilde perdida (U+FFFD) en palabras conocidas del SGC", () => {
+    expect(repararTextoSgc("Contrato de separaci\uFFFDn de stand v1: falta firma")).toBe(
+      "Contrato de separación de stand v1: falta firma",
+    );
+    expect(repararTextoSgc("Revisi\uFFFDn de la documentaci\uFFFDn")).toBe("Revisión de la documentación");
+    expect(repararTextoSgc("SEPARACI\uFFFDN y a\uFFFDn")).toBe("SEPARACIÓN y aún");
+  });
+
+  it("repara secuencias UTF-8 leidas como Latin-1", () => {
+    expect(repararTextoSgc("Contrato de separaciÃ³n â€” aÃ±o")).toBe("Contrato de separación — año");
+  });
+
+  it("no toca texto correcto ni palabras desconocidas", () => {
+    expect(repararTextoSgc("Vigencia de poder válida")).toBe("Vigencia de poder válida");
+    expect(repararTextoSgc("xyz\uFFFDabc")).toBe("xyz\uFFFDabc");
+    expect(repararTextoSgc(null)).toBeNull();
+    expect(repararTextoSgc(undefined)).toBeUndefined();
+    expect(repararTextoSgc("")).toBe("");
+  });
+
+  it("normalizarObservacionesSgc conserva el texto original para el emparejamiento", () => {
+    const [o] = normalizarObservacionesSgc([{ id: "o1", title: "Contrato de separaci\uFFFDn de stand v1", message: "Falta firma de separaci\uFFFDn" }]) ?? [];
+    expect(o?.title).toBe("Contrato de separaci\uFFFDn de stand v1");
   });
 });

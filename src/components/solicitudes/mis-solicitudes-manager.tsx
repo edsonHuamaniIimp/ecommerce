@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { solicitudesService } from "@/lib/client/api/services/solicitudes-service";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { stringUtils } from "@/lib/shared/utils/string";
+import { repararTextoSgc } from "@/lib/shared/utils/sgc";
 import { useAlertaNavigate } from "@/hooks/use-alerta-navigate";
 import { useVistaBandeja } from "@/hooks/use-vista-bandeja";
 import { useMaestraLabels } from "@/hooks/use-maestra-labels";
@@ -697,8 +698,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               <ul className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
                                 {obsSgc.map((o, i) => (
                                   <li key={o.observationId ?? `obs-sgc-${i}`}>
-                                    <span className="font-semibold text-warning">{o.title ?? o.nombre ?? "Documento"}</span>
-                                    {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                                    <span className="font-semibold text-warning">{repararTextoSgc(o.title ?? o.nombre ?? "Documento")}</span>
+                                    {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {repararTextoSgc(o.message)}
                                   </li>
                                 ))}
                               </ul>
@@ -1450,8 +1451,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                           <ul className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
                             {sgcObservacionesAbiertas(detailRow).filter(esObservacionSgcAnexo).map((o, i) => (
                               <li key={o.observationId ?? `obs-sgc-anexo-${i}`}>
-                                <span className="font-semibold text-warning">{o.title ?? o.nombre ?? "Documento"}</span>
-                                {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                                <span className="font-semibold text-warning">{repararTextoSgc(o.title ?? o.nombre ?? "Documento")}</span>
+                                {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {repararTextoSgc(o.message)}
                               </li>
                             ))}
                           </ul>
@@ -1486,8 +1487,8 @@ function MisSolicitudesManagerContent({ eventoId, userId, empresaVerComoId }: { 
                               .filter((o) => o.status !== SGC_OBSERVACION_ESTADOS.RESOLVED && o.message && esObservacionSgcContrato(o))
                               .map((o, i) => (
                                 <li key={o.observationId ?? `obs-sgc-${i}`}>
-                                  • {o.title ?? o.nombre ?? "Documento"}
-                                  {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {o.message}
+                                  • {repararTextoSgc(o.title ?? o.nombre ?? "Documento")}
+                                  {o.versionNumber ? ` (v${o.versionNumber})` : ""}: {repararTextoSgc(o.message)}
                                 </li>
                               ))}
                           </ul>

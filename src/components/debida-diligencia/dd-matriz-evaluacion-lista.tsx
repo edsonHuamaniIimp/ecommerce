@@ -408,7 +408,7 @@ export function DdMatrizEvaluacionLista({ variante }: { variante?: "extendida" }
                           <p className="truncate text-xs font-semibold text-foreground">{fila.nombre}</p>
                           <p className="text-[10px] text-muted-foreground">
                             {etiquetaTipoVinculo(fila)}
-                            {fila.cargo ? ` � ${fila.cargo}` : ""}
+                            {fila.cargo ? ` · ${fila.cargo}` : ""}
                           </p>
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-[11px] text-muted-foreground">

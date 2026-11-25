@@ -62,8 +62,8 @@ function numeroDesdeRawData(rawData: unknown): number | null {
 }
 
 /**
- * Precio informado explÃ­citamente por el API/BD, incluyendo el valor 0.00.
- * Devuelve null cuando el stand no trae ningÃºn dato de precio.
+ * Precio informado explícitamente por el API/BD, incluyendo el valor 0.00.
+ * Devuelve null cuando el stand no trae ningún dato de precio.
  */
 export function precioComercialExplicito(stand: PrecioStandFuente): number | null {
   const desdeMedidas = numeroDesdeMedidas(stand.medidas);
@@ -72,7 +72,7 @@ export function precioComercialExplicito(stand: PrecioStandFuente): number | nul
 }
 
 /**
- * Un stand es vinculable comercialmente si no trae un precio explÃ­cito invÃ¡lido.
+ * Un stand es vinculable comercialmente si no trae un precio explícito inválido.
  * Los registros del API con `0.00` son datos incompletos/duplicados y no deben
  * poder asociarse a un bloque 3D.
  */

@@ -379,7 +379,7 @@ export class ReservaApplicationService {
     const validos: Array<{ dbId: string; standCode: string; precio: number }> = [];
     let eventoComun: string | null = request.eventoId ?? null;
 
-    /* Empresa del solicitante: le permite reservar su propia pre-reserva (dueÃ±o). */
+    /* Empresa del solicitante: le permite reservar su propia pre-reserva (dueño). */
     const perfil = request.userEmail
       ? await this.authRepo.findPerfilByEmail(request.userEmail).catch(() => null)
       : null;

@@ -67,7 +67,7 @@ export function EmpresaPicker({ seleccion, onSeleccion, label = "Empresa", fuent
       key: `local-${e.id}`,
       empresaId: e.id,
       titulo: e.razonSocial,
-      sub: `${etiquetaTipoDocumentoEmpresa(e.tipoDocumento, e.ruc)} ${e.ruc}${e.sieCode ? ` � ${e.sieCode}` : " � sin codigo SIE"}`,
+      sub: `${etiquetaTipoDocumentoEmpresa(e.tipoDocumento, e.ruc)} ${e.ruc}${e.sieCode ? ` · ${e.sieCode}` : " · sin codigo SIE"}`,
       idEmpresa: e.sieCode ?? "",
       nombreEmpresa: e.razonSocial,
       ruc: e.ruc,

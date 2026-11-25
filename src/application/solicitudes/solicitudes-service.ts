@@ -110,7 +110,7 @@ export class SolicitudesApplicationService {
 
   /**
    * Cambia USD <-> PEN antes de que exista cobranza.
-   * Recalcula el plan, invalida contrato/firma local y devuelve la solicitud a revisiÃ³n.
+   * Recalcula el plan, invalida contrato/firma local y devuelve la solicitud a revisión.
    */
   async cambiarMoneda(params: {
     solicitudId: string;
@@ -131,7 +131,7 @@ export class SolicitudesApplicationService {
     }
     if (!puedeCambiarMonedaSolicitud(detalle)) {
       throw new DomainError(
-        "La moneda no se puede cambiar porque ya existe facturaciÃ³n, pago, reserva IIMP o aprobaciÃ³n del SGC.",
+        "La moneda no se puede cambiar porque ya existe facturación, pago, reserva IIMP o aprobación del SGC.",
         API_ERROR_CODES.CONFLICT,
         409,
       );
@@ -418,7 +418,7 @@ export class SolicitudesApplicationService {
     if ((sgcHabilitado && aprobacionNueva) || requiereSgcPorFirmaAsociado) {
       await this.sgcIntegracion?.crearExpedienteDesdeSolicitud(data.solicitudId);
       /* Envio automatico al SGC (contrato + anexos + revision): el admin ya no necesita pulsar
-       * "Enviar al SGC para revisiÃ³n". Best-effort: no rompe la aprobacion si el SGC falla. */
+       * "Enviar al SGC para revisión". Best-effort: no rompe la aprobacion si el SGC falla. */
       await this.sgcIntegracion?.enviarExpedienteAlSgc(data.solicitudId, data.reviewerEmail);
     }
 
@@ -575,7 +575,7 @@ export class SolicitudesApplicationService {
       throw new DomainError("No puedes reenviar una solicitud ajena", API_ERROR_CODES.FORBIDDEN, 403);
     }
     /* El cliente pudo llegar con una copia local sin piezas. Antes de validar
-     * el reenvÃ­o, refrescamos el expediente para conocer las piezas v11. */
+     * el reenvío, refrescamos el expediente para conocer las piezas v11. */
     if (typeof this.sgcIntegracion?.consultarExpediente === "function") {
       await this.sgcIntegracion.consultarExpediente(solicitudId).catch(() => null);
       detalle = (await this.repo.detalle(solicitudId)) ?? detalle;
@@ -646,10 +646,10 @@ export class SolicitudesApplicationService {
       try {
         resultadoReenvio = await this.sgcIntegracion?.reenviarCorreccionAlSgc(solicitudId, userEmail);
       } catch (err) {
-        if (err instanceof SgcApiError && err.status === 422 && /todav[iÃ­]a falta|still missing/i.test(err.message)) {
+        if (err instanceof SgcApiError && err.status === 422 && /todav[ií]a falta|still missing/i.test(err.message)) {
           const mensaje = err.message.replace(/^SGC\s*422:\s*/i, "").slice(0, 300);
           throw new DomainError(
-            `El SGC indica que todavÃ­a falta documentaciÃ³n: ${mensaje}`,
+            `El SGC indica que todavía falta documentación: ${mensaje}`,
             API_ERROR_CODES.CONFLICT,
             409,
           );
@@ -851,7 +851,7 @@ export class SolicitudesApplicationService {
         !(params.tipo === TIPOS_DOCUMENTO_SOLICITUD.ANEXO && puedeClienteSubirAnexosSgc(detalle))
       ) {
         throw new DomainError(
-          "AÃºn no puedes adjuntar documentos. Se habilita al llegar a la revisiÃ³n Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
+          "Aún no puedes adjuntar documentos. Se habilita al llegar a la revisión Legal (SGC) y se cierra cuando ya se enviaron al SGC.",
           API_ERROR_CODES.CONFLICT,
           409,
         );

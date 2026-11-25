@@ -9,7 +9,7 @@ import type { SgcIntegracionConfig } from "@/application/sgc-integracion/sgc-int
 import { resolverIdiomaDestinatario } from "@/application/idioma/resolver-idioma";
 import { enviarEmailPlantilla } from "@/lib/server/email";
 import { permiteCorreosSolicitud } from "@/lib/shared/utils/correos-solicitud";
-import { debeNotificarDevolucionSgc, normalizarObservacionesSgc } from "@/lib/shared/utils/sgc";
+import { debeNotificarDevolucionSgc, normalizarObservacionesSgc, repararTextoSgc } from "@/lib/shared/utils/sgc";
 import { notificarDevolucionSgc } from "./notificar-devolucion";
 import { notificarContratoObservadoSgc, procesarContratoObservadoSgc } from "./contrato-observado";
 import type { ContratoApplicationService } from "@/application/contratos/contrato-service";
@@ -181,7 +181,7 @@ export class SgcWebhookApplicationService {
         : null;
     if (notificarDevolucion && this.solicitudes) {
       const documentos = (cambios.observaciones ?? [])
-        .map((o) => o.title?.trim() || o.message.slice(0, 120))
+        .map((o) => repararTextoSgc(o.title?.trim() || o.message.slice(0, 120)))
         .filter((t) => t.length > 0);
       await notificarDevolucionSgc(this.solicitudes, expediente.solicitudId, motivoNuevo, documentos);
       if (resultadoContrato) {
