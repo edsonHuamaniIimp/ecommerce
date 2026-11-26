@@ -1140,7 +1140,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                         );
                       })}
                     </ol>
-                  ) : listaValor("indecopi") === "si" ? (
+                  ) : notasPor("INDECOPI").length > 0 ? null : listaValor("indecopi") === "si" ? (
                     "Registra antecedentes"
                   ) : (
                     "No hay antecedentes"
@@ -1148,8 +1148,8 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 </td></tr>
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">OTROS</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
-                  <NotasEvidencia notas={notasPor("OTROS")} />
-                  <NotasEvidencia notas={notasSinSeccion} conCriterio />
+                  {/* Una sola lista: «Otros» y los criterios sin seccion propia, cada uno con su nombre. */}
+                  <NotasEvidencia notas={[...notasPor("OTROS"), ...notasSinSeccion]} conCriterio={notasSinSeccion.length > 0} />
                   {tieneLegal
                     ? `${expediente?.decisionLegal ?? "Pendiente"}${expediente?.motivoLegal ? ` · ${expediente.motivoLegal}` : ""}`
                     : notasPor("OTROS").length > 0 || notasSinSeccion.length > 0 ? null : "No hay antecedentes"}
