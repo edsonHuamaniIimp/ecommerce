@@ -263,10 +263,12 @@ export interface BloqueAreaEntrada {
   observaciones?: string | null;
   conclusion?: unknown;
   /**
-   * Solo SIG: hay al menos un criterio marcado SI con su observacion. Sustenta un resultado
-   * OBSERVADO sin el texto del vinculo (oculto en el editor).
+   * Solo SIG: los criterios sustentan un resultado OBSERVADO sin el texto del vinculo (oculto en el
+   * editor). Ver `sustentoSigCriterios`.
    */
   sustentoCriterios?: boolean;
+  /** Solo SIG: regla «Exigir observación en criterios con hallazgo» (define el mensaje del error). */
+  observacionCriterioObligatoria?: boolean;
 }
 
 export interface BloqueAreaValor {
@@ -334,8 +336,14 @@ export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada
 
   if (resultado === DD_MATRIZ_RESULTADOS.OBSERVADO) {
     if (area === DD_MATRIZ_AREAS.SIG) {
-      /* SIG sustenta con los criterios marcados SI; el texto anterior del vinculo tambien vale. */
-      if (!observaciones && !entrada.sustentoCriterios) errores.push(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO);
+      /* SIG sustenta con los criterios con hallazgo; el texto anterior del vinculo tambien vale. */
+      if (!observaciones && !entrada.sustentoCriterios) {
+        errores.push(
+          entrada.observacionCriterioObligatoria === false
+            ? DD_MENSAJES.MATRIZ_OBSERVADO_SIN_HALLAZGO
+            : DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO,
+        );
+      }
     } else if (!observaciones) {
       errores.push("Una evaluación OBSERVADA exige registrar la observación");
     }
@@ -349,26 +357,64 @@ export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada
   return { valor: { resultado, observaciones, conclusion: conclusionFinal }, errores };
 }
 
-const esSi = (valor: string | null | undefined): boolean => valor === DD_MATRIZ_SI_NO_NA.SI;
 const conTexto = (valor: string | null | undefined): boolean => Boolean(valor?.trim());
 
-/** Hay al menos un criterio marcado SI con su observacion: sustenta la evaluacion de SIG. */
-export function tieneSustentoCriterios(listas: Record<string, string>, observaciones: Record<string, string>): boolean {
-  return Object.entries(listas).some(([codigo, valor]) => esSi(valor) && conTexto(observaciones[codigo]));
+const HALLAZGO_POR_CRITERIO = new Map<string, DdMatrizSiNoNa>(
+  DD_MATRIZ_LISTAS.map((lista) => [lista.codigo, lista.hallazgoEn ?? DD_MATRIZ_SI_NO_NA.SI]),
+);
+
+/** Respuesta que es un hallazgo en el criterio: SI por defecto; NO en las preguntas en positivo. */
+export function valorHallazgo(codigo: string): DdMatrizSiNoNa {
+  return HALLAZGO_POR_CRITERIO.get(codigo) ?? DD_MATRIZ_SI_NO_NA.SI;
 }
 
-/** De `codigos`, los marcados SI que no tienen observacion (cada SI se sustenta en su criterio). */
-export function criteriosSiSinObservacion(
+/** La respuesta del criterio es un hallazgo (riesgo encontrado). N.A. y sin respuesta nunca lo son. */
+export function esHallazgo(codigo: string, valor: string | null | undefined): boolean {
+  return Boolean(valor) && valor !== DD_MATRIZ_SI_NO_NA.NA && valor === valorHallazgo(codigo);
+}
+
+/** La respuesta del criterio es la esperada (sin riesgo): SI o NO opuesto a su hallazgo. */
+export function esRespuestaFavorable(codigo: string, valor: string | null | undefined): boolean {
+  return (valor === DD_MATRIZ_SI_NO_NA.SI || valor === DD_MATRIZ_SI_NO_NA.NO) && !esHallazgo(codigo, valor);
+}
+
+/** Hay al menos un criterio con hallazgo. */
+export function tieneHallazgo(listas: Record<string, string | null>): boolean {
+  return Object.entries(listas).some(([codigo, valor]) => esHallazgo(codigo, valor));
+}
+
+/** Hay al menos un criterio con hallazgo y su observacion. */
+export function tieneSustentoCriterios(
+  listas: Record<string, string | null>,
+  observaciones: Record<string, string | null>,
+): boolean {
+  return Object.entries(listas).some(([codigo, valor]) => esHallazgo(codigo, valor) && conTexto(observaciones[codigo]));
+}
+
+/**
+ * Los criterios sustentan un SIG OBSERVADO: con la regla «Exigir observación en criterios con
+ * hallazgo» hace falta un hallazgo con su observacion; sin la regla, basta un hallazgo.
+ */
+export function sustentoSigCriterios(
+  listas: Record<string, string | null>,
+  observaciones: Record<string, string | null>,
+  observacionObligatoria: boolean,
+): boolean {
+  return observacionObligatoria ? tieneSustentoCriterios(listas, observaciones) : tieneHallazgo(listas);
+}
+
+/** De `codigos`, los que tienen hallazgo sin observacion (cada hallazgo se sustenta en su criterio). */
+export function criteriosHallazgoSinObservacion(
   codigos: readonly string[],
   listas: Record<string, string | null>,
   observaciones: Record<string, string | null>,
 ): string[] {
-  return codigos.filter((codigo) => esSi(listas[codigo]) && !conTexto(observaciones[codigo]));
+  return codigos.filter((codigo) => esHallazgo(codigo, listas[codigo]) && !conTexto(observaciones[codigo]));
 }
 
 /**
  * Columna OBSERVACIONES DE SIG del Excel: la observacion anterior del vinculo (si existe) y la de
- * cada criterio marcado SI, en el orden de la matriz oficial («Criterio: texto», una por linea).
+ * cada criterio con hallazgo, en el orden de la matriz oficial («Criterio: texto», una por linea).
  */
 export function observacionesSigExportables(
   anterior: string | null | undefined,
@@ -377,7 +423,9 @@ export function observacionesSigExportables(
 ): string | null {
   const vistos = new Set<string>();
   const criterios = DD_MATRIZ_LISTAS.filter((lista) => {
-    if (vistos.has(lista.codigo) || !esSi(listas[lista.codigo]) || !conTexto(observaciones[lista.codigo])) return false;
+    if (vistos.has(lista.codigo) || !esHallazgo(lista.codigo, listas[lista.codigo]) || !conTexto(observaciones[lista.codigo])) {
+      return false;
+    }
     vistos.add(lista.codigo);
     return true;
   }).map((lista) => `${lista.label}: ${observaciones[lista.codigo]!.trim()}`);

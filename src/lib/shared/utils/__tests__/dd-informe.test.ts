@@ -178,7 +178,7 @@ describe("informe PDF: solo vinculos con observaciones", () => {
   });
 });
 
-describe("anexos del PDF: solo criterios con SI", () => {
+describe("anexos del PDF: solo criterios con hallazgo", () => {
   const adj = (id: string, categoria: string) => ({
     id, categoria, nombre: id + ".pdf", url: "/u/" + id, mimeType: "application/pdf", tamano: 1, creadoPor: "x", createdAt: "2026-01-01T00:00:00.000Z",
   });
@@ -190,6 +190,17 @@ describe("anexos del PDF: solo criterios con SI", () => {
         { codigo: "ofac", label: "OFAC", color: "", valor: "na" },
       ],
       adjuntos: [adj("a", "criterio_oefa"), adj("b", "criterio_indecopi"), adj("c", "criterio_ofac"), adj("d", "sig_sustento")],
+    } as unknown as Parameters<typeof evidenciasConHallazgo>[0][number];
+    expect(evidenciasConHallazgo([detalle]).map((x) => x.id)).toEqual(["a"]);
+  });
+
+  it("en las preguntas en positivo (central de riesgo, bancarizado) el hallazgo es NO", () => {
+    const detalle = {
+      listas: [
+        { codigo: "central_riesgo_empresa", label: "Central", color: "", valor: "no" },
+        { codigo: "bancarizado_empresa", label: "Bancarizado", color: "", valor: "si" },
+      ],
+      adjuntos: [adj("a", "criterio_central_riesgo_empresa"), adj("b", "criterio_bancarizado_empresa")],
     } as unknown as Parameters<typeof evidenciasConHallazgo>[0][number];
     expect(evidenciasConHallazgo([detalle]).map((x) => x.id)).toEqual(["a"]);
   });
@@ -232,16 +243,23 @@ describe("observaciones por criterio en el informe", () => {
     expect(notasPorCriterios([empresa], DD_INFORME_GRUPOS_OBSERVACION.OEFA)).toEqual([]);
   });
 
-  it("criterios sin seccion propia (listas internacionales, bancarizado) van a OTROS; los de grupo o Detallar no", () => {
+  it("criterios con hallazgo sin seccion propia (listas internacionales, bancarizado) van a OTROS; los de grupo o Detallar no", () => {
     const empresa = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "Empresa Uno S.A.C.", [
       ["ofac", "si", "Coincidencia en OFAC."],
       ["indecopi", "si", "Reclamo fundado."],
-      ["central_riesgo_empresa", "si", "Deuda vencida."],
-      ["bancarizado_empresa", "no", "No sale (NO)."],
+      ["central_riesgo_empresa", "no", "Deuda vencida."],
+      ["bancarizado_empresa", "no", "Sin cuentas bancarias."],
     ]);
-    const persona = detalle(DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE, "Ana Pérez", [["bancarizado_persona", "si", "Sin cuentas."]]);
+    const persona = detalle(DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE, "Ana Pérez", [
+      ["bancarizado_persona", "si", "Opera con cuentas: no es hallazgo."],
+      ["central_riesgo_persona", "no", "Calificacion deficiente."],
+    ]);
     const notas = notasCriteriosSinSeccion([persona, empresa]);
-    expect(notas.map((n) => `${n.codigo}:${n.texto}`)).toEqual(["ofac:Coincidencia en OFAC.", "bancarizado_persona:Sin cuentas."]);
+    expect(notas.map((n) => `${n.codigo}:${n.texto}`)).toEqual([
+      "ofac:Coincidencia en OFAC.",
+      "bancarizado_empresa:Sin cuentas bancarias.",
+      "central_riesgo_persona:Calificacion deficiente.",
+    ]);
   });
 
   it("detalleCriterio: la observacion del criterio con cualquier valor; en personas antepone el nombre", () => {

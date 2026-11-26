@@ -59,6 +59,8 @@ export interface DdMatrizPermisosDTO {
   puedeEliminar: boolean;
   /** Asistente de IA en la observacion del criterio (regla de Configuración DD encendida). */
   usarAsistenteIa: boolean;
+  /** Regla «Exigir observación en criterios con hallazgo» (Configuración DD) encendida. */
+  observacionCriterioObligatoria: boolean;
 }
 
 export interface DdMatrizExpedienteDTO {

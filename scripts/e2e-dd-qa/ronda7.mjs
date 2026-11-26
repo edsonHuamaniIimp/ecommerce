@@ -33,7 +33,7 @@ const DD_MENSAJES = {
   CIERRE_SIN_RESPUESTA: "Cierre por falta de respuesta de la empresa: la debida diligencia ya no puede usarse; la empresa debe presentar una nueva.",
   CIERRE_PLAZO_VENCIDO: "Cierre automático: venció el plazo para subsanar las observaciones; la debida diligencia queda NO APTO.",
   MATRIZ_EVIDENCIA_REQUERIDA: "Sube al menos una evidencia en estos criterios (regla «Exigir evidencia por campo aplicable»):",
-  MATRIZ_OBSERVACION_CRITERIO_REQUERIDA: "Registra la observación del criterio en estos criterios marcados SI:",
+  MATRIZ_OBSERVACION_CRITERIO_REQUERIDA: "Registra la observación en estos criterios con hallazgo:",
 };
 const DD_ASISTENTE_MODOS = { IA: "ia", OCR: "ocr" };
 const DD_ASISTENTE_METODOS_TEXTO = { TEXTO_PDF: "texto_pdf", OCR: "ocr", DOCX: "docx" };

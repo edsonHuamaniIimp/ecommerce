@@ -158,17 +158,29 @@ La matriz debe seguir siendo reconocible como Excel aunque use controles web.
 16. **Relación comercial distinta:** nueva DD.
 17. **Cualquier relación `NO APTO` bloquea toda la empresa.**
 18. **La exportación debe conservar las 54 columnas y la estructura AQ–BB.**
-19. **El sustento de SIG va en la observación de cada criterio marcado SI.**
-    - **Guardar evaluación** no guarda si un criterio está en SI sin su observación, y nombra los criterios que faltan. **Guardar borrador** no lo exige.
-    - **Resultado SIG `OBSERVADO`** exige al menos un criterio en SI con su observación. El texto anterior del vínculo, si existe, también vale como sustento.
+19. **El sustento de SIG va en la observación de cada criterio con hallazgo.**
+    - **Hallazgo por criterio** (`hallazgoEn` en `DD_MATRIZ_LISTAS`, función `esHallazgo`):
+      - en las preguntas en negativo («Hay reportes…», «Registra antecedentes…», «Sanciones…», Otros) el hallazgo es **SI**;
+      - en las preguntas en positivo el hallazgo es **NO**: «Cumple en central de riesgo» (empresa y representante legal) y «Bancarizado» (empresa y personas). Ahí SI es lo esperado y se muestra en verde;
+      - N.A. nunca es hallazgo.
+    - **Regla «Exigir observación en criterios con hallazgo»** (Configuración DD → Reglas de evaluación, columna `dd_configuracion.exigir_observacion_criterio`, encendida por defecto):
+      - encendida: **Guardar evaluación** no guarda si un criterio con hallazgo no tiene observación, y nombra los criterios que faltan;
+      - apagada: no se exige la observación;
+      - **Guardar borrador** nunca la exige.
+    - **Resultado SIG `OBSERVADO`**:
+      - con la regla encendida, exige al menos un criterio con hallazgo y su observación;
+      - con la regla apagada, basta un criterio con hallazgo;
+      - el texto anterior del vínculo, si existe, también vale como sustento.
+    - **«Exigir evidencia por campo aplicable»** también sigue el hallazgo: exige evidencia en los criterios con hallazgo (y en N.A. si «Permitir N.A. sin evidencia» está apagada).
     - **«Sustento y observaciones» del vínculo** (`sig.observaciones`) está oculto en el editor (`DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE = false`), pero el campo se conserva:
       - el editor lo muestra solo para lectura cuando ya tiene texto;
-      - en el Excel, la columna OBSERVACIONES DE SIG reúne ese texto y la observación de cada criterio en SI.
+      - en el Excel, la columna OBSERVACIONES DE SIG reúne ese texto y la observación de cada criterio con hallazgo.
     - **Dónde se muestra la observación del criterio:**
       - vista del vínculo en modo lectura;
       - pestaña Matriz de «Revisar expediente»;
       - informe en pantalla, en la sección «Observaciones y sustento» y en los controles de cada vínculo;
-      - PDF del informe, por grupo de criterios.
+      - PDF del informe, por grupo de criterios; los anexos son las evidencias de los criterios con hallazgo.
+    - El «Detallar» de central de riesgo del informe muestra su observación con cualquier valor.
 
 ## 7. Criterios de aceptación
 

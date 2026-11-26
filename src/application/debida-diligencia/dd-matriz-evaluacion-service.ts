@@ -49,8 +49,9 @@ import {
 import {
   comunicacionesAprobadas,
   complianceDesbloqueado,
-  criteriosSiSinObservacion,
+  criteriosHallazgoSinObservacion,
   derivarAmbito,
+  esHallazgo,
   evaluarBloqueArea,
   limiteObservacionLista,
   listasAplicables,
@@ -59,7 +60,7 @@ import {
   normalizarTextoMatriz,
   resolverPais,
   resultadoFinalEditable,
-  tieneSustentoCriterios,
+  sustentoSigCriterios,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { paisDeTexto } from "@/lib/shared/utils/pais";
 
@@ -77,6 +78,8 @@ export interface DdMatrizPermisos {
   puedeEliminar: boolean;
   /** Asistente de IA en la observacion del criterio: SIG y la regla de Configuración DD encendida. */
   usarAsistenteIa: boolean;
+  /** Regla «Exigir observación en criterios con hallazgo» (Configuración DD). */
+  observacionCriterioObligatoria: boolean;
 }
 
 export interface DdMatrizListarResultado {
@@ -140,8 +143,9 @@ export class DdMatrizEvaluacionApplicationService {
   }
 
   /**
-   * Regla «Exigir evidencia por campo aplicable»: cada criterio marcado SI necesita al menos
-   * una evidencia; N.A. tambien, salvo que «Permitir N.A. sin evidencia» este encendida.
+   * Regla «Exigir evidencia por campo aplicable»: cada criterio con hallazgo (SI, o NO en las
+   * preguntas en positivo) necesita al menos una evidencia; N.A. tambien, salvo que «Permitir N.A.
+   * sin evidencia» este encendida.
    * Solo revisa los criterios que llegan en la peticion.
    */
   private validarEvidenciaListas(
@@ -159,7 +163,7 @@ export class DdMatrizEvaluacionApplicationService {
       .filter((lista) => {
         const valor = listas[lista.codigo];
         const exige =
-          valor === DD_MATRIZ_SI_NO_NA.SI || (valor === DD_MATRIZ_SI_NO_NA.NA && !reglas.permitirNaSinEvidencia);
+          esHallazgo(lista.codigo, valor) || (valor === DD_MATRIZ_SI_NO_NA.NA && !reglas.permitirNaSinEvidencia);
         return exige && !conEvidencia.has(`${DD_MATRIZ_CRITERIO_PREFIJO}${lista.codigo}`);
       })
       .map((lista) => lista.label);
@@ -173,8 +177,10 @@ export class DdMatrizEvaluacionApplicationService {
   }
 
   /**
-   * Cada criterio marcado SI se sustenta con su observacion (reemplaza al «Sustento y observaciones»
-   * del vinculo). Solo revisa los criterios que llegan en la peticion; el borrador no lo exige.
+   * Regla «Exigir observación en criterios con hallazgo»: cada criterio con hallazgo (SI, o NO en
+   * las preguntas en positivo como central de riesgo) se sustenta con su observacion (reemplaza al
+   * «Sustento y observaciones» del vinculo). Solo revisa los criterios que llegan en la peticion; el
+   * borrador no lo exige.
    */
   private validarObservacionListas(
     enviados: string[],
@@ -182,10 +188,12 @@ export class DdMatrizEvaluacionApplicationService {
     observaciones: DdMatrizListasObservacion,
     vinculo: DdMatrizVinculoEntity,
     ambito: DdMatrizAmbito,
+    reglas: DdConfiguracionEntity,
   ): void {
+    if (!reglas.exigirObservacionCriterio) return;
     const aplicables = listasAplicables(vinculo.tipo, ambito, vinculo.tipoDocumento);
     const revisar = aplicables.map((lista) => lista.codigo).filter((codigo) => enviados.includes(codigo));
-    const faltantes = criteriosSiSinObservacion(revisar, listas, observaciones);
+    const faltantes = criteriosHallazgoSinObservacion(revisar, listas, observaciones);
     if (faltantes.length > 0) {
       const labels = aplicables.filter((lista) => faltantes.includes(lista.codigo)).map((lista) => lista.label);
       throw new DomainError(
@@ -228,7 +236,7 @@ export class DdMatrizEvaluacionApplicationService {
     session: DdSession,
     vinculo: DdMatrizVinculoEntity,
     adjuntos: DdMatrizAdjuntoEntity[],
-    asistenteIaHabilitado = false,
+    reglas: Pick<DdConfiguracionEntity, "asistenteIaHabilitado" | "exigirObservacionCriterio"> = CONFIG_DEFAULT,
   ): DdMatrizPermisos {
     const sig = this.tienePermiso(session, PERMISSIONS.DD_REVISION);
     const reputacion = this.tienePermiso(session, PERMISSIONS.DD_REPUTACION);
@@ -247,7 +255,8 @@ export class DdMatrizEvaluacionApplicationService {
       editarFinal: sig || legal,
       complianceDesbloqueado: desbloqueado,
       puedeEliminar: sig && vinculo.origen === DD_MATRIZ_ORIGENES.MANUAL,
-      usarAsistenteIa: sig && asistenteIaHabilitado,
+      usarAsistenteIa: sig && reglas.asistenteIaHabilitado,
+      observacionCriterioObligatoria: reglas.exigirObservacionCriterio,
     };
   }
 
@@ -402,7 +411,7 @@ export class DdMatrizEvaluacionApplicationService {
       vinculo,
       empresa,
       adjuntos,
-      permisos: this.calcularPermisos(session, vinculo, adjuntos, reglas.asistenteIaHabilitado),
+      permisos: this.calcularPermisos(session, vinculo, adjuntos, reglas),
     };
   }
 
@@ -486,12 +495,16 @@ export class DdMatrizEvaluacionApplicationService {
         observacionesEfectivas,
         vinculo,
         ambitoEfectivo,
+        reglas,
       );
     }
 
     if (dto.sig) {
       if (!permisos.editarSig) this.prohibido("Sin permiso para registrar la evaluación de SIG");
-      const evaluado = this.evaluar(DD_MATRIZ_AREAS.SIG, vinculo.sig, dto.sig, tieneSustentoCriterios(listasEfectivas, observacionesEfectivas));
+      const evaluado = this.evaluar(DD_MATRIZ_AREAS.SIG, vinculo.sig, dto.sig, {
+        sustentoCriterios: sustentoSigCriterios(listasEfectivas, observacionesEfectivas, reglas.exigirObservacionCriterio),
+        observacionCriterioObligatoria: reglas.exigirObservacionCriterio,
+      });
       cambios.sig = { ...evaluado, ...this.sello(dto.sig, ahora, session.email) };
     }
 
@@ -646,7 +659,7 @@ export class DdMatrizEvaluacionApplicationService {
       vinculo: vinculoFinal,
       empresa,
       adjuntos,
-      permisos: this.calcularPermisos(session, vinculoFinal, adjuntos, reglas.asistenteIaHabilitado),
+      permisos: this.calcularPermisos(session, vinculoFinal, adjuntos, reglas),
     };
   }
 
@@ -869,20 +882,23 @@ export class DdMatrizEvaluacionApplicationService {
   }
 
   /**
-   * Combina el bloque existente con lo enviado y aplica las reglas del proceso. `sustentoCriterios`
-   * (solo SIG): hay criterios marcados SI con su observacion.
+   * Combina el bloque existente con lo enviado y aplica las reglas del proceso. `criterios` (solo
+   * SIG): si los criterios sustentan un OBSERVADO y si rige la observacion obligatoria.
    */
   private evaluar(
     area: (typeof DD_MATRIZ_AREAS)[keyof typeof DD_MATRIZ_AREAS],
     actual: DdMatrizBloque,
     entrada: { resultado?: string | null; observaciones?: string | null; conclusion?: string | null },
-    sustentoCriterios = false,
+    criterios: { sustentoCriterios: boolean; observacionCriterioObligatoria: boolean } = {
+      sustentoCriterios: false,
+      observacionCriterioObligatoria: true,
+    },
   ): Pick<DdMatrizBloque, "resultado" | "observaciones" | "conclusion"> {
     const evaluado = evaluarBloqueArea(area, {
       resultado: entrada.resultado !== undefined ? entrada.resultado : actual.resultado,
       observaciones: entrada.observaciones !== undefined ? entrada.observaciones : actual.observaciones,
       conclusion: entrada.conclusion !== undefined ? entrada.conclusion : actual.conclusion,
-      sustentoCriterios,
+      ...criterios,
     });
     if (evaluado.errores.length > 0) {
       throw new DomainError(evaluado.errores.join(". "), API_ERROR_CODES.VALIDATION, 400);
@@ -961,12 +977,18 @@ export class DdMatrizEvaluacionApplicationService {
     if (dto.sig?.observaciones !== undefined) {
       if (!permisos.editarSig) this.prohibido("Sin permiso para registrar la evaluación de SIG");
       const texto = dto.sig.observaciones?.trim() || null;
-      const sustentoCriterios = tieneSustentoCriterios(
+      const { exigirObservacionCriterio } = await this.reglas();
+      const sustentoCriterios = sustentoSigCriterios(
         cambios.listas ?? vinculo.listas,
         cambios.listasObservaciones ?? vinculo.listasObservaciones,
+        exigirObservacionCriterio,
       );
       if (!texto && !sustentoCriterios && vinculo.sig.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO) {
-        throw new DomainError(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO, API_ERROR_CODES.VALIDATION, 400);
+        throw new DomainError(
+          exigirObservacionCriterio ? DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO : DD_MENSAJES.MATRIZ_OBSERVADO_SIN_HALLAZGO,
+          API_ERROR_CODES.VALIDATION,
+          400,
+        );
       }
       cambios.sig = { observaciones: texto };
     }

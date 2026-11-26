@@ -22,6 +22,8 @@ interface DdConfiguracionInput {
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
   asistenteIaHabilitado: boolean;
+  /** Regla «Exigir observación en criterios con hallazgo» de la Matriz DD. */
+  exigirObservacionCriterio: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;
@@ -40,6 +42,7 @@ export const CONFIG_DEFAULT: DdConfiguracionEntity = {
   vigenciaMeses: 6,
   permitirReutilizacionVinculo: true,
   asistenteIaHabilitado: false,
+  exigirObservacionCriterio: true,
   manualUrl: null,
   reglamentoUrl: null,
   plantillaInformeUrl: null,

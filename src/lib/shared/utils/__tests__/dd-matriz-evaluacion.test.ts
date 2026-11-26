@@ -16,9 +16,14 @@ import {
   resultadoFinalEfectivo,
   estadoExpedienteDeResultadoFinal,
   urlFuenteLista,
-  criteriosSiSinObservacion,
+  criteriosHallazgoSinObservacion,
+  esHallazgo,
+  esRespuestaFavorable,
   observacionesSigExportables,
+  sustentoSigCriterios,
+  tieneHallazgo,
   tieneSustentoCriterios,
+  valorHallazgo,
 } from "../dd-matriz-evaluacion";
 import {
   DD_ESTADOS,
@@ -290,24 +295,80 @@ describe("listasAplicables", () => {
   });
 });
 
-describe("sustento en los criterios marcados SI", () => {
-  const listas = { oefa: DD_MATRIZ_SI_NO_NA.SI, indecopi: DD_MATRIZ_SI_NO_NA.SI, peps_prp_empresa: DD_MATRIZ_SI_NO_NA.NO };
+describe("hallazgo por criterio", () => {
+  const POSITIVAS = ["central_riesgo_empresa", "central_riesgo_persona", "bancarizado_empresa", "bancarizado_persona"];
 
-  it("criteriosSiSinObservacion: solo los SI sin texto y solo de los codigos revisados", () => {
-    const observaciones = { oefa: "Multa 10 UIT", indecopi: "   " };
-    expect(criteriosSiSinObservacion(["oefa", "indecopi", "peps_prp_empresa"], listas, observaciones)).toEqual(["indecopi"]);
-    expect(criteriosSiSinObservacion(["oefa"], listas, observaciones)).toEqual([]);
+  it("solo central de riesgo y bancarizado tienen el hallazgo en NO; el resto en SI", () => {
+    for (const lista of DD_MATRIZ_LISTAS) {
+      expect(valorHallazgo(lista.codigo)).toBe(POSITIVAS.includes(lista.codigo) ? DD_MATRIZ_SI_NO_NA.NO : DD_MATRIZ_SI_NO_NA.SI);
+    }
+    expect(valorHallazgo("criterio_desconocido")).toBe(DD_MATRIZ_SI_NO_NA.SI);
   });
 
-  it("tieneSustentoCriterios: al menos un SI con observacion", () => {
+  it("esHallazgo / esRespuestaFavorable segun la pregunta; N.A. y vacio no son ninguno", () => {
+    expect(esHallazgo("oefa", DD_MATRIZ_SI_NO_NA.SI)).toBe(true);
+    expect(esHallazgo("oefa", DD_MATRIZ_SI_NO_NA.NO)).toBe(false);
+    expect(esRespuestaFavorable("oefa", DD_MATRIZ_SI_NO_NA.NO)).toBe(true);
+    expect(esHallazgo("central_riesgo_empresa", DD_MATRIZ_SI_NO_NA.SI)).toBe(false);
+    expect(esRespuestaFavorable("central_riesgo_empresa", DD_MATRIZ_SI_NO_NA.SI)).toBe(true);
+    expect(esHallazgo("central_riesgo_empresa", DD_MATRIZ_SI_NO_NA.NO)).toBe(true);
+    expect(esHallazgo("bancarizado_persona", DD_MATRIZ_SI_NO_NA.NO)).toBe(true);
+    for (const valor of [DD_MATRIZ_SI_NO_NA.NA, null, undefined, ""]) {
+      expect(esHallazgo("oefa", valor)).toBe(false);
+      expect(esHallazgo("central_riesgo_empresa", valor)).toBe(false);
+      expect(esRespuestaFavorable("oefa", valor)).toBe(false);
+    }
+  });
+});
+
+describe("sustento en los criterios con hallazgo", () => {
+  const listas = {
+    oefa: DD_MATRIZ_SI_NO_NA.SI,
+    indecopi: DD_MATRIZ_SI_NO_NA.SI,
+    peps_prp_empresa: DD_MATRIZ_SI_NO_NA.NO,
+    central_riesgo_empresa: DD_MATRIZ_SI_NO_NA.SI,
+    bancarizado_empresa: DD_MATRIZ_SI_NO_NA.NO,
+  };
+
+  it("criteriosHallazgoSinObservacion: SI en criterios negativos y NO en los positivos, solo de los revisados", () => {
+    const observaciones = { oefa: "Multa 10 UIT", indecopi: "   " };
+    expect(
+      criteriosHallazgoSinObservacion(
+        ["oefa", "indecopi", "peps_prp_empresa", "central_riesgo_empresa", "bancarizado_empresa"],
+        listas,
+        observaciones,
+      ),
+    ).toEqual(["indecopi", "bancarizado_empresa"]);
+    expect(criteriosHallazgoSinObservacion(["oefa", "central_riesgo_empresa"], listas, observaciones)).toEqual([]);
+  });
+
+  it("tieneSustentoCriterios: al menos un hallazgo con observacion", () => {
     expect(tieneSustentoCriterios(listas, { oefa: "Multa" })).toBe(true);
+    expect(tieneSustentoCriterios(listas, { bancarizado_empresa: "Sin cuentas bancarias" })).toBe(true);
     expect(tieneSustentoCriterios(listas, { peps_prp_empresa: "Texto en un NO" })).toBe(false);
+    expect(tieneSustentoCriterios(listas, { central_riesgo_empresa: "Calificacion normal" })).toBe(false);
     expect(tieneSustentoCriterios(listas, {})).toBe(false);
   });
 
-  it("observacionesSigExportables: texto anterior y criterios en SI en el orden de la matriz", () => {
-    const texto = observacionesSigExportables("Anterior", listas, { indecopi: "Reclamo fundado", oefa: "Multa", peps_prp_empresa: "No va" });
-    expect(texto).toBe("Anterior\nQuejas o reporte desde INDECOPI: Reclamo fundado\nReportes infracciones OEFA: Multa");
+  it("sustentoSigCriterios: con la regla exige hallazgo con observacion; sin la regla basta el hallazgo", () => {
+    expect(sustentoSigCriterios(listas, {}, true)).toBe(false);
+    expect(sustentoSigCriterios(listas, {}, false)).toBe(true);
+    const sinHallazgo = { oefa: DD_MATRIZ_SI_NO_NA.NO, central_riesgo_empresa: DD_MATRIZ_SI_NO_NA.SI };
+    expect(tieneHallazgo(sinHallazgo)).toBe(false);
+    expect(sustentoSigCriterios(sinHallazgo, { oefa: "Texto" }, false)).toBe(false);
+  });
+
+  it("observacionesSigExportables: texto anterior y criterios con hallazgo en el orden de la matriz", () => {
+    const texto = observacionesSigExportables("Anterior", listas, {
+      indecopi: "Reclamo fundado",
+      oefa: "Multa",
+      peps_prp_empresa: "No va",
+      central_riesgo_empresa: "Normal, no va",
+      bancarizado_empresa: "Sin cuentas",
+    });
+    expect(texto).toBe(
+      "Anterior\nQuejas o reporte desde INDECOPI: Reclamo fundado\nReportes infracciones OEFA: Multa\nBancarizado (empresa): Sin cuentas",
+    );
     expect(observacionesSigExportables(null, listas, {})).toBeNull();
   });
 });
@@ -352,6 +413,9 @@ describe("evaluarBloqueArea (reglas del proceso)", () => {
     const base = { resultado: "OBSERVADO", conclusion: "SIN OBSERVACIONES" };
     const sinSustento = evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, base);
     expect(sinSustento.errores).toContain(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO);
+    expect(
+      evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, { ...base, observacionCriterioObligatoria: false }).errores,
+    ).toContain(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_HALLAZGO);
     expect(evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, { ...base, sustentoCriterios: true }).errores).toEqual([]);
     /* El texto anterior del vinculo sigue valiendo como sustento. */
     expect(evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, { ...base, observaciones: "Texto anterior" }).errores).toEqual([]);

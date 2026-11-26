@@ -49,7 +49,7 @@ import {
   DD_MATRIZ_LISTA_DESCRIPCIONES,
   DD_MATRIZ_LISTA_OTROS,
 } from "@/lib/shared/constants";
-import { urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { esHallazgo, esRespuestaFavorable, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { nombrePais } from "@/lib/shared/utils/pais";
 
 interface Props {
@@ -92,26 +92,33 @@ function TituloSeccion({
   );
 }
 
-function colorResultadoLista(resultado: string | null): string {
-  if (resultado === "si") return "border-red-200 bg-red-50 text-red-800";
-  if (resultado === "no") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+/* Rojo si la respuesta es hallazgo del criterio; verde si es la esperada (SI o NO segun la pregunta). */
+function colorResultadoLista(codigo: string, resultado: string | null): string {
+  if (esHallazgo(codigo, resultado)) return "border-red-200 bg-red-50 text-red-800";
+  if (esRespuestaFavorable(codigo, resultado)) return "border-emerald-200 bg-emerald-50 text-emerald-800";
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function PildoraLista({ valor, vacio }: { valor: string | null; vacio: string }) {
-  const Icono = valor === "si" ? AlertTriangle : valor === "no" ? CheckCircle2 : valor === "na" ? MinusCircle : Clock3;
+function PildoraLista({ codigo, valor, vacio }: { codigo: string; valor: string | null; vacio: string }) {
+  const Icono = esHallazgo(codigo, valor)
+    ? AlertTriangle
+    : esRespuestaFavorable(codigo, valor)
+      ? CheckCircle2
+      : valor === "na"
+        ? MinusCircle
+        : Clock3;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${colorResultadoLista(valor)}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${colorResultadoLista(codigo, valor)}`}>
       <Icono className="h-3 w-3" />
       <span>{valor ? (SI_NO_NA_LABELS[valor] ?? valor) : vacio}</span>
     </span>
   );
 }
 
-function observacionLista(resultado: string | null): string {
+function observacionLista(codigo: string, resultado: string | null): string {
   if (resultado === "na") return "No aplica para el ámbito.";
-  if (resultado === "si") return "Coincidencia registrada; requiere revisión y sustento.";
-  if (resultado === "no") return "Sin antecedentes registrados en la fuente consultada.";
+  if (esHallazgo(codigo, resultado)) return "Hallazgo registrado; requiere revisión y sustento.";
+  if (esRespuestaFavorable(codigo, resultado)) return "Sin hallazgo en la fuente consultada.";
   return "Pendiente de evaluación.";
 }
 
@@ -295,7 +302,7 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
               </thead>
               <tbody className="divide-y divide-border">
                 {detalle.listas.map((lista) => (
-                  <tr key={lista.codigo} className={`transition-colors hover:bg-secondary/30 ${lista.valor === "si" ? "bg-red-50/40" : "even:bg-secondary/10"}`}>
+                  <tr key={lista.codigo} className={`transition-colors hover:bg-secondary/30 ${esHallazgo(lista.codigo, lista.valor) ? "bg-red-50/40" : "even:bg-secondary/10"}`}>
                     <td className="px-4 py-2.5 font-medium text-foreground">
                       <span>{lista.label}</span>
                       {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo] ? (
@@ -319,7 +326,7 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
                       })()}
                     </td>
                     <td className="px-4 py-2.5 text-center">
-                      <PildoraLista valor={lista.valor} vacio={lista.codigo === DD_MATRIZ_LISTA_OTROS ? "Opcional" : "Pendiente"} />
+                      <PildoraLista codigo={lista.codigo} valor={lista.valor} vacio={lista.codigo === DD_MATRIZ_LISTA_OTROS ? "Opcional" : "Pendiente"} />
                     </td>
                     <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
                       {lista.observacion?.trim() ? (
@@ -328,7 +335,7 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
                           {lista.observacion}
                         </span>
                       ) : (
-                        observacionLista(lista.valor)
+                        observacionLista(lista.codigo, lista.valor)
                       )}
                     </td>
                   </tr>

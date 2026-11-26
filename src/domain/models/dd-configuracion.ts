@@ -10,6 +10,8 @@ export interface DdConfiguracionEntity {
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
   asistenteIaHabilitado: boolean;
+  /** Regla «Exigir observación en criterios con hallazgo» de la Matriz DD. */
+  exigirObservacionCriterio: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;
@@ -29,6 +31,8 @@ export interface DdConfiguracionData {
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
   asistenteIaHabilitado: boolean;
+  /** Regla «Exigir observación en criterios con hallazgo» de la Matriz DD. */
+  exigirObservacionCriterio: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;

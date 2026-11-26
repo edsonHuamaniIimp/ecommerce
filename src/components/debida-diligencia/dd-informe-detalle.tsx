@@ -73,7 +73,7 @@ import {
   vinculosConObservaciones,
   resumenInforme,
 } from "@/lib/shared/utils/dd-informe";
-import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { esHallazgo, resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { nombrePais } from "@/lib/shared/utils/pais";
 import type {
@@ -268,7 +268,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
 
   const resumen = useMemo(() => resumenInforme(vinculos), [vinculos]);
   const observaciones = useMemo(() => observacionesInforme(vinculos), [vinculos]);
-  /* Sustento de SIG: la observacion de cada criterio marcado SI (todos los vinculos). */
+  /* Sustento de SIG: la observacion de cada criterio con hallazgo (todos los vinculos). */
   const notasCriterios = useMemo(() => notasPorCriterios(vinculos, null), [vinculos]);
   const totalObservaciones = notasCriterios.length + observaciones.length;
   const anexos = useMemo(() => evidenciasInforme(vinculos), [vinculos]);
@@ -592,7 +592,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                                         <span className="truncate text-muted-foreground">{lista.label}</span>
                                         <span
                                           className={`shrink-0 font-semibold ${
-                                            lista.valor === DD_MATRIZ_SI_NO_NA.SI
+                                            esHallazgo(lista.codigo, lista.valor)
                                               ? "text-warning"
                                               : lista.valor
                                                 ? "text-foreground"
@@ -604,7 +604,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                                             : "Pendiente"}
                                         </span>
                                       </div>
-                                      {lista.valor === DD_MATRIZ_SI_NO_NA.SI && lista.observacion?.trim() ? (
+                                      {esHallazgo(lista.codigo, lista.valor) && lista.observacion?.trim() ? (
                                         <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
                                           {lista.observacion}
                                         </p>

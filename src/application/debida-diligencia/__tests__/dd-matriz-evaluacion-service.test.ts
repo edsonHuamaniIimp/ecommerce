@@ -694,6 +694,58 @@ describe("DdMatrizEvaluacionApplicationService", () => {
       expect(cambios.sig.observaciones).toBeNull();
     });
 
+    it("pregunta en positivo: central de riesgo en SI no exige observacion ni evidencia; en NO si", async () => {
+      const si = crear(vinculo(), [], { exigirEvidencia: true });
+      await si.servicio.guardar(s, { id: "v-1", listas: { central_riesgo_persona: "si", bancarizado_persona: "si" } });
+      expect(si.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+
+      const noSinObservacion = crear(vinculo(), [evidencia("central_riesgo_persona")], { exigirEvidencia: true });
+      await expect(
+        noSinObservacion.servicio.guardar(s, { id: "v-1", listas: { central_riesgo_persona: "no" } }),
+      ).rejects.toMatchObject({ status: 400, message: expect.stringContaining("Cumple en central de riesgo (representante legal)") });
+
+      const noSinEvidencia = crear(vinculo(), [], { exigirEvidencia: true });
+      await expect(
+        noSinEvidencia.servicio.guardar(s, {
+          id: "v-1",
+          listas: { central_riesgo_persona: "no" },
+          listasObservaciones: { central_riesgo_persona: "Deuda vencida" },
+        }),
+      ).rejects.toMatchObject({ status: 400, message: expect.stringContaining(DD_MENSAJES.MATRIZ_EVIDENCIA_REQUERIDA) });
+    });
+
+    it("regla «Exigir observación en criterios con hallazgo» apagada: el hallazgo se guarda sin observacion", async () => {
+      const apagada = crear(vinculo(), [], { exigirEvidencia: false, exigirObservacionCriterio: false });
+      await apagada.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si", central_riesgo_persona: "no" } });
+      expect(apagada.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+    });
+
+    it("regla apagada: SIG OBSERVADO exige al menos un hallazgo, sin texto", async () => {
+      const sinHallazgo = crear(vinculo(), [], { exigirEvidencia: false, exigirObservacionCriterio: false });
+      await expect(
+        sinHallazgo.servicio.guardar(s, {
+          id: "v-1",
+          listas: { peps_prp_persona: "no", central_riesgo_persona: "si" },
+          sig: { resultado: "OBSERVADO", conclusion: "REQUIERE DEBIDA DILIGENCIA REFORZADA" },
+        }),
+      ).rejects.toMatchObject({ status: 400, message: expect.stringContaining(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_HALLAZGO) });
+
+      const conHallazgo = crear(vinculo(), [], { exigirEvidencia: false, exigirObservacionCriterio: false });
+      await conHallazgo.servicio.guardar(s, {
+        id: "v-1",
+        listas: { central_riesgo_persona: "no" },
+        sig: { resultado: "OBSERVADO", conclusion: "REQUIERE DEBIDA DILIGENCIA REFORZADA" },
+      });
+      expect(conHallazgo.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+    });
+
+    it("el detalle informa si rige la observacion obligatoria", async () => {
+      const encendida = await crear(vinculo(), [], { exigirObservacionCriterio: true }).servicio.detalle(s, "v-1");
+      expect(encendida.permisos.observacionCriterioObligatoria).toBe(true);
+      const apagada = await crear(vinculo(), [], { exigirObservacionCriterio: false }).servicio.detalle(s, "v-1");
+      expect(apagada.permisos.observacionCriterioObligatoria).toBe(false);
+    });
+
     it("el asistente de IA solo se habilita con la regla encendida y para SIG", async () => {
       const apagado = await crear(vinculo(), [], { asistenteIaHabilitado: false }).servicio.detalle(s, "v-1");
       expect(apagado.permisos.usarAsistenteIa).toBe(false);

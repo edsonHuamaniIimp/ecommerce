@@ -112,6 +112,7 @@ export function DdConfiguracion() {
         vigenciaMeses: config.vigenciaMeses,
         permitirReutilizacionVinculo: config.permitirReutilizacionVinculo,
         asistenteIaHabilitado: config.asistenteIaHabilitado,
+        exigirObservacionCriterio: config.exigirObservacionCriterio,
         manualUrl: config.manualUrl,
         reglamentoUrl: config.reglamentoUrl,
         plantillaInformeUrl: config.plantillaInformeUrl,
@@ -240,9 +241,15 @@ export function DdConfiguracion() {
             <CardContent className="space-y-1 pt-3">
               <Toggle
                 label="Exigir evidencia por campo aplicable"
-                description="Obliga a adjuntar archivo o enlace en cada validación positiva."
+                description="Obliga a adjuntar archivo o enlace en cada criterio con hallazgo."
                 checked={config.exigirEvidencia}
                 onChange={(valor) => setCampo("exigirEvidencia", valor)}
+              />
+              <Toggle
+                label="Exigir observación en criterios con hallazgo"
+                description="Al guardar la evaluación SIG, cada criterio con hallazgo necesita su observación (SI en «Hay reportes…» o «Registra antecedentes…»; NO en «Cumple en central de riesgo» y «Bancarizado»)."
+                checked={config.exigirObservacionCriterio}
+                onChange={(valor) => setCampo("exigirObservacionCriterio", valor)}
               />
               <Toggle
                 label="Permitir N.A. sin evidencia"

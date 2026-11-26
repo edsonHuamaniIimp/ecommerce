@@ -182,7 +182,7 @@ export const COLUMNAS_MATRIZ_EXCEL: ColumnaMatrizExcel[] = [
     "vinculo",
   ),
   columnaGeneral("RESULTADO DE LA EVALUACION POR SIG", 18, (f) => etiqueta(DD_MATRIZ_RESULTADO_LABELS, bloque(f, "sig").resultado)),
-  /* Observacion anterior del vinculo + la de cada criterio marcado SI. */
+  /* Observacion anterior del vinculo + la de cada criterio con hallazgo. */
   columnaGeneral("OBSERVACIONES DE SIG", 40, (f) =>
     observacionesSigExportables(bloque(f, "sig").observaciones, f.vinculo.listas, f.vinculo.listasObservaciones),
   ),

@@ -3740,7 +3740,13 @@ components:
         compliance: { $ref: "#/components/schemas/DdMatrizBloque" }
         resultadoFinal: { type: string, nullable: true }
         adjuntos: { type: array, items: { type: object } }
-        permisos: { type: object }
+        permisos:
+          type: object
+          description: >-
+            Permisos del usuario sobre el vinculo y reglas de Configuracion DD que afectan al editor:
+            usarAsistenteIa (asistente IA encendido y usuario SIG) y observacionCriterioObligatoria
+            (regla «Exigir observación en criterios con hallazgo»).
+          additionalProperties: { type: boolean }
     DdMatrizEvaluacionDetalleResponse:
       type: object
       properties:

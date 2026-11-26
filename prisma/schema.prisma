@@ -1532,6 +1532,8 @@ model DdConfiguracion {
   permitirReutilizacionVinculo Boolean @default(true) @map("permitir_reutilizacion_vinculo")
   /// Habilita el asistente de IA (IA / OCR + prompt) en la observacion de los criterios de la Matriz DD.
   asistenteIaHabilitado      Boolean  @default(false) @map("asistente_ia_habilitado")
+  /// Exige la observacion de cada criterio con hallazgo (SI, o NO en las preguntas en positivo) al guardar la evaluacion SIG.
+  exigirObservacionCriterio  Boolean  @default(true) @map("exigir_observacion_criterio")
   manualUrl                  String?  @map("manual_url") @db.VarChar(500)
   reglamentoUrl              String?  @map("reglamento_url") @db.VarChar(500)
   plantillaInformeUrl        String?  @map("plantilla_informe_url") @db.VarChar(500)

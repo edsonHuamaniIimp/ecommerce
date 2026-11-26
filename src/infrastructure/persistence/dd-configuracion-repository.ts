@@ -22,6 +22,7 @@ function mapConfig(row: {
   vigenciaMeses: number;
   permitirReutilizacionVinculo: boolean;
   asistenteIaHabilitado: boolean;
+  exigirObservacionCriterio: boolean;
   manualUrl: string | null;
   reglamentoUrl: string | null;
   plantillaInformeUrl: string | null;
@@ -40,6 +41,7 @@ function mapConfig(row: {
     vigenciaMeses: row.vigenciaMeses,
     permitirReutilizacionVinculo: row.permitirReutilizacionVinculo,
     asistenteIaHabilitado: row.asistenteIaHabilitado,
+    exigirObservacionCriterio: row.exigirObservacionCriterio,
     manualUrl: row.manualUrl,
     reglamentoUrl: row.reglamentoUrl,
     plantillaInformeUrl: row.plantillaInformeUrl,

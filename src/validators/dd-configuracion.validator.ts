@@ -28,6 +28,7 @@ export const ddConfiguracionSchema = z.object({
     }),
   permitirReutilizacionVinculo: z.boolean(),
   asistenteIaHabilitado: z.boolean(),
+  exigirObservacionCriterio: z.boolean(),
   manualUrl: urlNullable,
   reglamentoUrl: urlNullable,
   plantillaInformeUrl: urlNullable,

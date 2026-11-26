@@ -1594,10 +1594,14 @@ export const DD_MATRIZ_PER_PAGE_MAX = 500;
 export const DD_MENSAJES = {
   /** Regla «Exigir evidencia por campo aplicable» (Configuración DD); se completa con los criterios. */
   MATRIZ_EVIDENCIA_REQUERIDA: "Sube al menos una evidencia en estos criterios (regla «Exigir evidencia por campo aplicable»):",
-  /** Un criterio marcado SI se sustenta con su observacion (se completa con los criterios). */
-  MATRIZ_OBSERVACION_CRITERIO_REQUERIDA: "Registra la observación del criterio en estos criterios marcados SI:",
-  /** Resultado SIG OBSERVADO: el sustento esta en los criterios marcados SI. */
-  MATRIZ_OBSERVADO_SIN_CRITERIO: "Una evaluación OBSERVADA exige al menos un criterio marcado SI con su observación",
+  /** Regla «Exigir observación en criterios con hallazgo»: se completa con los criterios. */
+  MATRIZ_OBSERVACION_CRITERIO_REQUERIDA: "Registra la observación en estos criterios con hallazgo:",
+  /** Resultado SIG OBSERVADO con la regla de observacion activa: el sustento esta en los criterios con hallazgo. */
+  MATRIZ_OBSERVADO_SIN_CRITERIO: "Una evaluación OBSERVADA exige al menos un criterio con hallazgo y su observación",
+  /** Resultado SIG OBSERVADO con la regla de observacion apagada: basta un criterio con hallazgo. */
+  MATRIZ_OBSERVADO_SIN_HALLAZGO: "Una evaluación OBSERVADA exige al menos un criterio con hallazgo",
+  /** Aviso en el editor del vinculo bajo la observacion de un criterio con hallazgo. */
+  MATRIZ_HALLAZGO_SIN_OBSERVACION: "Criterio con hallazgo: registra su observación antes de «Guardar evaluación».",
   EDICION_DOCUMENTACION_RECIBIDA:
     "Recibimos tu documentación y está pendiente de revisión. No se puede modificar mientras se revisa.",
   EDICION_EN_REVISION: "El expediente está en revisión. Espera el resultado antes de modificarlo.",
@@ -2491,6 +2495,12 @@ export interface DdMatrizListaDef {
   label: string;
   grupo: DdMatrizGrupoLista;
   color: DdMatrizColor;
+  /**
+   * Respuesta que es un hallazgo (riesgo) en este criterio. Por defecto SI («Hay reportes…»,
+   * «Registra antecedentes…»); NO en las preguntas en positivo («Cumple en central de riesgo»,
+   * «Bancarizado»), donde SI es el resultado esperado.
+   */
+  hallazgoEn?: DdMatrizSiNoNa;
 }
 
 /**
@@ -2512,13 +2522,13 @@ export const DD_MATRIZ_LISTAS: readonly DdMatrizListaDef[] = [
   { codigo: "oefa", label: "Reportes infracciones OEFA", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: DD_MATRIZ_LISTA_OSCE, label: "Registros de OSCE (sanciones TCE)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "peps_prp_empresa", label: "Reportes listas PEPs / PRP", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
-  { codigo: "central_riesgo_empresa", label: "Cumple en central de riesgo (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
-  { codigo: "bancarizado_empresa", label: "Bancarizado (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "central_riesgo_empresa", label: "Cumple en central de riesgo (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL, hallazgoEn: DD_MATRIZ_SI_NO_NA.NO },
+  { codigo: "bancarizado_empresa", label: "Bancarizado (empresa)", grupo: DD_MATRIZ_GRUPOS_LISTA.EMPRESA_NACIONAL, color: DD_MATRIZ_COLORES.NACIONAL, hallazgoEn: DD_MATRIZ_SI_NO_NA.NO },
   { codigo: "corrupcion_persona", label: "Hay reportes de corrupción / soborno / lavado", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
   { codigo: "peps_prp_persona", label: "Listas PEPs / PRP", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
-  { codigo: "central_riesgo_persona", label: "Cumple en central de riesgo (representante legal)", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "central_riesgo_persona", label: "Cumple en central de riesgo (representante legal)", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL, hallazgoEn: DD_MATRIZ_SI_NO_NA.NO },
   { codigo: "conflicto_interes", label: "Hay conflictos de interés", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.COMUN },
-  { codigo: "bancarizado_persona", label: "Bancarizado (representantes legales u otros)", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL },
+  { codigo: "bancarizado_persona", label: "Bancarizado (representantes legales u otros)", grupo: DD_MATRIZ_GRUPOS_LISTA.PERSONA_VINCULADA, color: DD_MATRIZ_COLORES.NACIONAL, hallazgoEn: DD_MATRIZ_SI_NO_NA.NO },
   { codigo: "ofac", label: "Registra antecedentes en OFAC", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
   { codigo: "naciones_unidas", label: "Registra antecedentes Naciones Unidas", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
   { codigo: "opensanctions", label: "Registra antecedentes OpenSanctions", grupo: DD_MATRIZ_GRUPOS_LISTA.EXTRANJERA, color: DD_MATRIZ_COLORES.EXTRANJERO },
@@ -2560,6 +2570,9 @@ export const DD_MATRIZ_LISTA_DESCRIPCIONES: Record<string, string> = {
   dea: "Antecedentes en la DEA (EE. UU.).",
   [DD_MATRIZ_LISTA_OTROS]: "Otra evidencia relevante no cubierta arriba.",
 };
+
+/** Ayuda en los criterios con pregunta en positivo (central de riesgo, bancarizado). */
+export const DD_MATRIZ_PREGUNTA_POSITIVA_AYUDA = "Pregunta en positivo: SI es lo esperado; NO es hallazgo.";
 
 /**
  * Fuente oficial de cada criterio. `consultaParam` solo se usa en portales
@@ -2841,7 +2854,7 @@ export const DD_MATRIZ_CRITERIO_PREFIJO = "criterio_";
 
 /**
  * «Sustento y observaciones» del vinculo (observacion de SIG): oculto desde que el sustento se
- * registra en la observacion de cada criterio marcado SI. El campo se conserva (Excel, informe y
+ * registra en la observacion de cada criterio con hallazgo. El campo se conserva (Excel, informe y
  * datos anteriores); con true vuelve a mostrarse en el editor del vinculo.
  */
 export const DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE = false;

@@ -5,7 +5,6 @@ import {
   DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
-  DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_TIPOS_VINCULO,
   DD_REPUTACION_ESTADOS,
   DD_REPUTACION_RESULTADOS,
@@ -16,7 +15,7 @@ import type {
   DdMatrizEvaluacionDetalleDTO,
   DdMatrizEvaluacionFilaDTO,
 } from "@/types/dto/debida-diligencia";
-import { resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { esHallazgo, resultadoFinalEfectivo } from "@/lib/shared/utils/dd-matriz-evaluacion";
 
 /** Resultados que aun no son una conclusion (el proceso sigue abierto). */
 const FINALES_EN_PROCESO = new Set<string>([
@@ -204,26 +203,26 @@ export function evidenciasInforme(detalles: DdMatrizEvaluacionDetalleDTO[]): DdM
 }
 
 /**
- * Anexos del PDF: solo las evidencias de criterios donde el resultado del vinculo fue SI
- * (se encontro algo). Las de criterios en NO o NA, y los sustentos generales, no se anexan.
+ * Anexos del PDF: solo las evidencias de criterios con hallazgo (SI, o NO en las preguntas en
+ * positivo como central de riesgo). Las demas respuestas y los sustentos generales no se anexan.
  */
 export function evidenciasConHallazgo(detalles: DdMatrizEvaluacionDetalleDTO[]): DdMatrizAdjuntoDTO[] {
   const porId = new Map<string, DdMatrizAdjuntoDTO>();
   for (const detalle of detalles) {
-    const codigosSi = new Set(
-      detalle.listas.filter((lista) => lista.valor === DD_MATRIZ_SI_NO_NA.SI).map((lista) => lista.codigo),
+    const codigosHallazgo = new Set(
+      detalle.listas.filter((lista) => esHallazgo(lista.codigo, lista.valor)).map((lista) => lista.codigo),
     );
     for (const adjunto of detalle.adjuntos) {
       if (!adjunto.categoria.startsWith(DD_MATRIZ_CRITERIO_PREFIJO)) continue;
-      if (codigosSi.has(adjunto.categoria.slice(DD_MATRIZ_CRITERIO_PREFIJO.length))) porId.set(adjunto.id, adjunto);
+      if (codigosHallazgo.has(adjunto.categoria.slice(DD_MATRIZ_CRITERIO_PREFIJO.length))) porId.set(adjunto.id, adjunto);
     }
   }
   return [...porId.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
 /**
- * Observaciones de los criterios dados (null = todos), solo de criterios con resultado SI (los
- * mismos cuyas evidencias se anexan). La empresa titular va primero.
+ * Observaciones de los criterios dados (null = todos), solo de criterios con hallazgo (los mismos
+ * cuyas evidencias se anexan). La empresa titular va primero.
  */
 export function notasPorCriterios(
   detalles: DdMatrizEvaluacionDetalleDTO[],
@@ -237,7 +236,7 @@ export function notasPorCriterios(
   for (const detalle of ordenados) {
     for (const lista of detalle.listas) {
       const texto = lista.observacion?.trim();
-      if (!texto || lista.valor !== DD_MATRIZ_SI_NO_NA.SI || (codigos && !codigos.includes(lista.codigo))) continue;
+      if (!texto || !esHallazgo(lista.codigo, lista.valor) || (codigos && !codigos.includes(lista.codigo))) continue;
       notas.push({
         id: `${detalle.id}-${lista.codigo}`,
         codigo: lista.codigo,
@@ -258,7 +257,7 @@ const CODIGOS_CON_SECCION = new Set<string>([
 ]);
 
 /**
- * Observaciones de los criterios en SI sin seccion propia en el informe oficial (listas
+ * Observaciones de los criterios con hallazgo sin seccion propia en el informe oficial (listas
  * internacionales, bancarizado, central de riesgo de personas...): van en OTROS con su criterio.
  */
 export function notasCriteriosSinSeccion(detalles: DdMatrizEvaluacionDetalleDTO[]): DdInformeNotaCriterio[] {

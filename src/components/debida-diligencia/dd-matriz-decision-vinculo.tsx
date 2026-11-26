@@ -53,11 +53,14 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
-  criteriosSiSinObservacion,
+  criteriosHallazgoSinObservacion,
+  esHallazgo,
+  esRespuestaFavorable,
   fuenteAutomatizable,
   limiteObservacionLista,
-  tieneSustentoCriterios,
+  sustentoSigCriterios,
   urlFuenteLista,
+  valorHallazgo,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import {
   DD_MATRIZ_ADJUNTO_ACCEPT,
@@ -68,8 +71,10 @@ import {
   DD_MATRIZ_LISTA_DESCRIPCIONES,
   DD_MATRIZ_LISTA_OTROS,
   DD_MATRIZ_ORIGENES,
+  DD_MATRIZ_PREGUNTA_POSITIVA_AYUDA,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADO_LABELS,
+  DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE,
   DD_MENSAJES,
@@ -86,11 +91,18 @@ interface Props {
   onVolverRevision?: () => void;
 }
 
-const OPCIONES: { valor: DecisionCriterio; label: string; clase: string }[] = [
-  { valor: "si", label: DD_MATRIZ_SI_NO_NA_LABELS.si, clase: "border-red-200 bg-red-50 text-red-800" },
-  { valor: "no", label: DD_MATRIZ_SI_NO_NA_LABELS.no, clase: "border-emerald-200 bg-emerald-50 text-emerald-800" },
-  { valor: "na", label: DD_MATRIZ_SI_NO_NA_LABELS.na, clase: "border-slate-200 bg-slate-50 text-slate-600" },
+const OPCIONES: { valor: DecisionCriterio; label: string }[] = [
+  { valor: "si", label: DD_MATRIZ_SI_NO_NA_LABELS.si },
+  { valor: "no", label: DD_MATRIZ_SI_NO_NA_LABELS.no },
+  { valor: "na", label: DD_MATRIZ_SI_NO_NA_LABELS.na },
 ];
+
+/** Color de la respuesta segun el criterio: rojo si es hallazgo, verde si es la esperada (SI o NO). */
+function claseOpcion(codigo: string, valor: DecisionCriterio): string {
+  if (esHallazgo(codigo, valor)) return "border-red-200 bg-red-50 text-red-800";
+  if (esRespuestaFavorable(codigo, valor)) return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
 
 const RESULTADOS_SIG: {
   valor: ResultadoSig;
@@ -291,15 +303,18 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       toast.error("La conclusión SIG no corresponde al resultado seleccionado.");
       return;
     }
-    /* Cada criterio marcado SI se sustenta con su observacion (el backend aplica la misma regla). */
+    /* Regla «Exigir observación en criterios con hallazgo» (el backend aplica la misma regla). */
+    const observacionObligatoria = detalle.permisos.observacionCriterioObligatoria;
     const listasActuales = Object.fromEntries(
       Object.entries(decisiones).map(([codigo, decision]) => [codigo, valorMatriz(decision)]),
     );
-    const sinObservacion = criteriosSiSinObservacion(
-      detalle.listas.map((lista) => lista.codigo),
-      listasActuales,
-      observacionesLista,
-    );
+    const sinObservacion = observacionObligatoria
+      ? criteriosHallazgoSinObservacion(
+          detalle.listas.map((lista) => lista.codigo),
+          listasActuales,
+          observacionesLista,
+        )
+      : [];
     if (sinObservacion.length > 0) {
       const labels = detalle.listas.filter((lista) => sinObservacion.includes(lista.codigo)).map((lista) => lista.label);
       toast.error(`${DD_MENSAJES.MATRIZ_OBSERVACION_CRITERIO_REQUERIDA} ${labels.join(", ")}.`);
@@ -308,12 +323,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
     if (
       resultadoSig === "observado" &&
       !observaciones.trim() &&
-      !tieneSustentoCriterios(
-        Object.fromEntries(Object.entries(listasActuales).filter((par): par is [string, string] => par[1] !== null)),
-        observacionesLista,
-      )
+      !sustentoSigCriterios(listasActuales, observacionesLista, observacionObligatoria)
     ) {
-      toast.error(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO);
+      toast.error(
+        observacionObligatoria ? DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO : DD_MENSAJES.MATRIZ_OBSERVADO_SIN_HALLAZGO,
+      );
       return;
     }
 
@@ -417,7 +431,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
   if (loading || !detalle || detalle.id !== id) return <DdVinculoSkeleton modo="edicion" />;
 
   const tipo = etiquetaTipoVinculo(detalle);
-  const hayObservados = Object.values(decisiones).some((decision) => decision === "si");
+  const hayObservados = Object.entries(decisiones).some(([codigo, decision]) => esHallazgo(codigo, decision));
   const criteriosEvaluables = detalle.listas.filter((lista) => lista.codigo !== DD_MATRIZ_LISTA_OTROS);
   const totalCriterios = criteriosEvaluables.length;
   const criteriosDecididos = criteriosEvaluables.filter((lista) => Boolean(decisiones[lista.codigo])).length;
@@ -515,7 +529,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                           setCriterioActivo(lista.codigo);
                         }}
                         aria-selected={criterioActivo === lista.codigo}
-                        className={`cursor-pointer align-top transition-colors hover:bg-secondary/30 ${criterioActivo === lista.codigo ? "bg-primary/5 ring-1 ring-inset ring-primary/30" : decision === "si" ? "bg-red-50/40" : "even:bg-secondary/10"}`}
+                        className={`cursor-pointer align-top transition-colors hover:bg-secondary/30 ${criterioActivo === lista.codigo ? "bg-primary/5 ring-1 ring-inset ring-primary/30" : esHallazgo(lista.codigo, decision) ? "bg-red-50/40" : "even:bg-secondary/10"}`}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-start gap-2">
@@ -538,6 +552,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                                   {DD_MATRIZ_LISTA_DESCRIPCIONES[lista.codigo]}
                                 </span>
                               ) : null}
+                              {valorHallazgo(lista.codigo) === DD_MATRIZ_SI_NO_NA.NO ? (
+                                <span className="mt-0.5 block text-[10px] font-medium leading-snug text-emerald-700">
+                                  {DD_MATRIZ_PREGUNTA_POSITIVA_AYUDA}
+                                </span>
+                              ) : null}
                             </span>
                           </div>
                         </td>
@@ -549,7 +568,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                                 type="button"
                                 disabled={!puedeEditar}
                                 onClick={() => setDecisiones((previas) => ({ ...previas, [lista.codigo]: opcion.valor }))}
-                                className={`min-w-12 rounded-md border px-2 py-1.5 text-[10px] font-bold transition ${decision === opcion.valor ? `${opcion.clase} shadow-sm ring-1 ring-current/20` : "border-border bg-card text-muted-foreground hover:bg-secondary/50"}`}
+                                className={`min-w-12 rounded-md border px-2 py-1.5 text-[10px] font-bold transition ${decision === opcion.valor ? `${claseOpcion(lista.codigo, opcion.valor)} shadow-sm ring-1 ring-current/20` : "border-border bg-card text-muted-foreground hover:bg-secondary/50"}`}
                               >
                                 {opcion.label}
                               </button>
@@ -681,10 +700,10 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         aria-label={`Observación de ${criterio.label}`}
                         className={enModal ? "min-h-[45vh] text-sm" : "min-h-40 text-xs"}
                       />
-                      {decisiones[criterio.codigo] === "si" && !texto.trim() ? (
-                        <p className="text-[11px] font-medium text-amber-700">
-                          Criterio marcado SI: registra su observación antes de «Guardar evaluación».
-                        </p>
+                      {detalle.permisos.observacionCriterioObligatoria &&
+                      esHallazgo(criterio.codigo, decisiones[criterio.codigo]) &&
+                      !texto.trim() ? (
+                        <p className="text-[11px] font-medium text-amber-700">{DD_MENSAJES.MATRIZ_HALLAZGO_SIN_OBSERVACION}</p>
                       ) : null}
                       {puedeEditar ? (
                         <Button type="button" variant="outline" size="sm" className="h-7 w-full gap-1.5 text-[11px]" disabled={guardando} onClick={() => { void guardarBorrador(); }}>
@@ -792,7 +811,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
               ) : (
                 <>
                   <p className="text-[11px] text-muted-foreground">
-                    El sustento se registra en la observación de cada criterio marcado SI.
+                    El sustento se registra en la observación de cada criterio con hallazgo.
                   </p>
                   {observaciones.trim() ? (
                     <div className="space-y-1">

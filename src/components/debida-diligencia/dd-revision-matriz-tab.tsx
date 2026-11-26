@@ -119,7 +119,7 @@ function EstadoVinculo({
 }
 
 /**
- * Observacion de los criterios marcados SI de cada vinculo (sustento de SIG). La lista de la matriz no
+ * Observacion de los criterios con hallazgo de cada vinculo (sustento de SIG). La lista de la matriz no
  * la trae: se lee el detalle de cada vinculo. La empresa (`detalle`) no se repite: sus observaciones
  * salen en «Listas restrictivas».
  */
@@ -206,7 +206,7 @@ function VinculosMatriz({
             </div>
             {(notas[vinculo.id] ?? []).length > 0 ? (
               <div className="mt-3 space-y-1.5 border-t border-border pt-3">
-                <p className="text-[10px] font-medium uppercase text-muted-foreground">Observación de los criterios marcados SI</p>
+                <p className="text-[10px] font-medium uppercase text-muted-foreground">Observación de los criterios con hallazgo</p>
                 {(notas[vinculo.id] ?? []).map((nota) => (
                   <div key={nota.id}>
                     <p className="text-[10px] font-semibold text-foreground">{nota.criterio}</p>
