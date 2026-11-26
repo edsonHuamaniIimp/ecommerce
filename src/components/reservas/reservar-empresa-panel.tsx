@@ -758,10 +758,6 @@ export function ReservarEmpresaPanel() {
       toast.error("Selecciona una empresa");
       return;
     }
-    if (!representanteVinculado) {
-      toast.error("La empresa no tiene un representante legal vinculado");
-      return;
-    }
     if (!readiness.ok) {
       toast.error(`Faltan datos para el contrato y la factura: ${readiness.faltantes.join(", ")}`);
       return;

@@ -69,7 +69,8 @@ export function validarEmpresaReservaAdministrativa(
   if (!tipoDocumento || validarDocumentoEmpresa(tipoDocumento, documento)) faltantesEmpresa.push("RUC de 11 dígitos");
   if (!texto(empresa.direccionFiscal)) faltantesEmpresa.push("dirección fiscal");
   if (!email) faltantesEmpresa.push("correo de facturación");
-  if (!texto(empresa.representanteUserId)) faltantesRepresentante.push("cuenta vinculada");
+  /* La cuenta vinculada del representante NO es requisito: la reserva puede crearse sin ella
+     (la solicitud queda sin dueno de portal hasta que se vincule la cuenta). */
   if (!texto(empresa.representanteLegalNombre)) faltantesRepresentante.push("nombre");
   if (!dni) {
     faltantesRepresentante.push("documento");

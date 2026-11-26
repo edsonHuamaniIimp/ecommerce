@@ -99,6 +99,13 @@ function documentoEmpresaValido(v: { ruc?: string; tipoDocumento?: string | null
   return tipo !== null && validarDocumentoEmpresa(tipo, ruc) === null;
 }
 
+/** Documento del representante valido segun su tipo (DNI 8 digitos; carne/pasaporte alfanumerico). */
+function documentoRepresentanteValido(v: { representanteLegalDni?: string | null; representanteLegalTipoDocumento?: string | null }): boolean {
+  const documento = String(v.representanteLegalDni ?? "").trim();
+  if (!documento) return false;
+  return validarDocumentoPersona(v.representanteLegalTipoDocumento ?? TIPOS_DOCUMENTO_PERSONA.DNI, documento) === null;
+}
+
 /** Alta de empresa (backoffice). */
 export const crearEmpresaSchema = empresaBaseSchema
   .refine((v) => Boolean(v.tipoDocumento), {
@@ -115,7 +122,15 @@ export const crearEmpresaSchema = empresaBaseSchema
       message: "Ingresa al menos un correo de contacto, facturacion o representante",
       path: ["emailFacturacion"],
     },
-  );
+  )
+  .refine((v) => Boolean(v.representanteLegalNombre?.trim()), {
+    message: "El representante legal es obligatorio: ingresa su nombre",
+    path: ["representanteLegalNombre"],
+  })
+  .refine(documentoRepresentanteValido, {
+    message: "El representante legal es obligatorio: documento invalido (DNI de 8 digitos, carne o pasaporte alfanumerico)",
+    path: ["representanteLegalDni"],
+  });
 
 /** Edicion parcial (solo campos enviados); si llega el documento, se valida igual. */
 export const actualizarEmpresaSchema = empresaBaseSchema
@@ -126,6 +141,15 @@ export const actualizarEmpresaSchema = empresaBaseSchema
   .refine((v) => v.ruc === undefined || documentoEmpresaValido(v), {
     message: "Documento de empresa invalido (RUC de 11 digitos o RUT alfanumerico hasta 20)",
     path: ["ruc"],
+  })
+  /* La edicion no puede dejar a la empresa sin representante legal (ej. "Quitar" y guardar). */
+  .refine((v) => v.representanteLegalNombre === undefined || Boolean(v.representanteLegalNombre?.trim()), {
+    message: "El representante legal es obligatorio: no se puede dejar sin nombre",
+    path: ["representanteLegalNombre"],
+  })
+  .refine((v) => v.representanteLegalDni === undefined || documentoRepresentanteValido(v), {
+    message: "El representante legal es obligatorio: documento invalido (DNI de 8 digitos, carne o pasaporte alfanumerico)",
+    path: ["representanteLegalDni"],
   });
 
 /** Activar/desactivar empresa. */

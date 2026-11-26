@@ -8,6 +8,9 @@ describe("crearEmpresaSchema (documento RUC o RUT)", () => {
       ruc: "20601234567",
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
       emailContacto: "contacto@minera.pe",
+      representanteLegalNombre: "Rep Legal",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
+      representanteLegalDni: "45871233",
       razonSocial: "Minera Demo S.A.C.",
     });
     expect(r.success).toBe(true);
@@ -18,6 +21,9 @@ describe("crearEmpresaSchema (documento RUC o RUT)", () => {
       ruc: "FR48305461063",
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
       emailFacturacion: "facturacion@rblrei.fr",
+      representanteLegalNombre: "Rep Legal",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
+      representanteLegalDni: "45871233",
       razonSocial: "RBL REI SAS",
     });
     expect(r.success).toBe(true);
@@ -28,9 +34,34 @@ describe("crearEmpresaSchema (documento RUC o RUT)", () => {
       ruc: "903200006",
       tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO,
       emailContacto: "contacto@cem.cl",
+      representanteLegalNombre: "Rep Legal",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI,
+      representanteLegalDni: "45871233",
       razonSocial: "Compania Electro Metalurgica S.A.",
     });
     expect(r.success).toBe(true);
+  });
+
+  it("exige representante legal (nombre y documento valido) al registrar", () => {
+    const base = {
+      ruc: "20601234567",
+      tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC,
+      emailContacto: "contacto@minera.pe",
+      razonSocial: "Minera Demo S.A.C.",
+    };
+    expect(crearEmpresaSchema.safeParse(base).success).toBe(false);
+    expect(crearEmpresaSchema.safeParse({ ...base, representanteLegalNombre: "Rep Legal", representanteLegalDni: "123" }).success).toBe(false);
+    expect(crearEmpresaSchema.safeParse({
+      ...base,
+      representanteLegalNombre: "Rep Legal",
+      representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.PASAPORTE,
+      representanteLegalDni: "P17000238",
+    }).success).toBe(true);
+  });
+
+  it("no permite dejar sin representante legal al editar (Quitar y guardar)", () => {
+    expect(actualizarEmpresaSchema.safeParse({ id: "e1", representanteLegalNombre: "", representanteLegalDni: "" }).success).toBe(false);
+    expect(actualizarEmpresaSchema.safeParse({ id: "e1", direccionFiscal: "Av. 1" }).success).toBe(true);
   });
 
   it("rechaza un RUC invalido cuando el tipo es RUC", () => {

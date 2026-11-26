@@ -68,6 +68,16 @@ describe("validarEmpresaReservaAdministrativa", () => {
     expect(dni.faltantesRepresentante).toContain("DNI de 8 dígitos para la boleta");
   });
 
+  it("no exige cuenta vinculada del representante", () => {
+    const resultado = validarEmpresaReservaAdministrativa(
+      empresa({ representanteUserId: null }),
+      TIPOS_COMPROBANTE.FACTURA,
+      "USD",
+    );
+
+    expect(resultado.ok).toBe(true);
+  });
+
   it("rechaza una empresa sin correo", () => {
     const resultado = validarEmpresaReservaAdministrativa(
       empresa({ representanteCorreo: null, emailContacto: null, emailFacturacion: null }),

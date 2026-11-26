@@ -550,6 +550,29 @@ describe("EmpresaApplicationService.actualizar", () => {
     expect(empresa.representanteUserId).toBe("11111111-1111-4111-8111-111111111111");
   });
 
+  it("conserva el vinculo si el correo nuevo no tiene cuenta pero la cuenta actual es de la misma empresa", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C.", representanteUserId: "user-prov" });
+    const auth = fakeAuthRepo({
+      cuentaRuc: { id: "ur-1", userId: "user-prov", email: "acceso-20601234567@acceso.iimp", empresaId: creada.id } as never,
+    });
+    const service = crearServicio(repo, auth);
+
+    const empresa = await service.actualizar(creada.id, { representanteCorreo: "rep@mineracordillera.pe" });
+
+    expect(empresa.representanteUserId).toBe("user-prov");
+  });
+
+  it("limpia el vinculo si el correo nuevo no tiene cuenta y la cuenta actual no es de la empresa", async () => {
+    const repo = new FakeEmpresaRepo();
+    const creada = repo.seed({ ruc: "20601234567", razonSocial: "Minera Cordillera S.A.C.", representanteUserId: "user-ajeno" });
+    const service = crearServicio(repo, fakeAuthRepo());
+
+    const empresa = await service.actualizar(creada.id, { representanteCorreo: "rep@mineracordillera.pe" });
+
+    expect(empresa.representanteUserId).toBeNull();
+  });
+
   it("rechaza cambiar el RUC al de otra empresa", async () => {
     const repo = new FakeEmpresaRepo();
     repo.seed({ ruc: "20601234567", razonSocial: "Uno S.A.C." });

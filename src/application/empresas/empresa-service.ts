@@ -907,7 +907,14 @@ export class EmpresaApplicationService {
       const correo = limpiar(input.representanteCorreo)?.toLowerCase() ?? null;
       const cuentas = correo ? await this.authRepo.findByEmail(correo).catch(() => []) : [];
       const cuenta = cuentas.find((c) => !c.empresaId || c.empresaId === id) ?? null;
-      if (cuenta?.userId !== actualizada.representanteUserId) {
+      /* Sin cuenta con el correo nuevo se conserva el vinculo si la cuenta actual es de esta misma
+         empresa (p. ej. la cuenta provisional por RUC); si no, se limpia. */
+      const vinculoActual = actualizada.representanteUserId;
+      const cuentasEmpresa = !cuenta && vinculoActual && actualizada.ruc
+        ? await this.authRepo.findByRuc(actualizada.ruc).catch(() => [])
+        : [];
+      const conservarVinculo = cuentasEmpresa.some((c) => c.userId === vinculoActual && c.empresaId === id);
+      if (!conservarVinculo && cuenta?.userId !== vinculoActual) {
         actualizada = await this.repo.update(id, { representanteUserId: cuenta?.userId ?? null });
       }
     }

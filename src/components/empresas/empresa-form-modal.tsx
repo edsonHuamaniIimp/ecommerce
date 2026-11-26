@@ -9,6 +9,7 @@ import { entidadesService, type EmpresaEntidadDTO } from "@/lib/client/api/servi
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import { uploadService } from "@/lib/client/api/services/upload-service";
 import { REGEX_EMAIL, REGEX_RUC, TIPOS_COMPROBANTE, TIPOS_DOCUMENTO_EMPRESA, TIPOS_DOCUMENTO_PERSONA, TIPOS_DOCUMENTO_PERSONA_LABELS, TIPO_COMPROBANTE_LABELS } from "@/lib/shared/constants";
+import { validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { etiquetaTipoDocumentoEmpresa, normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import type { EmpresaDTO, EmpresaFuenteDTO } from "@/types/dto/empresas";
 import { PaisSelect } from "@/components/shared/pais-select";
@@ -333,6 +334,12 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
     if (form.emailFacturacion.trim() && !REGEX_EMAIL.test(form.emailFacturacion.trim())) {
       nuevos.emailFacturacion = "Correo invalido";
     }
+    /* El representante legal es obligatorio (alta y edicion): firma el contrato y es titular de la cuenta. */
+    if (!form.representanteLegalNombre.trim()) {
+      nuevos.representanteLegalNombre = "El representante legal es obligatorio";
+    } else if (!form.representanteLegalDni.trim() || validarDocumentoPersona(form.representanteLegalTipoDocumento, form.representanteLegalDni.trim())) {
+      nuevos.representanteLegalDni = "El documento del representante legal es obligatorio y debe ser valido";
+    }
     const erroresReps = erroresRepresentantesAdicionales(representantesAdicionales);
     const hayErroresReps = erroresReps.some((error) => Object.keys(error).length > 0);
     if (hayErroresReps) {
@@ -406,8 +413,9 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
   };
 
   /** Control compacto del representante legal: abre el modal adicional (dato del contrato). */
+  const errorRepresentante = errores.representanteLegalNombre ?? errores.representanteLegalDni;
   const controlRepresentante = (
-    <div className="rounded-lg border border-border px-3 py-2.5">
+    <div className={`rounded-lg border px-3 py-2.5 ${errorRepresentante ? "border-destructive" : "border-border"}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-foreground">Representante legal</p>
@@ -447,6 +455,7 @@ export function EmpresaFormModal({ empresa, onClose, onSaved }: Props) {
           )}
         </div>
       </div>
+      {errorRepresentante && <p className="mt-1 text-[11px] text-destructive">{errorRepresentante}</p>}
     </div>
   );
 

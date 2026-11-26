@@ -767,7 +767,7 @@ describe("ReservaApplicationService - tipo de solicitud", () => {
     })).rejects.toThrow(/no superar el neto/i);
   });
 
-  it("rechaza una empresa sin representante legal con cuenta vinculada", async () => {
+  it("rechaza una empresa con datos incompletos del representante legal", async () => {
     const { repo } = gessRepoCon([{ id: "g1", standCode: "A-1", eventoId: "evt-1", medidas: "7440.00 USD", bloqueId: "B-1" }]);
     const solicitudesRepo = {
       crearSolicitud: vi.fn(async () => "sol-1"),
