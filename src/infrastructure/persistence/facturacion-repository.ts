@@ -81,6 +81,12 @@ function empresaDeSolicitud(
   r: FacturacionRaw,
   empresasPorUsuario: ReadonlyMap<string, string>,
 ): string | null {
+  /* Reserva interna: en una boleta la razon social guardada es la persona (titular); la bandeja
+     muestra la empresa a la que pertenece la solicitud, no al titular del comprobante. */
+  if (r.solicitud.tipo === TIPOS_SOLICITUD.RESERVA_EMPRESA && r.solicitud.userId) {
+    const deEmpresa = empresasPorUsuario.get(r.solicitud.userId)?.trim();
+    if (deEmpresa) return deEmpresa;
+  }
   const snapshot = (r.solicitud.datosFacturacion as { razonSocial?: string | null } | null)?.razonSocial?.trim();
   if (snapshot) return snapshot;
   if (r.solicitud.userId) {
