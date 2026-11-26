@@ -8,6 +8,7 @@ import type { IEmpresaRepository } from "@/domain/ports/empresa-repository";
 import type { IPersonaClient } from "@/domain/ports/persona-client";
 import type { IConsultaDocumentoClient } from "@/domain/ports/consulta-documento-client";
 import type { IReservaIimpClient, ReservaIimpArchivoInput, ReservaIimpResponse } from "@/domain/ports/reserva-iimp-client";
+import { ReservaIimpClient } from "@/infrastructure/external/reserva-iimp-client";
 import type { EmpresaEntity } from "@/domain/models/empresa";
 import { DomainError } from "@/lib/server/router";
 import type { RegistrarIntentoFacturaData } from "@/domain/ports/facturacion-intento-repository";
@@ -134,6 +135,7 @@ function mocks() {
   const reserva = {
     reservar: vi.fn(async () => respuesta),
     agregarArchivos: vi.fn(async () => []),
+    armarCuerpo: vi.fn((input: Parameters<IReservaIimpClient["armarCuerpo"]>[0]) => new ReservaIimpClient().armarCuerpo(input)),
   } as unknown as IReservaIimpClient;
   const personas = {
     buscarPorDocumento: vi.fn(async () => persona),
@@ -811,63 +813,107 @@ describe("SolicitarFacturaApplicationService.requisitos de facturacion", () => {
 });
 
 describe("SolicitarFacturaApplicationService.consultarVigente (API de lectura para el SIE)", () => {
+  const solicitudId = "672ea54e-c291-423d-9627-1bd5ac25a303";
+  const planUsd = {
+    modalidad: "cuotas",
+    cuotas: [
+      { numero: 1, porcentaje: 20, monto: 4361.28, fechaVencimiento: "2026-12-25T00:00:00.000Z" },
+      { numero: 2, porcentaje: 80, monto: 17445.12, fechaVencimiento: "2027-06-15T00:00:00.000Z" },
+    ],
+    moneda: "USD",
+    tipoCambio: 1,
+    netoLista: 18480,
+    descuentoMonto: 0,
+    netoDescontado: 18480,
+    igv: 3326.4,
+    total: 21806.4,
+  };
+  const datosUsd = {
+    ...datosBase,
+    iimpContrato: "0000000045",
+    iimpCuentaCorriente: "45",
+    moneda: "USD",
+    tipoCambio: 1,
+    tipoCambioEvento: 3.496,
+    stands: ["184", "185"],
+    standsPrecio: [{ codigo: "184", standCode: "184", precioUsd: 9240 }, { codigo: "185", standCode: "185", precioUsd: 9240 }],
+    planCuotas: planUsd,
+    datosFacturacion: { ...snapshotFactura, tipoComprobante: "boleta", tipoDocumento: "0", numeroDocumento: "84245291", razonSocial: "Portwest UC", email: "eduardo@portwest.com" },
+  } as unknown as typeof datosBase;
+
   function conLectura(m: ReturnType<typeof mocks>) {
-    (m.solicitudes as unknown as { findSolicitudIdPorNumeroIImp: unknown }).findSolicitudIdPorNumeroIImp = vi.fn(async () => "672ea54e-c291-423d-9627-1bd5ac25a303");
-    (m.solicitudes as unknown as { findSolicitudIdPorContrato: unknown }).findSolicitudIdPorContrato = vi.fn(async () => "672ea54e-c291-423d-9627-1bd5ac25a303");
+    (m.solicitudes as unknown as { findSolicitudIdPorNumeroIImp: unknown }).findSolicitudIdPorNumeroIImp = vi.fn(async () => solicitudId);
+    (m.solicitudes as unknown as { findSolicitudIdPorContrato: unknown }).findSolicitudIdPorContrato = vi.fn(async () => solicitudId);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue(datosUsd);
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, razonSocial: "Portwest UC", ruc: "84245291", tipoDocumento: "0", pais: "IE", emailFacturacion: "eduardo@portwest.com" } as unknown as EmpresaEntity);
+    vi.mocked(m.personas.listarPaises).mockResolvedValue([{ codigo: 134, nombre: "IRLANDA" }]);
     return servicio(m);
   }
 
-  it("boleta a empresa extranjera ya corregida: devuelve la EMPRESA (razon social, tipo 0, pais numerico y correo de facturacion)", async () => {
+  it("devuelve el body de la reserva en PascalCase con la EMPRESA y los campos completos aun en USD sin descuento", async () => {
     const m = mocks();
-    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, razonSocial: "Portwest UC", ruc: "84245291", tipoDocumento: "0", pais: "IE", emailFacturacion: "eduardo@portwest.com" } as unknown as EmpresaEntity);
-    vi.mocked(m.personas.listarPaises).mockResolvedValue([{ codigo: 134, nombre: "IRLANDA" }]);
-    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
-      ...datosBase,
-      iimpContrato: "0000000045",
-      iimpCuentaCorriente: "45",
-      moneda: "USD",
-      tipoCambio: 1,
-      standsPrecio: [{ codigo: "184", standCode: "184", precioUsd: 9240 }, { codigo: "185", standCode: "185", precioUsd: 9240 }],
-      datosFacturacion: { ...snapshotFactura, tipoComprobante: "boleta", tipoDocumento: "0", numeroDocumento: "84245291", razonSocial: "Portwest UC", email: "eduardo@portwest.com" },
-    } as typeof datosBase);
-
     const r = await conLectura(m).consultarVigente({ numeroSolicitud: "CTRS-672ea54ec291423d96271bd5a" });
 
-    expect(r.contrato).toBe("0000000045");
-    expect(r.facturacion).toMatchObject({
-      tipoComprobante: "03",
-      tipoDocumento: "0",
-      numeroDocumento: "84245291",
-      razonSocial: "Portwest UC",
-      paisCodigo: 134,
-      correoFacturacion: "eduardo@portwest.com",
-      nombres: null,
+    expect(r.Version).toMatch(/^[0-9a-f]{16}$/);
+    expect(r).toMatchObject({
+      NumeroSolicitud: "CTRS-672ea54ec291423d96271bd5a",
+      TipEvCod: 2,
+      EvenCod: 19,
+      Stands: ["184", "185"],
+      Moneda: "USD",
+      TipoFacturacion: "03",
+      TipDocFacturacion: "0",
+      NumDocFacturacion: "84245291",
+      RazonSocial: "Portwest UC",
+      Pais: 134,
+      Modalidad: "cuotas",
     });
-    expect(r.stands).toHaveLength(2);
-    expect(r.cuotas).toHaveLength(2);
-    expect(r.version).toMatch(/^[0-9a-f]{16}$/);
-    expect(m.reserva.reservar).not.toHaveBeenCalled();
+    expect(r.Comercial).toMatchObject({ TipoDescuento: "NINGUNO", SumaLista: "18480.00", DescuentoTotal: "0.00", BaseImponible: "18480.00", TasaIgv: "18.00", Igv: "3326.40", Total: "21806.40" });
+    expect(r.StandsDetalle).toHaveLength(2);
+    expect(r.StandsDetalle).toEqual(expect.arrayContaining([expect.objectContaining({ Numero: "184", PrecioLista: "9240.00", PrecioNeto: "9240.00" })]));
+    const cuotas = r.Cuotas as Array<Record<string, unknown>>;
+    expect(cuotas).toHaveLength(2);
+    expect(cuotas[0]).toMatchObject({ Porcentaje: 20, Fecha: "2026-12-25", BaseImponible: "3696.00", Igv: "665.28", Monto: "4361.28" });
+    expect(r.Contactos).toMatchObject({ Pagos: expect.objectContaining({ Email: "eduardo@portwest.com" }) });
   });
 
-  it("no envia ni modifica nada y no expone datos del representante", async () => {
+  it("en USD el TipoCambio es el real del evento, nunca 1", async () => {
     const m = mocks();
-    const r = await conLectura(m).consultarVigente({ contrato: "0000000001" });
+    const r = await conLectura(m).consultarVigente({ contrato: "0000000045" });
+    expect(r.TipoCambio).toBe("3.4960");
+  });
+
+  it("en USD sin tipo de cambio en el evento: 400 explicado", async () => {
+    const m = mocks();
+    const servicioLectura = conLectura(m);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({ ...datosUsd, tipoCambioEvento: null } as typeof datosBase);
+    await expect(servicioLectura.consultarVigente({ contrato: "0000000045" })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("no envia ni modifica nada y no trae Archivos, Requisitos, Origen ni el documento del representante", async () => {
+    const m = mocks();
+    const r = await conLectura(m).consultarVigente({ contrato: "0000000045" });
     expect(m.reserva.reservar).not.toHaveBeenCalled();
     expect(m.solicitudes.guardarReservaIImp).not.toHaveBeenCalled();
-    expect(JSON.stringify(r)).not.toMatch(/representante|pasaporte/i);
+    expect(r).not.toHaveProperty("Archivos");
+    expect(r).not.toHaveProperty("Requisitos");
+    expect(r).not.toHaveProperty("Origen");
+    /* Empresa extranjera: el contacto viaja sin documento (igual que en la reserva). */
+    expect(JSON.stringify(r)).not.toMatch(/P17000238|NumDocumento|TipoDocumento/);
   });
 
-  it("la version solo cambia cuando cambian los datos vigentes", async () => {
+  it("Version solo cambia cuando cambian los datos vigentes", async () => {
     const m1 = mocks();
-    const m2 = mocks();
     const a = await conLectura(m1).consultarVigente({ contrato: "x" });
+    const m2 = mocks();
     const b = await conLectura(m2).consultarVigente({ contrato: "x" });
-    expect(a.version).toBe(b.version);
+    expect(a.Version).toBe(b.Version);
 
     const m3 = mocks();
-    vi.mocked(m3.solicitudes.datosReservaIImp).mockResolvedValue({ ...datosBase, datosFacturacion: { ...snapshotFactura, razonSocial: "OTRA RAZON SOCIAL S.A." } } as typeof datosBase);
-    const c = await conLectura(m3).consultarVigente({ contrato: "x" });
-    expect(c.version).not.toBe(a.version);
+    const servicioLectura = conLectura(m3);
+    vi.mocked(m3.empresas.findById).mockResolvedValue({ ...empresa, razonSocial: "Portwest UC", ruc: "84245291", tipoDocumento: "0", pais: "IE", emailFacturacion: "otro@portwest.com" } as unknown as EmpresaEntity);
+    const c = await servicioLectura.consultarVigente({ contrato: "x" });
+    expect(c.Version).not.toBe(a.Version);
   });
 
   it("sin numeroSolicitud ni contrato: 400; solicitud inexistente: 404", async () => {

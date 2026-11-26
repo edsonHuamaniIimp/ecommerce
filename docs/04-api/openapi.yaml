@@ -1500,14 +1500,15 @@ paths:
   /integracion/solicitud:
     get:
       tags: [Integracion]
-      summary: API entrante M2M de solo lectura — datos VIGENTES de una solicitud para que el SIE actualice su registro
+      summary: API entrante M2M de solo lectura — body vigente de la reserva (mismo formato de POST /stands/reserva) para que el SIE actualice su registro
       description: >
         Autenticacion por header `x-api-key` (clave compartida INTEGRACION_API_KEY; en local no se exige).
-        No envia ni modifica nada: arma la respuesta con la misma logica que el envio de la reserva, de modo que el
-        cliente facturado (empresa o persona), el comprobante, los montos, los stands y las cuotas son los vigentes
-        en la plataforma. `facturacion.paisCodigo` es el codigo numerico del catalogo de ubigeo del SIE
-        (Alemania = 5). No incluye datos personales del representante legal. `version` es una huella que cambia
-        solo cuando cambia algo, para que el SIE sepa si debe actualizarse. Guia: docs/05-integraciones/api-solicitud-vigente.md.
+        No envia ni modifica nada: arma la respuesta con la misma logica que el envio de la reserva y devuelve los mismos
+        campos y reglas del body de `POST /stands/reserva` (PascalCase) con los datos VIGENTES de la solicitud, mas
+        `Version` (huella que cambia solo si cambia algo). Siempre incluye `Comercial`, `StandsDetalle` e importes por
+        cuota, tambien en USD y sin descuento. `TipoCambio` es el real (en USD, el del evento; nunca 1). `Pais` es el codigo
+        numerico del catalogo de ubigeo del SIE (Alemania = 5). No incluye `Archivos`, `Requisitos` ni `Origen`.
+        Guia: docs/05-integraciones/api-solicitud-vigente.md.
       security:
         - ApiKeyAuth: []
       parameters:
@@ -1521,67 +1522,75 @@ paths:
           schema: { type: string }
       responses:
         "200":
-          description: Datos vigentes de la solicitud
+          description: Body vigente de la reserva (PascalCase) mas Version
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  numeroSolicitud: { type: string }
-                  contrato: { type: string, nullable: true }
-                  cuentaCorriente: { type: string, nullable: true }
-                  version: { type: string, description: Huella de 16 caracteres; cambia solo si cambian los datos vigentes }
-                  facturacion:
+                  success: { type: boolean }
+                  data:
                     type: object
                     properties:
-                      tipoComprobante: { type: string, enum: ["01", "03"] }
-                      tipoDocumento: { type: string, description: "6 RUC, 0 empresa extranjera, 1 DNI, 4 CE, 7 pasaporte" }
-                      numeroDocumento: { type: string }
-                      razonSocial: { type: string, nullable: true }
-                      nombres: { type: string, nullable: true }
-                      apellidoPaterno: { type: string, nullable: true }
-                      apellidoMaterno: { type: string, nullable: true }
-                      paisCodigo: { type: integer, nullable: true, description: Codigo de ubigeo del SIE (solo empresa extranjera) }
-                      direccion: { type: string }
-                      telefono: { type: string, nullable: true }
-                      web: { type: string, nullable: true }
-                      friso: { type: string, nullable: true }
-                      correoFacturacion: { type: string }
-                      correoContrato: { type: string }
-                      correoPagos: { type: string }
-                  comercial:
-                    type: object
-                    properties:
-                      moneda: { type: string }
-                      tipoCambio: { type: number, nullable: true }
-                      modalidad: { type: string, nullable: true }
-                      netoLista: { type: number, nullable: true }
-                      descuentoMonto: { type: number, nullable: true }
-                      netoDescontado: { type: number, nullable: true }
-                      igv: { type: number, nullable: true }
-                      total: { type: number, nullable: true }
-                  stands:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        codigo: { type: string }
-                        standCode: { type: string }
-                        precioLista: { type: number }
-                        descuentoPorcentaje: { type: number, nullable: true }
-                        descuentoMonto: { type: number, nullable: true }
-                        neto: { type: number, nullable: true }
-                  cuotas:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        numero: { type: integer }
-                        porcentaje: { type: number }
-                        vencimiento: { type: string, format: date }
-                        monto: { type: number }
+                      Version: { type: string, description: Huella de 16 caracteres; cambia solo si cambian los datos vigentes }
+                      NumeroSolicitud: { type: string }
+                      TipEvCod: { type: integer }
+                      EvenCod: { type: integer }
+                      Stands: { type: array, items: { type: string } }
+                      TipoFacturacion: { type: string, enum: ["01", "03"] }
+                      TipDocFacturacion: { type: string, description: "6 RUC, 0 empresa extranjera, 1 DNI, 4 CE, 7 pasaporte" }
+                      NumDocFacturacion: { type: string }
+                      RazonSocial: { type: string, description: Empresa (tambien en boleta a empresa extranjera); ausente en boleta a persona natural }
+                      ApellidoPaternoFact: { type: string, description: Solo boleta a persona natural }
+                      ApellidoMaternoFact: { type: string }
+                      NombresFact: { type: string }
+                      DirFacturacion: { type: string }
+                      Pais: { type: integer, description: Codigo de ubigeo del SIE (solo empresa extranjera) }
+                      Web: { type: string }
+                      Telefono: { type: string }
+                      Friso: { type: string }
+                      Moneda: { type: string, enum: [USD, PEN] }
+                      TipoCambio: { type: string, description: Soles por dolar real; en USD el del evento (nunca 1) }
+                      Contactos:
+                        type: object
+                        properties:
+                          Contrato: { type: object, additionalProperties: true }
+                          Responsable: { type: object, additionalProperties: true }
+                          Pagos: { type: object, additionalProperties: true }
+                      Comercial:
+                        type: object
+                        properties:
+                          TipoDescuento: { type: string }
+                          SumaLista: { type: string }
+                          DescuentoTotal: { type: string }
+                          BaseImponible: { type: string }
+                          TasaIgv: { type: string }
+                          Igv: { type: string }
+                          Total: { type: string }
+                      StandsDetalle:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            Numero: { type: string }
+                            PrecioLista: { type: string }
+                            DescuentoPorcentaje: { type: string }
+                            DescuentoMonto: { type: string }
+                            PrecioNeto: { type: string }
+                      Cuotas:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            Porcentaje: { type: integer }
+                            Fecha: { type: string, format: date }
+                            TextoLibre: { type: string }
+                            BaseImponible: { type: string }
+                            Igv: { type: string }
+                            Monto: { type: string }
+                      Modalidad: { type: string }
         "400":
-          description: Falta numeroSolicitud/contrato o la solicitud no tiene datos de facturacion validos
+          description: Falta numeroSolicitud/contrato, o la solicitud no se puede armar (sin datos de facturacion, plan incompleto o evento sin tipo de cambio en USD); el message lo explica
         "401":
           description: Clave x-api-key ausente o invalida
         "404":

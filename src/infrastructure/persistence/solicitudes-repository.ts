@@ -1483,7 +1483,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
     if (!row) return null;
     const gessStands = row.gessStand ? [row.gessStand] : row.stands.map((s) => s.gessStand).filter((s): s is NonNullable<typeof s> => s !== null);
     const eventoId = gessStands[0]?.eventoId ?? null;
-    const evento = eventoId ? await prisma.evento.findUnique({ where: { id: eventoId }, select: { tipoEvento: true, codigoEvento: true } }) : null;
+    const evento = eventoId ? await prisma.evento.findUnique({ where: { id: eventoId }, select: { tipoEvento: true, codigoEvento: true, tipoCambio: true } }) : null;
     return {
       iimpContrato: row.iimpContrato ?? null,
       iimpCuentaCorriente: row.iimpCuentaCorriente ?? null,
@@ -1492,6 +1492,7 @@ export class SolicitudesPrismaRepository implements ISolicitudesRepository {
       tipoCambio: row.tipoCambio ?? null,
       tipoEvento: evento?.tipoEvento ?? null,
       codigoEvento: evento?.codigoEvento ?? null,
+      tipoCambioEvento: evento?.tipoCambio ?? null,
       stands: gessStands.map((s) => s.standApiId ?? s.standCode).filter(Boolean),
       standsPrecio: gessStands
         .map((s) => ({ codigo: s.standApiId ?? s.standCode, standCode: s.standCode, precioUsd: resolverPrecioStand(s) }))

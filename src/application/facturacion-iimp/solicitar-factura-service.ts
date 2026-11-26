@@ -31,7 +31,7 @@ import { extensionReserva } from "./extension-reserva-iimp";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { normalizarDocumentoPersona, normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { codigoUbigeoDePais } from "@/lib/shared/utils/pais";
-import { mapSolicitudVigente } from "./solicitud-vigente-mapper";
+import { createHash } from "node:crypto";
 import type { SolicitudVigenteResponseDTO } from "@/types/dto/facturacion/solicitud-vigente-response.dto";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
@@ -148,6 +148,33 @@ export class SolicitarFacturaApplicationService {
     }
   }
 
+  /** Cuotas del plan en el formato del IIMP: porcentajes enteros que suman 100 (la ultima absorbe el ajuste) y fecha AAAA-MM-DD. */
+  private cuotasDeReserva(datos: { planCuotas: { cuotas: Array<{ porcentaje: number; fechaVencimiento: string | null }> } | null }): ReservaIimpCuotaInput[] {
+    const cuotasPlan = datos.planCuotas?.cuotas ?? [];
+    if (cuotasPlan.length === 0) throw new DomainError("La solicitud no tiene plan de cuotas", API_ERROR_CODES.VALIDATION, 400);
+    if (cuotasPlan.length > MAX_CUOTAS_IIMP) {
+      throw new DomainError(`El IIMP permite hasta ${MAX_CUOTAS_IIMP} cuotas`, API_ERROR_CODES.VALIDATION, 400);
+    }
+    /* El IIMP exige porcentajes enteros que sumen 100: se redondea y el ultimo absorbe el ajuste. */
+    const porcentajes = cuotasPlan.map((c) => Math.round(c.porcentaje));
+    if (porcentajes.some((p) => p <= 0)) {
+      throw new DomainError("Los porcentajes de las cuotas deben ser enteros positivos", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const ultimoIdx = porcentajes.length - 1;
+    const ultimoAjustado = (porcentajes[ultimoIdx] ?? 0) + (CUOTAS_PORCENTAJE_TOTAL - porcentajes.reduce((s, p) => s + p, 0));
+    if (ultimoAjustado <= 0) {
+      throw new DomainError("No se pudo ajustar el plan de cuotas a porcentajes enteros", API_ERROR_CODES.VALIDATION, 400);
+    }
+    porcentajes[ultimoIdx] = ultimoAjustado;
+    return cuotasPlan.map((c, i) => {
+      const fecha = (c.fechaVencimiento ?? "").slice(0, 10);
+      if (!REGEX_FECHA_ISO.test(fecha)) {
+        throw new DomainError("El plan de cuotas no tiene fechas validas (AAAA-MM-DD)", API_ERROR_CODES.VALIDATION, 400);
+      }
+      return { porcentaje: porcentajes[i] ?? 1, fecha };
+    });
+  }
+
   /** Empresa vinculada a la solicitud: opcional (enriquece y cubre solicitudes sin snapshot). */
   private async resolverEmpresaDeSolicitud(datos: { email: string | null; datosFacturacion: DatosFacturacionSolicitud | null }) {
     const snapshot = datos.datosFacturacion;
@@ -161,9 +188,9 @@ export class SolicitarFacturaApplicationService {
   }
 
   /**
-   * API de solo lectura para el SIE: devuelve los datos VIGENTES de la solicitud (cliente facturado
-   * incluido) armados con la misma logica del envio, sin enviar ni modificar nada. Busca por
-   * `numeroSolicitud` o por `contrato`.
+   * API de solo lectura para el SIE: devuelve el MISMO body de `POST /stands/reserva` (PascalCase) con los
+   * datos VIGENTES de la solicitud, mas `Version` (huella). Reusa el armado del envio, asi lo que el SIE lee
+   * coincide con lo que se enviaria hoy. No envia ni modifica nada; no incluye `Archivos`, `Requisitos` ni `Origen`.
    */
   async consultarVigente(input: { numeroSolicitud?: string | null; contrato?: string | null }): Promise<SolicitudVigenteResponseDTO> {
     const numero = input.numeroSolicitud?.trim() ?? "";
@@ -181,16 +208,46 @@ export class SolicitarFacturaApplicationService {
     if (!snapshot && !empresa) {
       throw new DomainError("La solicitud no tiene datos de facturacion", API_ERROR_CODES.VALIDATION, 400);
     }
+    if (datos.tipoEvento === null || datos.codigoEvento === null) {
+      throw new DomainError("La solicitud no tiene un evento valido", API_ERROR_CODES.VALIDATION, 400);
+    }
+    if (datos.stands.length === 0) throw new DomainError("La solicitud no tiene stands", API_ERROR_CODES.VALIDATION, 400);
+
+    const cuotas = this.cuotasDeReserva(datos);
+    /* Texto libre de la factura: en la cuota desde la que se solicito (igual que en el envio). */
+    const requisitos = datos.requisitosFacturacion ? this.normalizarRequisitos(datos.requisitosFacturacion as RequisitosFacturacionInput) : null;
+    const cuotaOrigenGuardada = Number((datos.requisitosFacturacion as { cuota?: unknown } | null)?.cuota);
+    if (requisitos?.descripcionFactura) {
+      const indice = (Number.isInteger(cuotaOrigenGuardada) && cuotaOrigenGuardada > 0 ? cuotaOrigenGuardada : 1) - 1;
+      if (cuotas[indice]) cuotas[indice] = { ...cuotas[indice], textoLibre: requisitos.descripcionFactura };
+    }
     const numeroSolicitud = numeroSolicitudIImp(solicitudId);
+    const extension = extensionReserva({
+      moneda: datos.moneda,
+      tipoCambio: datos.tipoCambio,
+      plan: datos.planCuotas,
+      cuotas,
+      stands: datos.standsPrecio ?? [],
+      interna: false,
+      requisitos: null,
+      origen: null,
+      ahora: new Date(),
+      lecturaSie: true,
+      tipoCambioEvento: datos.tipoCambioEvento ?? null,
+    });
     const correoCliente = await this.resolverCorreoFacturacion(empresa, datos.email);
     const payload = await this.armarPayload(snapshot, empresa, correoCliente, {
+      ...extension,
       numeroSolicitud,
-      tipEvCod: datos.tipoEvento ?? 0,
-      evenCod: datos.codigoEvento ?? 0,
+      tipEvCod: datos.tipoEvento,
+      evenCod: datos.codigoEvento,
+      moneda: datos.moneda,
       stands: datos.stands,
-      cuotas: [],
+      cuotas: extension.cuotas ?? cuotas,
     });
-    return mapSolicitudVigente(numeroSolicitud, datos, payload);
+    const cuerpo = this.reserva.armarCuerpo(payload);
+    const version = createHash("sha256").update(JSON.stringify(cuerpo)).digest("hex").slice(0, 16);
+    return { Version: version, ...cuerpo };
   }
 
   /** Guarda en la bitacora (best-effort) lo que el usuario declaro cuando el SIE fallo; nunca oculta el error original. */
@@ -257,29 +314,8 @@ export class SolicitarFacturaApplicationService {
     if (datos.stands.length === 0) throw new DomainError("La solicitud no tiene stands", API_ERROR_CODES.VALIDATION, 400);
     if (datos.stands.length > MAX_STANDS_IIMP) throw new DomainError(`El IIMP permite reservar hasta ${MAX_STANDS_IIMP} stands por operacion`, API_ERROR_CODES.VALIDATION, 400);
 
+    const cuotas = this.cuotasDeReserva(datos);
     const cuotasPlan = datos.planCuotas?.cuotas ?? [];
-    if (cuotasPlan.length === 0) throw new DomainError("La solicitud no tiene plan de cuotas", API_ERROR_CODES.VALIDATION, 400);
-    if (cuotasPlan.length > MAX_CUOTAS_IIMP) {
-      throw new DomainError(`El IIMP permite hasta ${MAX_CUOTAS_IIMP} cuotas`, API_ERROR_CODES.VALIDATION, 400);
-    }
-    /* El IIMP exige porcentajes enteros que sumen 100: se redondea y el ultimo absorbe el ajuste. */
-    const porcentajes = cuotasPlan.map((c) => Math.round(c.porcentaje));
-    if (porcentajes.some((p) => p <= 0)) {
-      throw new DomainError("Los porcentajes de las cuotas deben ser enteros positivos", API_ERROR_CODES.VALIDATION, 400);
-    }
-    const ultimoIdx = porcentajes.length - 1;
-    const ultimoAjustado = (porcentajes[ultimoIdx] ?? 0) + (CUOTAS_PORCENTAJE_TOTAL - porcentajes.reduce((s, p) => s + p, 0));
-    if (ultimoAjustado <= 0) {
-      throw new DomainError("No se pudo ajustar el plan de cuotas a porcentajes enteros", API_ERROR_CODES.VALIDATION, 400);
-    }
-    porcentajes[ultimoIdx] = ultimoAjustado;
-    const cuotas: ReservaIimpCuotaInput[] = cuotasPlan.map((c, i) => {
-      const fecha = (c.fechaVencimiento ?? "").slice(0, 10);
-      if (!REGEX_FECHA_ISO.test(fecha)) {
-        throw new DomainError("El plan de cuotas no tiene fechas validas (AAAA-MM-DD)", API_ERROR_CODES.VALIDATION, 400);
-      }
-      return { porcentaje: porcentajes[i] ?? 1, fecha };
-    });
 
     /* Los archivos viajan en la misma reserva: se descartan los que no traen link (v3),
        se normaliza el link a URL absoluta y se validan con las reglas del IIMP. */

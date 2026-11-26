@@ -60,6 +60,14 @@ export interface ContextoExtensionReserva {
   requisitos: ReservaIimpRequisitos | null;
   origen: Omit<ReservaIimpOrigen, "sistema" | "registradoEn"> | null;
   ahora: Date;
+  /**
+   * Consulta de solo lectura del SIE: devuelve SIEMPRE `Comercial`, importes por cuota, `StandsDetalle`
+   * y `Modalidad` (tambien en USD, sin descuento y en solicitudes no internas) y el tipo de cambio REAL
+   * (en USD el del evento, nunca 1). El envio de la reserva no usa esta opcion.
+   */
+  lecturaSie?: boolean;
+  /** Tipo de cambio actual del evento (soles por dolar); lo usa la lectura del SIE en solicitudes USD. */
+  tipoCambioEvento?: number | null;
 }
 
 /** Tipo de cambio pactado: `1.0000` en USD; en PEN el del plan (o el de la solicitud). */
@@ -154,12 +162,21 @@ export function detalleStandsReserva(
 export function extensionReserva(ctx: ContextoExtensionReserva): Partial<ReservaIimpInput> {
   const esPen = ctx.moneda === MONEDAS.PEN;
   const plan = ctx.plan;
-  const tipoCambio = tipoCambioPactado(ctx.moneda, plan?.tipoCambio ?? ctx.tipoCambio);
+  const lectura = ctx.lecturaSie === true;
+  /* Lectura del SIE en USD: tipo de cambio real del evento (el SIE no acepta 1). */
+  const tcEvento = ctx.tipoCambioEvento;
+  let tipoCambio = tipoCambioPactado(ctx.moneda, plan?.tipoCambio ?? ctx.tipoCambio);
+  if (lectura && !esPen) {
+    if (!(typeof tcEvento === "number" && Number.isFinite(tcEvento) && tcEvento > 0)) {
+      throw invalido("El evento no tiene tipo de cambio configurado; el SIE exige el tipo de cambio real aun en dolares.");
+    }
+    tipoCambio = tcEvento.toFixed(4);
+  }
   if (esPen && !tipoCambio) {
     throw invalido("La solicitud en soles no tiene tipo de cambio pactado; no se puede enviar al SIE.");
   }
   const extra: Partial<ReservaIimpInput> = tipoCambio ? { tipoCambio } : {};
-  if (!ctx.interna && !esPen) return extra;
+  if (!lectura && !ctx.interna && !esPen) return extra;
 
   const completo =
     plan !== null &&
@@ -168,7 +185,7 @@ export function extensionReserva(ctx: ContextoExtensionReserva): Partial<Reserva
     typeof plan.igv === "number" &&
     typeof plan.netoLista === "number";
   if (!completo || !plan) {
-    if (esPen) throw invalido("El plan de pagos de la solicitud en soles esta incompleto; no se puede enviar al SIE.");
+    if (esPen || lectura) throw invalido("El plan de pagos de la solicitud esta incompleto; no se puede armar el detalle para el SIE.");
     return extra;
   }
   const netoLista = plan.netoLista as number;
@@ -208,7 +225,7 @@ export function extensionReserva(ctx: ContextoExtensionReserva): Partial<Reserva
 
   /* StandsDetalle es obligatorio con soles o con cualquier descuento. */
   const standsDetalle =
-    esPen || hayDescuento
+    esPen || hayDescuento || lectura
       ? detalleStandsReserva(plan, ctx.stands, ctx.moneda, plan.tipoCambio ?? ctx.tipoCambio, aCentavos(netoLista), baseC)
       : [];
 
@@ -217,6 +234,7 @@ export function extensionReserva(ctx: ContextoExtensionReserva): Partial<Reserva
     comercial,
     cuotas,
     ...(standsDetalle.length > 0 ? { standsDetalle } : {}),
+    ...(lectura && plan.modalidad ? { modalidad: plan.modalidad } : {}),
     ...(ctx.interna
       ? {
           ...(plan.modalidad ? { modalidad: plan.modalidad } : {}),

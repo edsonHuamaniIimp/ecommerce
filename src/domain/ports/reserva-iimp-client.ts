@@ -179,6 +179,8 @@ export interface ReservaIimpCuentaInput {
 }
 
 export interface IReservaIimpClient {
+  /** Cuerpo JSON (PascalCase) que se enviaria en `POST /stands/reserva`; funcion pura, no llama al IIMP. */
+  armarCuerpo(input: ReservaIimpInput): Record<string, unknown>;
   /** Registra la reserva (contrato + cuenta corriente). El IIMP factura cada cuota en su fecha. */
   reservar(input: ReservaIimpInput): Promise<ReservaIimpResponse>;
   /** Agrega archivos (hasta 20; todo o nada) y devuelve la lista completa de la cuenta. */

@@ -226,6 +226,10 @@ function lanzarError(res: Response, json: { mensaje?: string; identificador?: st
 }
 
 export class ReservaIimpClient implements IReservaIimpClient {
+  armarCuerpo(input: ReservaIimpInput): Record<string, unknown> {
+    return cuerpo(input);
+  }
+
   async reservar(input: ReservaIimpInput): Promise<ReservaIimpResponse> {
     const token = await obtenerTokenIimp();
     const res = await fetchIimp(`${getIimpApiUrl()}/stands/reserva`, {
