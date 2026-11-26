@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esPaisPeru, nombrePais, ordenarPaisesPorConteo, paisDeTexto } from "../pais";
+import { codigoUbigeoDePais, esPaisPeru, nombrePais, ordenarPaisesPorConteo, paisDeTexto } from "../pais";
 
 describe("paisDeTexto (mapper de pais: ISO, nombre y gentilicio)", () => {
   it("acepta codigo ISO alpha-2 y alpha-3 en cualquier caja", () => {
@@ -102,5 +102,28 @@ describe("ordenarPaisesPorConteo", () => {
       "BR",
       "PE",
     ]);
+  });
+});
+
+describe("codigoUbigeoDePais (codigo numerico del catalogo del SIE)", () => {
+  const catalogo = [
+    { codigo: 5, nombre: "ALEMANIA" },
+    { codigo: 75, nombre: "PERU" },
+    { codigo: 39, nombre: "CHILE" },
+    { codigo: 9, nombre: "ESTADOS UNIDOS" },
+  ];
+
+  it("resuelve el ISO al codigo del catalogo por nombre", () => {
+    expect(codigoUbigeoDePais("DE", catalogo)).toBe(5);
+    expect(codigoUbigeoDePais("pe", catalogo)).toBe(75);
+    expect(codigoUbigeoDePais("CL", catalogo)).toBe(39);
+    expect(codigoUbigeoDePais("US", catalogo)).toBe(9);
+  });
+
+  it("devuelve null si el pais no esta en el catalogo o el ISO no es valido", () => {
+    expect(codigoUbigeoDePais("JP", catalogo)).toBeNull();
+    expect(codigoUbigeoDePais("ZZ", catalogo)).toBeNull();
+    expect(codigoUbigeoDePais("", catalogo)).toBeNull();
+    expect(codigoUbigeoDePais(null, catalogo)).toBeNull();
   });
 });

@@ -24,7 +24,15 @@ export interface NuevaPersonaApi {
   celular?: string | null;
 }
 
+/** Pais del catalogo de ubigeo de servicio-persona (`GET /ubigeo/paises`). */
+export interface PaisUbigeoApi {
+  codigo: number;
+  nombre: string;
+}
+
 export interface IPersonaClient {
+  /** Catalogo de paises (codigo numerico + nombre) que el SIE exige en `Pais` para empresas extranjeras. */
+  listarPaises(): Promise<PaisUbigeoApi[]>;
   /**
    * Busca por documento exacto (DNI/CE/pasaporte); null si no existe en la fuente.
    * Con `tipoDocumento` usa `GET /personas/documento` (exacto, cualquier tipo);

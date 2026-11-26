@@ -96,6 +96,20 @@ export function paisDeTexto(valor: string | null | undefined): string | null {
   return INDICE.get(normalizarTexto(texto)) ?? null;
 }
 
+/**
+ * Codigo numerico del catalogo de ubigeo del SIE para un pais ISO alpha-2: busca la
+ * entrada del catalogo cuyo nombre (p. ej. "ALEMANIA") resuelve a ese mismo ISO.
+ * Devuelve `null` si el catalogo no trae el pais.
+ */
+export function codigoUbigeoDePais(
+  iso: string | null | undefined,
+  catalogo: ReadonlyArray<{ codigo: number; nombre: string }>,
+): number | null {
+  const objetivo = paisDeTexto(iso);
+  if (!objetivo) return null;
+  return catalogo.find((p) => paisDeTexto(p.nombre) === objetivo)?.codigo ?? null;
+}
+
 /** Opcion de pais para filtros con conteo opcional de registros. */
 export interface PaisOpcion {
   codigo: string;

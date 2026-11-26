@@ -30,6 +30,7 @@ import { numeroSolicitudIImp } from "./numero-solicitud";
 import { extensionReserva } from "./extension-reserva-iimp";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { normalizarDocumentoPersona, normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
+import { codigoUbigeoDePais } from "@/lib/shared/utils/pais";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
 
@@ -586,9 +587,21 @@ export class SolicitarFacturaApplicationService {
     if (!esExtranjera && !REGEX_RUC.test(ruc)) {
       throw new DomainError("La factura requiere un RUC de 11 digitos (revisa los datos de la solicitud)", API_ERROR_CODES.VALIDATION, 400);
     }
-    const pais = esExtranjera ? (empresa?.pais ?? "").trim().toUpperCase() : "";
-    if (esExtranjera && !/^[A-Z]{2}$/.test(pais)) {
+    const paisIso = esExtranjera ? (empresa?.pais ?? "").trim().toUpperCase() : "";
+    if (esExtranjera && !/^[A-Z]{2}$/.test(paisIso)) {
       throw new DomainError("La empresa extranjera no tiene pais (ISO de 2 letras); registralo en Empresas antes de facturar", API_ERROR_CODES.VALIDATION, 400);
+    }
+    /* El SIE exige `Pais` como codigo numerico de su catalogo de ubigeo (Alemania = 5), no el ISO. */
+    let pais: number | null = null;
+    if (esExtranjera) {
+      const catalogo = await this.personas.listarPaises().catch(() => null);
+      if (!catalogo) {
+        throw new DomainError("No se pudo consultar el catalogo de paises del SIE; reintenta en unos minutos", API_ERROR_CODES.INTERNAL, 502);
+      }
+      pais = codigoUbigeoDePais(paisIso, catalogo);
+      if (pais === null) {
+        throw new DomainError(`El pais ${paisIso} de la empresa no figura en el catalogo del SIE; corrigelo en Empresas antes de facturar`, API_ERROR_CODES.VALIDATION, 400);
+      }
     }
     const razonSocial = snapshot?.razonSocial?.trim() || empresa?.razonSocial?.trim() || "";
     if (!razonSocial) throw new DomainError("Falta la razon social en los datos de facturacion", API_ERROR_CODES.VALIDATION, 400);

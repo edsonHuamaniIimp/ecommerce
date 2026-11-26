@@ -110,8 +110,8 @@ export interface ReservaIimpInput {
   numDocFacturacion: string;
   /** Empresa: obligatorio con documento `6` (RUC) o `0` (extranjera). */
   razonSocial?: string | null;
-  /** Empresa extranjera (documento `0`): pais ISO 3166-1 alpha-2. */
-  pais?: string | null;
+  /** Empresa extranjera (documento `0`): codigo numerico del pais en el catalogo de ubigeo del SIE (Alemania = 5). */
+  pais?: number | null;
   /** Persona: obligatorios con documento `1` (DNI), `4` (CE) o `7` (pasaporte). */
   apellidoPaternoFact?: string | null;
   apellidoMaternoFact?: string | null;

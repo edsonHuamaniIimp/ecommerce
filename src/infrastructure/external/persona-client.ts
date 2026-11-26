@@ -6,7 +6,7 @@
  * Doc: docs/05-integraciones/guia-consumo-servicio-persona.md
  */
 import { enviarBinarioServicioPersona, peticionServicioPersona, resetServicioPersonaTokenCache } from "./servicio-persona-auth";
-import type { IPersonaClient, NuevaPersonaApi, PersonaApi } from "@/domain/ports/persona-client";
+import type { IPersonaClient, NuevaPersonaApi, PaisUbigeoApi, PersonaApi } from "@/domain/ports/persona-client";
 
 /** Limpia la cache de token (pruebas). */
 export function resetPersonaTokenCache(): void {
@@ -43,6 +43,17 @@ function cuerpoPersona(dto: NuevaPersonaApi): Record<string, string> {
 }
 
 export class PersonaApiClient implements IPersonaClient {
+  async listarPaises(): Promise<PaisUbigeoApi[]> {
+    const json = await peticionServicioPersona<unknown>("/ubigeo/paises");
+    const lista: unknown[] = Array.isArray(json) ? json : [];
+    return lista
+      .filter((p): p is PaisUbigeoApi => {
+        const fila = p as Partial<PaisUbigeoApi> | null;
+        return typeof fila?.codigo === "number" && typeof fila?.nombre === "string";
+      })
+      .map((p) => ({ codigo: p.codigo, nombre: p.nombre }));
+  }
+
   async buscarPorDocumento(documento: string, tipoDocumento?: string): Promise<PersonaApi | null> {
     if (tipoDocumento) {
       const json = await peticionServicioPersona<Record<string, unknown> | null>(
