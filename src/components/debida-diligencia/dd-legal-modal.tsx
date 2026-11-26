@@ -20,7 +20,7 @@ import {
   TabsTrigger,
   Textarea,
 } from "@nrivera-iimp/ui-kit-iimp";
-import { AlertCircle, CheckCircle2, Eye, FileText, Loader2, Scale, Upload, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, ClipboardList, Eye, FileText, Loader2, Scale, Upload, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DdDocumentoBadge, DdReputacionBadge } from "./dd-estado-badge";
 import { DdDocumentoPreviewDialog } from "./dd-documento-preview-dialog";
@@ -294,6 +294,12 @@ export function DdLegalModal({ fila, onClose, onDone }: Props) {
                 <Link href={DD_RUTAS.REPOSITORIO} target="_blank" rel="noreferrer">
                   <Eye className="h-3.5 w-3.5" />
                   <span>Centro documental</span>
+                </Link>
+              </Button>
+              <Button asChild type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                <Link href={`${DD_RUTAS.INFORMES}/${fila.id}`} target="_blank" rel="noreferrer">
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  <span>Informe DD</span>
                 </Link>
               </Button>
             </div>
