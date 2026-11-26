@@ -31,6 +31,8 @@ import { extensionReserva } from "./extension-reserva-iimp";
 import { normalizarDocumentoEmpresa, resolverTipoDocumentoEmpresa, validarDocumentoEmpresa } from "@/lib/shared/utils/documento-empresa";
 import { normalizarDocumentoPersona, normalizarTipoDocumentoPersona, validarDocumentoPersona } from "@/lib/shared/utils/documento-persona";
 import { codigoUbigeoDePais } from "@/lib/shared/utils/pais";
+import { mapSolicitudVigente } from "./solicitud-vigente-mapper";
+import type { SolicitudVigenteResponseDTO } from "@/types/dto/facturacion/solicitud-vigente-response.dto";
 import { requisitosVacios, type RequisitosFacturacionDeclarados } from "@/lib/shared/utils/requisitos-facturacion";
 import { diasParaHabilitarSolicitudFactura, solicitudFacturaHabilitada } from "@/lib/shared/utils/facturacion";
 
@@ -146,6 +148,51 @@ export class SolicitarFacturaApplicationService {
     }
   }
 
+  /** Empresa vinculada a la solicitud: opcional (enriquece y cubre solicitudes sin snapshot). */
+  private async resolverEmpresaDeSolicitud(datos: { email: string | null; datosFacturacion: DatosFacturacionSolicitud | null }) {
+    const snapshot = datos.datosFacturacion;
+    const empresaId = datos.email ? await this.auth.findEmpresaIdDeUsuario(datos.email).catch(() => null) : null;
+    let empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    /* Empresa extranjera: si el correo de la solicitud no pertenece a un usuario vinculado, se ubica por su documento (RUT/ID). */
+    if (!empresa && snapshot?.tipoDocumento?.trim() === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO && snapshot.numeroDocumento) {
+      empresa = await this.empresas.findByRuc(normalizarDocumentoEmpresa(snapshot.numeroDocumento)).catch(() => null);
+    }
+    return empresa;
+  }
+
+  /**
+   * API de solo lectura para el SIE: devuelve los datos VIGENTES de la solicitud (cliente facturado
+   * incluido) armados con la misma logica del envio, sin enviar ni modificar nada. Busca por
+   * `numeroSolicitud` o por `contrato`.
+   */
+  async consultarVigente(input: { numeroSolicitud?: string | null; contrato?: string | null }): Promise<SolicitudVigenteResponseDTO> {
+    const numero = input.numeroSolicitud?.trim() ?? "";
+    const contrato = input.contrato?.trim() ?? "";
+    if (!numero && !contrato) {
+      throw new DomainError("numeroSolicitud o contrato es obligatorio", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const solicitudId = numero ? await this.solicitudes.findSolicitudIdPorNumeroIImp(numero) : await this.solicitudes.findSolicitudIdPorContrato(contrato);
+    if (!solicitudId) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+    const datos = await this.solicitudes.datosReservaIImp(solicitudId);
+    if (!datos) throw new DomainError("Solicitud no encontrada", API_ERROR_CODES.NOT_FOUND, 404);
+
+    const snapshot = datos.datosFacturacion;
+    const empresa = await this.resolverEmpresaDeSolicitud(datos);
+    if (!snapshot && !empresa) {
+      throw new DomainError("La solicitud no tiene datos de facturacion", API_ERROR_CODES.VALIDATION, 400);
+    }
+    const numeroSolicitud = numeroSolicitudIImp(solicitudId);
+    const correoCliente = await this.resolverCorreoFacturacion(empresa, datos.email);
+    const payload = await this.armarPayload(snapshot, empresa, correoCliente, {
+      numeroSolicitud,
+      tipEvCod: datos.tipoEvento ?? 0,
+      evenCod: datos.codigoEvento ?? 0,
+      stands: datos.stands,
+      cuotas: [],
+    });
+    return mapSolicitudVigente(numeroSolicitud, datos, payload);
+  }
+
   /** Guarda en la bitacora (best-effort) lo que el usuario declaro cuando el SIE fallo; nunca oculta el error original. */
   private async registrarFallo(cuotaId: string, ident: ClienteIdent, origen: OrigenSolicitudFactura | null, captura: CapturaSolicitud, error: unknown): Promise<void> {
     if (!this.intentos || !captura.solicitudId || !captura.payload) return;
@@ -195,13 +242,7 @@ export class SolicitarFacturaApplicationService {
     }
 
     const snapshot = datos.datosFacturacion;
-    /* Empresa vinculada: opcional (enriquece y cubre solicitudes sin snapshot). */
-    const empresaId = datos.email ? await this.auth.findEmpresaIdDeUsuario(datos.email).catch(() => null) : null;
-    let empresa = empresaId ? await this.empresas.findById(empresaId) : null;
-    /* Empresa extranjera: si el correo de la solicitud no pertenece a un usuario vinculado, se ubica por su documento (RUT/ID). */
-    if (!empresa && snapshot?.tipoDocumento?.trim() === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO && snapshot.numeroDocumento) {
-      empresa = await this.empresas.findByRuc(normalizarDocumentoEmpresa(snapshot.numeroDocumento)).catch(() => null);
-    }
+    const empresa = await this.resolverEmpresaDeSolicitud(datos);
     if (!snapshot && !empresa) {
       throw new DomainError(
         "La solicitud no tiene datos de facturacion; registra la empresa en Empresas o vuelve a reservar",

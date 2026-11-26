@@ -791,3 +791,73 @@ describe("SolicitarFacturaApplicationService.requisitos de facturacion", () => {
     expect(m.reserva.reservar).not.toHaveBeenCalled();
   });
 });
+
+describe("SolicitarFacturaApplicationService.consultarVigente (API de lectura para el SIE)", () => {
+  function conLectura(m: ReturnType<typeof mocks>) {
+    (m.solicitudes as unknown as { findSolicitudIdPorNumeroIImp: unknown }).findSolicitudIdPorNumeroIImp = vi.fn(async () => "672ea54e-c291-423d-9627-1bd5ac25a303");
+    (m.solicitudes as unknown as { findSolicitudIdPorContrato: unknown }).findSolicitudIdPorContrato = vi.fn(async () => "672ea54e-c291-423d-9627-1bd5ac25a303");
+    return servicio(m);
+  }
+
+  it("boleta a empresa extranjera ya corregida: devuelve la EMPRESA (razon social, tipo 0, pais numerico y correo de facturacion)", async () => {
+    const m = mocks();
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, razonSocial: "Portwest UC", ruc: "84245291", tipoDocumento: "0", pais: "IE", emailFacturacion: "eduardo@portwest.com" } as unknown as EmpresaEntity);
+    vi.mocked(m.personas.listarPaises).mockResolvedValue([{ codigo: 134, nombre: "IRLANDA" }]);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      iimpContrato: "0000000045",
+      iimpCuentaCorriente: "45",
+      moneda: "USD",
+      tipoCambio: 1,
+      standsPrecio: [{ codigo: "184", standCode: "184", precioUsd: 9240 }, { codigo: "185", standCode: "185", precioUsd: 9240 }],
+      datosFacturacion: { ...snapshotFactura, tipoComprobante: "boleta", tipoDocumento: "0", numeroDocumento: "84245291", razonSocial: "Portwest UC", email: "eduardo@portwest.com" },
+    } as typeof datosBase);
+
+    const r = await conLectura(m).consultarVigente({ numeroSolicitud: "CTRS-672ea54ec291423d96271bd5a" });
+
+    expect(r.contrato).toBe("0000000045");
+    expect(r.facturacion).toMatchObject({
+      tipoComprobante: "03",
+      tipoDocumento: "0",
+      numeroDocumento: "84245291",
+      razonSocial: "Portwest UC",
+      paisCodigo: 134,
+      correoFacturacion: "eduardo@portwest.com",
+      nombres: null,
+    });
+    expect(r.stands).toHaveLength(2);
+    expect(r.cuotas).toHaveLength(2);
+    expect(r.version).toMatch(/^[0-9a-f]{16}$/);
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+  });
+
+  it("no envia ni modifica nada y no expone datos del representante", async () => {
+    const m = mocks();
+    const r = await conLectura(m).consultarVigente({ contrato: "0000000001" });
+    expect(m.reserva.reservar).not.toHaveBeenCalled();
+    expect(m.solicitudes.guardarReservaIImp).not.toHaveBeenCalled();
+    expect(JSON.stringify(r)).not.toMatch(/representante|pasaporte/i);
+  });
+
+  it("la version solo cambia cuando cambian los datos vigentes", async () => {
+    const m1 = mocks();
+    const m2 = mocks();
+    const a = await conLectura(m1).consultarVigente({ contrato: "x" });
+    const b = await conLectura(m2).consultarVigente({ contrato: "x" });
+    expect(a.version).toBe(b.version);
+
+    const m3 = mocks();
+    vi.mocked(m3.solicitudes.datosReservaIImp).mockResolvedValue({ ...datosBase, datosFacturacion: { ...snapshotFactura, razonSocial: "OTRA RAZON SOCIAL S.A." } } as typeof datosBase);
+    const c = await conLectura(m3).consultarVigente({ contrato: "x" });
+    expect(c.version).not.toBe(a.version);
+  });
+
+  it("sin numeroSolicitud ni contrato: 400; solicitud inexistente: 404", async () => {
+    const m = mocks();
+    await expect(servicio(m).consultarVigente({})).rejects.toMatchObject({ status: 400 });
+
+    const m2 = mocks();
+    (m2.solicitudes as unknown as { findSolicitudIdPorNumeroIImp: unknown }).findSolicitudIdPorNumeroIImp = vi.fn(async () => null);
+    await expect(servicio(m2).consultarVigente({ numeroSolicitud: "CTRS-nada" })).rejects.toMatchObject({ status: 404 });
+  });
+});

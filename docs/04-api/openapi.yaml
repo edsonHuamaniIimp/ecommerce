@@ -1497,6 +1497,95 @@ paths:
           description: Clave x-api-key ausente o invalida
         "404":
           description: Solicitud activa, facturacion o cuota no encontrada
+  /integracion/solicitud:
+    get:
+      tags: [Integracion]
+      summary: API entrante M2M de solo lectura — datos VIGENTES de una solicitud para que el SIE actualice su registro
+      description: >
+        Autenticacion por header `x-api-key` (clave compartida INTEGRACION_API_KEY; en local no se exige).
+        No envia ni modifica nada: arma la respuesta con la misma logica que el envio de la reserva, de modo que el
+        cliente facturado (empresa o persona), el comprobante, los montos, los stands y las cuotas son los vigentes
+        en la plataforma. `facturacion.paisCodigo` es el codigo numerico del catalogo de ubigeo del SIE
+        (Alemania = 5). No incluye datos personales del representante legal. `version` es una huella que cambia
+        solo cuando cambia algo, para que el SIE sepa si debe actualizarse. Guia: docs/05-integraciones/api-solicitud-vigente.md.
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: numeroSolicitud
+          in: query
+          description: Mismo NumeroSolicitud de la reserva (CTRS-...). Uno de numeroSolicitud/contrato
+          schema: { type: string }
+        - name: contrato
+          in: query
+          description: Alternativa a numeroSolicitud (contrato del SIE)
+          schema: { type: string }
+      responses:
+        "200":
+          description: Datos vigentes de la solicitud
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  numeroSolicitud: { type: string }
+                  contrato: { type: string, nullable: true }
+                  cuentaCorriente: { type: string, nullable: true }
+                  version: { type: string, description: Huella de 16 caracteres; cambia solo si cambian los datos vigentes }
+                  facturacion:
+                    type: object
+                    properties:
+                      tipoComprobante: { type: string, enum: ["01", "03"] }
+                      tipoDocumento: { type: string, description: "6 RUC, 0 empresa extranjera, 1 DNI, 4 CE, 7 pasaporte" }
+                      numeroDocumento: { type: string }
+                      razonSocial: { type: string, nullable: true }
+                      nombres: { type: string, nullable: true }
+                      apellidoPaterno: { type: string, nullable: true }
+                      apellidoMaterno: { type: string, nullable: true }
+                      paisCodigo: { type: integer, nullable: true, description: Codigo de ubigeo del SIE (solo empresa extranjera) }
+                      direccion: { type: string }
+                      telefono: { type: string, nullable: true }
+                      web: { type: string, nullable: true }
+                      friso: { type: string, nullable: true }
+                      correoFacturacion: { type: string }
+                      correoContrato: { type: string }
+                      correoPagos: { type: string }
+                  comercial:
+                    type: object
+                    properties:
+                      moneda: { type: string }
+                      tipoCambio: { type: number, nullable: true }
+                      modalidad: { type: string, nullable: true }
+                      netoLista: { type: number, nullable: true }
+                      descuentoMonto: { type: number, nullable: true }
+                      netoDescontado: { type: number, nullable: true }
+                      igv: { type: number, nullable: true }
+                      total: { type: number, nullable: true }
+                  stands:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        codigo: { type: string }
+                        standCode: { type: string }
+                        precioLista: { type: number }
+                        descuentoPorcentaje: { type: number, nullable: true }
+                        descuentoMonto: { type: number, nullable: true }
+                        neto: { type: number, nullable: true }
+                  cuotas:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        numero: { type: integer }
+                        porcentaje: { type: number }
+                        vencimiento: { type: string, format: date }
+                        monto: { type: number }
+        "400":
+          description: Falta numeroSolicitud/contrato o la solicitud no tiene datos de facturacion validos
+        "401":
+          description: Clave x-api-key ausente o invalida
+        "404":
+          description: Solicitud no encontrada
   /solicitudes/contrato-sgc:
     get:
       tags: [Solicitudes]
