@@ -8,6 +8,7 @@
   DD_ACCIONES_LEGAL,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_MENSAJES,
   DD_OBSERVACION_ESTADOS,
   DD_ORIGENES,
@@ -101,6 +102,14 @@ export const ddUtils = {
   /** true si el expediente admite edicion del cliente. */
   puedeEditar(estado: string | null | undefined): boolean {
     return !estado || ESTADOS_EDITABLES.includes(estado as DdEstado);
+  },
+
+  /**
+   * DD cerrada por SIN RESPUESTA (desde la matriz o por el cierre automatico): el expediente queda
+   * rechazado, pero para el cliente no es un NO APTO sino un cierre por no responder a tiempo.
+   */
+  cerradaSinRespuesta(estado: string | null | undefined, resultadoFinalMatriz: string | null | undefined): boolean {
+    return estado === DD_ESTADOS.RECHAZADA && resultadoFinalMatriz === DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA;
   },
 
   /** Validacion del paso 1: consentimientos obligatorios. */

@@ -18,7 +18,7 @@ import {
 } from "@/lib/shared/constants";
 import { archivoUtils } from "@/lib/shared/utils/archivo";
 import type { ColumnaExportacion } from "@/lib/shared/utils/export-tabla";
-import { listasAplicables } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import { listasAplicables, observacionesSigExportables } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { nombrePais } from "@/lib/shared/utils/pais";
 
 /** Texto de una celda no aplicable al ambito del vinculo (igual que la matriz oficial). */
@@ -182,7 +182,10 @@ export const COLUMNAS_MATRIZ_EXCEL: ColumnaMatrizExcel[] = [
     "vinculo",
   ),
   columnaGeneral("RESULTADO DE LA EVALUACION POR SIG", 18, (f) => etiqueta(DD_MATRIZ_RESULTADO_LABELS, bloque(f, "sig").resultado)),
-  columnaGeneral("OBSERVACIONES DE SIG", 40, (f) => bloque(f, "sig").observaciones),
+  /* Observacion anterior del vinculo + la de cada criterio marcado SI. */
+  columnaGeneral("OBSERVACIONES DE SIG", 40, (f) =>
+    observacionesSigExportables(bloque(f, "sig").observaciones, f.vinculo.listas, f.vinculo.listasObservaciones),
+  ),
   columnaGeneral("CONCLUSION DE SIG", 28, (f) => etiqueta(DD_MATRIZ_CONCLUSION_LABELS, bloque(f, "sig").conclusion)),
   columnaGeneral("FECHA DE EVALUACIÓN (REPUTACIONAL)", 16, (f) => fechaDe(bloque(f, "reputacional").fecha)),
   columnaGeneral("RESULTADO DE LA EVALUACION REPUTACIONAL", 18, (f) => etiqueta(DD_MATRIZ_RESULTADO_LABELS, bloque(f, "reputacional").resultado)),

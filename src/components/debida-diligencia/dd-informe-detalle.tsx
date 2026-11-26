@@ -261,6 +261,9 @@ export function DdInformeDetalle({ expedienteId }: Props) {
 
   const resumen = useMemo(() => resumenInforme(vinculos), [vinculos]);
   const observaciones = useMemo(() => observacionesInforme(vinculos), [vinculos]);
+  /* Sustento de SIG: la observacion de cada criterio marcado SI (todos los vinculos). */
+  const notasCriterios = useMemo(() => notasPorCriterios(vinculos, null), [vinculos]);
+  const totalObservaciones = notasCriterios.length + observaciones.length;
   const anexos = useMemo(() => evidenciasInforme(vinculos), [vinculos]);
   /* El PDF solo incluye los vinculos con observaciones (la vista en pantalla muestra todos). */
   const vinculosPdf = useMemo(() => vinculosConObservaciones(vinculos), [vinculos]);
@@ -576,22 +579,29 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                                   {vinculo.listas.map((lista) => (
                                     <div
                                       key={`${vinculo.id}-${lista.codigo}`}
-                                      className="flex items-center justify-between gap-2 rounded border border-border/70 px-2 py-1.5 text-[10px]"
+                                      className="rounded border border-border/70 px-2 py-1.5 text-[10px]"
                                     >
-                                      <span className="truncate text-muted-foreground">{lista.label}</span>
-                                      <span
-                                        className={`shrink-0 font-semibold ${
-                                          lista.valor === DD_MATRIZ_SI_NO_NA.SI
-                                            ? "text-warning"
-                                            : lista.valor
-                                              ? "text-foreground"
-                                              : "italic text-muted-foreground"
-                                        }`}
-                                      >
-                                        {lista.valor
-                                          ? DD_MATRIZ_SI_NO_NA_LABELS[lista.valor as keyof typeof DD_MATRIZ_SI_NO_NA_LABELS] ?? lista.valor
-                                          : "Pendiente"}
-                                      </span>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="truncate text-muted-foreground">{lista.label}</span>
+                                        <span
+                                          className={`shrink-0 font-semibold ${
+                                            lista.valor === DD_MATRIZ_SI_NO_NA.SI
+                                              ? "text-warning"
+                                              : lista.valor
+                                                ? "text-foreground"
+                                                : "italic text-muted-foreground"
+                                          }`}
+                                        >
+                                          {lista.valor
+                                            ? DD_MATRIZ_SI_NO_NA_LABELS[lista.valor as keyof typeof DD_MATRIZ_SI_NO_NA_LABELS] ?? lista.valor
+                                            : "Pendiente"}
+                                        </span>
+                                      </div>
+                                      {lista.valor === DD_MATRIZ_SI_NO_NA.SI && lista.observacion?.trim() ? (
+                                        <p className="mt-1 max-h-24 overflow-y-auto whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
+                                          {lista.observacion}
+                                        </p>
+                                      ) : null}
                                     </div>
                                   ))}
                                 </div>
@@ -656,15 +666,26 @@ export function DdInformeDetalle({ expedienteId }: Props) {
 
           <Card className="scroll-mt-4" id="observaciones">
             <CardContent className="space-y-3 p-5">
-              <SectionTitle icon={<AlertTriangle className="h-3.5 w-3.5" />} extra={`${observaciones.length} observación(es)`}>
+              <SectionTitle icon={<AlertTriangle className="h-3.5 w-3.5" />} extra={`${totalObservaciones} observación(es)`}>
                 4. Observaciones y sustento
               </SectionTitle>
-              {observaciones.length === 0 ? (
+              {totalObservaciones === 0 ? (
                 <p className="rounded-lg border border-dashed border-border bg-secondary/20 p-4 text-xs text-muted-foreground">
-                  No se registraron observaciones por área en los vínculos evaluados.
+                  No se registraron observaciones en los criterios ni por área en los vínculos evaluados.
                 </p>
               ) : (
                 <div className="space-y-2">
+                  {notasCriterios.map((nota) => (
+                    <div key={nota.id} className="rounded-lg border-l-4 border-l-warning border-y border-r border-border bg-warning/5 p-3">
+                      <p className="text-[11px] font-bold text-foreground">
+                        {nota.vinculo}
+                        <span className="ml-2 rounded bg-secondary px-1.5 py-0.5 text-[9px] font-semibold uppercase text-muted-foreground">
+                          Observación del criterio · {nota.criterio}
+                        </span>
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed text-foreground/80 [overflow-wrap:anywhere]">{nota.texto}</p>
+                    </div>
+                  ))}
                   {observaciones.map((observacion) => (
                     <div key={observacion.id} className="rounded-lg border-l-4 border-l-warning border-y border-r border-border bg-warning/5 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -867,7 +888,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                   { id: "datos", label: "Datos generales" },
                   { id: "vinculos", label: "Vínculos evaluados", cuenta: vinculos.length },
                   { id: "resultados", label: "Resultados por área" },
-                  { id: "observaciones", label: "Observaciones", cuenta: observaciones.length, alerta: observaciones.length > 0 },
+                  { id: "observaciones", label: "Observaciones", cuenta: totalObservaciones, alerta: totalObservaciones > 0 },
                   { id: "comunicaciones", label: "Comunicaciones", cuenta: reputacion.length },
                   { id: "legal", label: "Revisión legal" },
                   { id: "anexos", label: "Anexos y evidencias", cuenta: anexos.length },

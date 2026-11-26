@@ -257,6 +257,11 @@ export function DdRevisionMatrizTab({ detalle, vinculos, loading, error, matrizI
             {listas.map((lista) => (
               <DatoMatriz key={lista.codigo} etiqueta={lista.label}>
                 {lista.valor ? <DdMatrizSiNoNaBadge valor={lista.valor} /> : <span className="text-muted-foreground">Sin evaluar</span>}
+                {lista.observacion?.trim() ? (
+                  <span className="mt-1 block max-h-28 overflow-y-auto whitespace-pre-wrap text-[11px] font-normal text-foreground [overflow-wrap:anywhere]">
+                    {lista.observacion}
+                  </span>
+                ) : null}
               </DatoMatriz>
             ))}
           </div>

@@ -99,6 +99,9 @@ export function MiDebidaDiligencia() {
     data?.puedeRegularizarDeclaracionVigencia === true;
   const externoApto = estadoExterno?.aptoParaContratar === true;
   const editable = ddUtils.puedeEditar(expediente?.estado);
+  /* Cerrada (rechazada o SIN RESPUESTA): ya no se puede subsanar, solo presentar una nueva. */
+  const cerrada = expediente?.estado === DD_ESTADOS.RECHAZADA;
+  const cerradaSinRespuesta = data?.cerradaSinRespuesta === true;
   const observacionesAbiertas = ddUtils.observacionesAbiertasCliente(
     expediente?.observaciones ?? [],
     expediente?.documentos ?? [],
@@ -150,6 +153,8 @@ export function MiDebidaDiligencia() {
             Boolean(observacion.vinculoTipo)),
       );
     const enLegal = expediente.estado === DD_ESTADOS.EN_LEGAL;
+    /* En una DD cerrada las observaciones ya no se pueden corregir. */
+    const pendientes = rechazado ? "sin subsanar" : "por corregir";
     return [
       {
         titulo: "Formulario enviado",
@@ -179,10 +184,10 @@ export function MiDebidaDiligencia() {
         estado: observado ? DD_HITO_ESTADOS.ALERTA : revisado ? DD_HITO_ESTADOS.COMPLETADO : DD_HITO_ESTADOS.PENDIENTE,
         detalle: observado
           ? documentosObservadosCount > 0
-            ? `${documentosObservadosCount} documento(s) observado(s) por corregir.`
+            ? `${documentosObservadosCount} documento(s) observado(s) ${pendientes}.`
             : vinculosObservadosCount > 0
-              ? `${vinculosObservadosCount} vínculo(s) observado(s) por corregir.`
-              : `${observacionesAgrupadas.length} observación(es) por corregir.`
+              ? `${vinculosObservadosCount} vínculo(s) observado(s) ${pendientes}.`
+              : `${observacionesAgrupadas.length} observación(es) ${pendientes}.`
           : subsanadas
             ? reenviado
               ? "Enviaste las correcciones; quedan pendientes de una nueva revisión."
@@ -192,7 +197,7 @@ export function MiDebidaDiligencia() {
             : "Se mostrarán aquí si las hubiera.",
       },
       {
-        titulo: rechazado ? "Expediente rechazado" : "Aprobación final",
+        titulo: rechazado ? (cerradaSinRespuesta ? "Cerrada sin respuesta" : "Expediente rechazado") : "Aprobación final",
         fecha: aprobado ? expediente.fechaAprobacion : rechazado ? expediente.fechaRechazo : null,
         estado: aprobado ? DD_HITO_ESTADOS.COMPLETADO : rechazado ? DD_HITO_ESTADOS.ALERTA : DD_HITO_ESTADOS.PENDIENTE,
         detalle: aprobado
@@ -208,6 +213,7 @@ export function MiDebidaDiligencia() {
     ];
   }, [
     expediente,
+    cerradaSinRespuesta,
     observacionesAbiertas.length,
     observacionesAgrupadas.length,
     documentosObservadosCount,
@@ -380,7 +386,7 @@ export function MiDebidaDiligencia() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle><span className="text-base font-bold text-primary">Estado de la evaluación</span></CardTitle>
-                    <DdEstadoBadge estado={expediente.estado} />
+                    <DdEstadoBadge estado={expediente.estado} cerradaSinRespuesta={cerradaSinRespuesta} />
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Expediente {expediente.codigo} · {expediente.evento.nombre}
@@ -477,7 +483,7 @@ export function MiDebidaDiligencia() {
               </CardContent>
             </Card>
 
-            {observacionesAbiertas.length > 0 ? (
+            {observacionesAbiertas.length > 0 && !cerrada ? (
               <Card>
                 <CardHeader className="border-b border-border pb-4">
                   <CardTitle>
@@ -529,11 +535,13 @@ export function MiDebidaDiligencia() {
               </Card>
             ) : null}
 
-            {expediente.estado === DD_ESTADOS.RECHAZADA ? (
+            {cerrada ? (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <span className="block text-xs font-semibold">Debida diligencia rechazada</span>
+                  <span className="block text-xs font-semibold">
+                    {cerradaSinRespuesta ? "Debida diligencia cerrada sin respuesta" : "Debida diligencia rechazada"}
+                  </span>
                   <span className="text-xs">{expediente.motivoRechazo ?? "El rechazo definitivo se comunica mediante informe legal."}</span>
                 </AlertDescription>
               </Alert>

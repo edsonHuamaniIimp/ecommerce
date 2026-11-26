@@ -52,7 +52,13 @@ import { DdRevisionModal } from "./dd-revision-modal";
 import { useConfirm } from "@/hooks/use-confirm";
 import { debidaDiligenciaService } from "@/lib/client/api/services/debida-diligencia-service";
 import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
-import { fuenteAutomatizable, limiteObservacionLista, urlFuenteLista } from "@/lib/shared/utils/dd-matriz-evaluacion";
+import {
+  criteriosSiSinObservacion,
+  fuenteAutomatizable,
+  limiteObservacionLista,
+  tieneSustentoCriterios,
+  urlFuenteLista,
+} from "@/lib/shared/utils/dd-matriz-evaluacion";
 import {
   DD_MATRIZ_ADJUNTO_ACCEPT,
   DD_MATRIZ_AMBITO_LABELS,
@@ -65,6 +71,8 @@ import {
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_SI_NO_NA_LABELS,
+  DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE,
+  DD_MENSAJES,
   DD_REPUTACION_RESULTADO_LABELS,
   DD_RUTAS,
 } from "@/lib/shared/constants";
@@ -283,8 +291,29 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
       toast.error("La conclusión SIG no corresponde al resultado seleccionado.");
       return;
     }
-    if (resultadoSig === "observado" && !observaciones.trim()) {
-      toast.error("Registra la observación del vínculo antes de guardar.");
+    /* Cada criterio marcado SI se sustenta con su observacion (el backend aplica la misma regla). */
+    const listasActuales = Object.fromEntries(
+      Object.entries(decisiones).map(([codigo, decision]) => [codigo, valorMatriz(decision)]),
+    );
+    const sinObservacion = criteriosSiSinObservacion(
+      detalle.listas.map((lista) => lista.codigo),
+      listasActuales,
+      observacionesLista,
+    );
+    if (sinObservacion.length > 0) {
+      const labels = detalle.listas.filter((lista) => sinObservacion.includes(lista.codigo)).map((lista) => lista.label);
+      toast.error(`${DD_MENSAJES.MATRIZ_OBSERVACION_CRITERIO_REQUERIDA} ${labels.join(", ")}.`);
+      return;
+    }
+    if (
+      resultadoSig === "observado" &&
+      !observaciones.trim() &&
+      !tieneSustentoCriterios(
+        Object.fromEntries(Object.entries(listasActuales).filter((par): par is [string, string] => par[1] !== null)),
+        observacionesLista,
+      )
+    ) {
+      toast.error(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO);
       return;
     }
 
@@ -308,7 +337,8 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
         listasObservaciones,
         sig: {
           resultado: resultadoSig === "aceptado" ? DD_MATRIZ_RESULTADOS.ACEPTADO : DD_MATRIZ_RESULTADOS.OBSERVADO,
-          observaciones: observaciones.trim() || null,
+          /* Con el campo oculto no se envia: se conserva el texto anterior del vinculo. */
+          ...(DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE ? { observaciones: observaciones.trim() || null } : {}),
           conclusion: conclusionSig,
         },
         ...(detalle.reputacional.resultado && conclusionReputacional
@@ -344,7 +374,7 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
         borrador: true,
         listas,
         listasObservaciones,
-        sig: { observaciones: observaciones.trim() || null },
+        ...(DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE ? { sig: { observaciones: observaciones.trim() || null } } : {}),
       });
       /* Conserva lo que el usuario ya eligio en resultado/conclusion SIG (no forma parte del borrador). */
       setDetalle(actualizado);
@@ -651,6 +681,11 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
                         aria-label={`Observación de ${criterio.label}`}
                         className={enModal ? "min-h-[45vh] text-sm" : "min-h-40 text-xs"}
                       />
+                      {decisiones[criterio.codigo] === "si" && !texto.trim() ? (
+                        <p className="text-[11px] font-medium text-amber-700">
+                          Criterio marcado SI: registra su observación antes de «Guardar evaluación».
+                        </p>
+                      ) : null}
                       {puedeEditar ? (
                         <Button type="button" variant="outline" size="sm" className="h-7 w-full gap-1.5 text-[11px]" disabled={guardando} onClick={() => { void guardarBorrador(); }}>
                           {guardando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
@@ -735,22 +770,40 @@ export function DdMatrizDecisionVinculo({ id, onVolverRevision }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
-              <Label htmlFor="decision-observacion" className="text-[10px] font-semibold uppercase text-muted-foreground">
-                Sustento y observaciones
-              </Label>
-              <Textarea
-                id="decision-observacion"
-                value={observaciones}
-                onChange={(evento) => setObservaciones(evento.target.value)}
-                placeholder="Registra el hallazgo o la justificación de la decisión..."
-                className="min-h-32 text-xs"
-                disabled={!puedeEditar}
-              />
-              {hayObservados && !observaciones.trim() ? (
-                <p className="text-[11px] font-medium text-amber-700">
-                  Hay criterios observados: registra el sustento antes de guardar.
-                </p>
-              ) : null}
+              {DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE ? (
+                <>
+                  <Label htmlFor="decision-observacion" className="text-[10px] font-semibold uppercase text-muted-foreground">
+                    Sustento y observaciones
+                  </Label>
+                  <Textarea
+                    id="decision-observacion"
+                    value={observaciones}
+                    onChange={(evento) => setObservaciones(evento.target.value)}
+                    placeholder="Registra el hallazgo o la justificación de la decisión..."
+                    className="min-h-32 text-xs"
+                    disabled={!puedeEditar}
+                  />
+                  {hayObservados && !observaciones.trim() ? (
+                    <p className="text-[11px] font-medium text-amber-700">
+                      Hay criterios observados: registra el sustento antes de guardar.
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    El sustento se registra en la observación de cada criterio marcado SI.
+                  </p>
+                  {observaciones.trim() ? (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-semibold uppercase text-muted-foreground">Observación anterior del vínculo</p>
+                      <p className="whitespace-pre-wrap rounded-md border border-border bg-secondary/30 p-2.5 text-xs text-foreground [overflow-wrap:anywhere]">
+                        {observaciones}
+                      </p>
+                    </div>
+                  ) : null}
+                </>
+              )}
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={guardando} onClick={() => { void enviarComunicaciones(); }}>
                   <Send className="h-3.5 w-3.5" />

@@ -63,6 +63,7 @@ export const debidaDiligenciaController = {
       requiereDeclaracionVigencia: resultado.requiereDeclaracionVigencia,
       puedeRegularizarDeclaracionVigencia: resultado.puedeRegularizarDeclaracionVigencia,
       declaracionVigenciaEstado: resultado.declaracionVigenciaEstado,
+      cerradaSinRespuesta: resultado.cerradaSinRespuesta,
     };
     return success(data);
   },

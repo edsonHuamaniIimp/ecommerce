@@ -189,6 +189,8 @@ export interface IDebidaDiligenciaRepository {
     expedienteIds?: string[];
     max: number;
   }): Promise<DdConclusionMatrizCierre[]>;
+  /** Conclusion final guardada en la fila de empresa de la matriz; null si no hay fila o no se registro. */
+  findResultadoFinalMatriz(expedienteId: string): Promise<string | null>;
   /** Registra la conclusion final en la fila de empresa de la matriz (cierre automatico). */
   registrarResultadoFinalMatriz(
     expedienteId: string,

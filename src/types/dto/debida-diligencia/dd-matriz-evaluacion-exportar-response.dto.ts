@@ -31,6 +31,8 @@ export interface DdMatrizExportVinculoDTO {
   ambito: string;
   pais: string | null;
   listas: Record<string, string>;
+  /** Observacion de cada criterio (codigo -> texto): sustento de los criterios marcados SI. */
+  listasObservaciones: Record<string, string>;
   sig: DdMatrizBloqueDTO;
   reputacional: DdMatrizBloqueDTO;
   compliance: DdMatrizBloqueDTO;

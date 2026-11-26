@@ -16,6 +16,9 @@ import {
   resultadoFinalEfectivo,
   estadoExpedienteDeResultadoFinal,
   urlFuenteLista,
+  criteriosSiSinObservacion,
+  observacionesSigExportables,
+  tieneSustentoCriterios,
 } from "../dd-matriz-evaluacion";
 import {
   DD_ESTADOS,
@@ -33,6 +36,7 @@ import {
   DD_REPUTACION_RESULTADOS,
   DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_TIPOS_VINCULO,
+  DD_MENSAJES,
 } from "@/lib/shared/constants";
 
 describe("normalizarTextoMatriz", () => {
@@ -286,6 +290,28 @@ describe("listasAplicables", () => {
   });
 });
 
+describe("sustento en los criterios marcados SI", () => {
+  const listas = { oefa: DD_MATRIZ_SI_NO_NA.SI, indecopi: DD_MATRIZ_SI_NO_NA.SI, peps_prp_empresa: DD_MATRIZ_SI_NO_NA.NO };
+
+  it("criteriosSiSinObservacion: solo los SI sin texto y solo de los codigos revisados", () => {
+    const observaciones = { oefa: "Multa 10 UIT", indecopi: "   " };
+    expect(criteriosSiSinObservacion(["oefa", "indecopi", "peps_prp_empresa"], listas, observaciones)).toEqual(["indecopi"]);
+    expect(criteriosSiSinObservacion(["oefa"], listas, observaciones)).toEqual([]);
+  });
+
+  it("tieneSustentoCriterios: al menos un SI con observacion", () => {
+    expect(tieneSustentoCriterios(listas, { oefa: "Multa" })).toBe(true);
+    expect(tieneSustentoCriterios(listas, { peps_prp_empresa: "Texto en un NO" })).toBe(false);
+    expect(tieneSustentoCriterios(listas, {})).toBe(false);
+  });
+
+  it("observacionesSigExportables: texto anterior y criterios en SI en el orden de la matriz", () => {
+    const texto = observacionesSigExportables("Anterior", listas, { indecopi: "Reclamo fundado", oefa: "Multa", peps_prp_empresa: "No va" });
+    expect(texto).toBe("Anterior\nQuejas o reporte desde INDECOPI: Reclamo fundado\nReportes infracciones OEFA: Multa");
+    expect(observacionesSigExportables(null, listas, {})).toBeNull();
+  });
+});
+
 describe("evaluarBloqueArea (reglas del proceso)", () => {
   it("ACEPTADO completa la conclusion por defecto como SIN OBSERVACIONES", () => {
     const r = evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, { resultado: "ACEPTADO" });
@@ -320,6 +346,19 @@ describe("evaluarBloqueArea (reglas del proceso)", () => {
     });
     expect(ok.errores).toEqual([]);
     expect(ok.valor.conclusion).toBe(DD_MATRIZ_CONCLUSIONES.REQUIERE_DD_REFORZADA);
+  });
+
+  it("SIG OBSERVADO se sustenta con criterios en SI con observacion (sin el texto del vinculo)", () => {
+    const base = { resultado: "OBSERVADO", conclusion: "SIN OBSERVACIONES" };
+    const sinSustento = evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, base);
+    expect(sinSustento.errores).toContain(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO);
+    expect(evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, { ...base, sustentoCriterios: true }).errores).toEqual([]);
+    /* El texto anterior del vinculo sigue valiendo como sustento. */
+    expect(evaluarBloqueArea(DD_MATRIZ_AREAS.SIG, { ...base, observaciones: "Texto anterior" }).errores).toEqual([]);
+    /* Compliance no cambia: sigue exigiendo su observacion. */
+    expect(
+      evaluarBloqueArea(DD_MATRIZ_AREAS.COMPLIANCE, { resultado: "OBSERVADO", conclusion: "OBSERVADO", sustentoCriterios: true }).errores,
+    ).toContain("Una evaluación OBSERVADA exige registrar la observación");
   });
 
   it("EN REVISION sin resultado es valido (solo conocimiento interno)", () => {

@@ -50,6 +50,7 @@ function fila(parcial: {
       ambito: "nacional",
       pais: "PE",
       listas: { indecopi: "no", oefa: "si" },
+      listasObservaciones: {},
       sig: { ...BLOQUE },
       reputacional: { ...BLOQUE },
       compliance: { ...BLOQUE },
@@ -74,6 +75,25 @@ describe("matriz oficial: estructura", () => {
     expect(COLUMNAS_MATRIZ_EXCEL[col("HAY REPORTES DE CORRUPCIÓN / SOBORNO / LAVADO")]?.color).toBe(DD_MATRIZ_COLORES.NACIONAL);
     expect(COLUMNAS_MATRIZ_EXCEL[0]?.color).toBe(DD_MATRIZ_COLORES.COMUN);
     expect(COLUMNAS_MATRIZ_EXCEL[53]?.color).toBe(DD_MATRIZ_COLORES.COMUN);
+  });
+});
+
+describe("filaMatrizExcel: OBSERVACIONES DE SIG", () => {
+  it("arma la columna con la observacion anterior del vinculo y la de cada criterio en SI", () => {
+    const v = filaMatrizExcel(
+      fila({
+        vinculo: {
+          listas: { indecopi: "no", oefa: "si" },
+          listasObservaciones: { oefa: "RD 0123-2025: multa 10 UIT", indecopi: "No se considera (criterio en NO)" },
+          sig: { ...BLOQUE, observaciones: "Texto anterior" },
+        },
+      }),
+    );
+    expect(v[col("OBSERVACIONES DE SIG")]).toBe("Texto anterior\nReportes infracciones OEFA: RD 0123-2025: multa 10 UIT");
+  });
+
+  it("sin texto anterior ni criterios en SI con observacion queda vacia", () => {
+    expect(filaMatrizExcel(fila({}))[col("OBSERVACIONES DE SIG")]).toBe("");
   });
 });
 

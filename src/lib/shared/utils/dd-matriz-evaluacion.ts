@@ -20,9 +20,12 @@ import {
   DD_MATRIZ_RESULTADO_LABELS,
   DD_MATRIZ_RESULTADOS,
   DD_MATRIZ_RESULTADOS_FINALES,
+  DD_MATRIZ_EXCEL_CELDA_MAX,
+  DD_MATRIZ_SI_NO_NA,
   DD_MATRIZ_SI_NO_NA_ALIAS,
   DD_MATRIZ_SI_NO_NA_LABELS,
   DD_MATRIZ_TIPOS_VINCULO,
+  DD_MENSAJES,
   DD_REPUTACION_RESULTADO_LABELS,
   DD_REPUTACION_RESULTADOS,
   type DdMatrizAmbito,
@@ -259,6 +262,11 @@ export interface BloqueAreaEntrada {
   resultado?: unknown;
   observaciones?: string | null;
   conclusion?: unknown;
+  /**
+   * Solo SIG: hay al menos un criterio marcado SI con su observacion. Sustenta un resultado
+   * OBSERVADO sin el texto del vinculo (oculto en el editor).
+   */
+  sustentoCriterios?: boolean;
 }
 
 export interface BloqueAreaValor {
@@ -325,7 +333,12 @@ export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada
   }
 
   if (resultado === DD_MATRIZ_RESULTADOS.OBSERVADO) {
-    if (!observaciones) errores.push("Una evaluación OBSERVADA exige registrar la observación");
+    if (area === DD_MATRIZ_AREAS.SIG) {
+      /* SIG sustenta con los criterios marcados SI; el texto anterior del vinculo tambien vale. */
+      if (!observaciones && !entrada.sustentoCriterios) errores.push(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO);
+    } else if (!observaciones) {
+      errores.push("Una evaluación OBSERVADA exige registrar la observación");
+    }
     if (!conclusionFinal) {
       errores.push("Una evaluación OBSERVADA exige elegir la conclusión");
     } else if (!esCompliance && conclusionFinal === DD_MATRIZ_CONCLUSIONES.EN_REVISION) {
@@ -334,6 +347,42 @@ export function evaluarBloqueArea(area: DdMatrizArea, entrada: BloqueAreaEntrada
   }
 
   return { valor: { resultado, observaciones, conclusion: conclusionFinal }, errores };
+}
+
+const esSi = (valor: string | null | undefined): boolean => valor === DD_MATRIZ_SI_NO_NA.SI;
+const conTexto = (valor: string | null | undefined): boolean => Boolean(valor?.trim());
+
+/** Hay al menos un criterio marcado SI con su observacion: sustenta la evaluacion de SIG. */
+export function tieneSustentoCriterios(listas: Record<string, string>, observaciones: Record<string, string>): boolean {
+  return Object.entries(listas).some(([codigo, valor]) => esSi(valor) && conTexto(observaciones[codigo]));
+}
+
+/** De `codigos`, los marcados SI que no tienen observacion (cada SI se sustenta en su criterio). */
+export function criteriosSiSinObservacion(
+  codigos: readonly string[],
+  listas: Record<string, string | null>,
+  observaciones: Record<string, string | null>,
+): string[] {
+  return codigos.filter((codigo) => esSi(listas[codigo]) && !conTexto(observaciones[codigo]));
+}
+
+/**
+ * Columna OBSERVACIONES DE SIG del Excel: la observacion anterior del vinculo (si existe) y la de
+ * cada criterio marcado SI, en el orden de la matriz oficial («Criterio: texto», una por linea).
+ */
+export function observacionesSigExportables(
+  anterior: string | null | undefined,
+  listas: Record<string, string>,
+  observaciones: Record<string, string>,
+): string | null {
+  const vistos = new Set<string>();
+  const criterios = DD_MATRIZ_LISTAS.filter((lista) => {
+    if (vistos.has(lista.codigo) || !esSi(listas[lista.codigo]) || !conTexto(observaciones[lista.codigo])) return false;
+    vistos.add(lista.codigo);
+    return true;
+  }).map((lista) => `${lista.label}: ${observaciones[lista.codigo]!.trim()}`);
+  const partes = [anterior?.trim() ?? "", ...criterios].filter(Boolean);
+  return partes.length > 0 ? partes.join("\n").slice(0, DD_MATRIZ_EXCEL_CELDA_MAX) : null;
 }
 
 /**

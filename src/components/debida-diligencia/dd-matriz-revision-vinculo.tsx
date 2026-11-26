@@ -322,7 +322,14 @@ export function DdMatrizRevisionVinculo({ id, onEditar }: Props) {
                       <PildoraLista valor={lista.valor} vacio={lista.codigo === DD_MATRIZ_LISTA_OTROS ? "Opcional" : "Pendiente"} />
                     </td>
                     <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
-                      {observacionLista(lista.valor)}
+                      {lista.observacion?.trim() ? (
+                        /* Observacion del criterio registrada por SIG (sustento de un SI). */
+                        <span className="block max-h-40 overflow-y-auto whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
+                          {lista.observacion}
+                        </span>
+                      ) : (
+                        observacionLista(lista.valor)
+                      )}
                     </td>
                   </tr>
                 ))}

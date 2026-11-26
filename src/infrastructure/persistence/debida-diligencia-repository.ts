@@ -1007,6 +1007,14 @@ export class DebidaDiligenciaPrismaRepository implements IDebidaDiligenciaReposi
     }));
   }
 
+  async findResultadoFinalMatriz(expedienteId: string): Promise<string | null> {
+    const row = await prisma.ddMatrizVinculo.findFirst({
+      where: { expedienteId, tipo: DD_MATRIZ_TIPOS_VINCULO.EMPRESA },
+      select: { resultadoFinal: true },
+    });
+    return row?.resultadoFinal ?? null;
+  }
+
   async registrarResultadoFinalMatriz(
     expedienteId: string,
     data: { resultadoFinal: string; comentario: string | null; actor: string; fecha: Date },

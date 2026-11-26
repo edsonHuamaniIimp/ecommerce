@@ -105,6 +105,8 @@ interface DdMiExpedienteResultado {
   requiereDeclaracionVigencia: boolean;
   puedeRegularizarDeclaracionVigencia: boolean;
   declaracionVigenciaEstado: string | null;
+  /** Cerrada por SIN RESPUESTA (conclusion final de la matriz), no por un NO APTO. */
+  cerradaSinRespuesta: boolean;
 }
 
 /**
@@ -371,6 +373,10 @@ export class DebidaDiligenciaApplicationService {
     const puedeRegularizarDeclaracionVigencia = expediente
       ? ddUtils.puedeCargarDeclaracionVigencia(expediente, eventoId)
       : false;
+    /* La conclusion de la matriz solo se consulta si el expediente esta cerrado. */
+    const cerradaSinRespuesta =
+      expediente?.estado === DD_ESTADOS.RECHAZADA &&
+      ddUtils.cerradaSinRespuesta(expediente.estado, await this.repo.findResultadoFinalMatriz(expediente.id));
     return {
       expediente,
       empresa,
@@ -379,6 +385,7 @@ export class DebidaDiligenciaApplicationService {
       requiereDeclaracionVigencia,
       puedeRegularizarDeclaracionVigencia,
       declaracionVigenciaEstado,
+      cerradaSinRespuesta,
     };
   }
 

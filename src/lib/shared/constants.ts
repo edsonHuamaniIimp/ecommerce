@@ -1575,6 +1575,10 @@ export const DD_MATRIZ_PER_PAGE_MAX = 500;
 export const DD_MENSAJES = {
   /** Regla «Exigir evidencia por campo aplicable» (Configuración DD); se completa con los criterios. */
   MATRIZ_EVIDENCIA_REQUERIDA: "Sube al menos una evidencia en estos criterios (regla «Exigir evidencia por campo aplicable»):",
+  /** Un criterio marcado SI se sustenta con su observacion (se completa con los criterios). */
+  MATRIZ_OBSERVACION_CRITERIO_REQUERIDA: "Registra la observación del criterio en estos criterios marcados SI:",
+  /** Resultado SIG OBSERVADO: el sustento esta en los criterios marcados SI. */
+  MATRIZ_OBSERVADO_SIN_CRITERIO: "Una evaluación OBSERVADA exige al menos un criterio marcado SI con su observación",
   EDICION_DOCUMENTACION_RECIBIDA:
     "Recibimos tu documentación y está pendiente de revisión. No se puede modificar mientras se revisa.",
   EDICION_EN_REVISION: "El expediente está en revisión. Espera el resultado antes de modificarlo.",
@@ -2746,6 +2750,8 @@ export const DD_MATRIZ_PER_PAGE_DEFAULT = 10;
 export const DD_MATRIZ_EVAL_PER_PAGE_MAX = 100;
 /** Maximo de vinculos por exportacion a Excel. */
 export const DD_MATRIZ_EXPORT_MAX = 5000;
+/** Caracteres por celda al exportar (Excel admite hasta 32767). */
+export const DD_MATRIZ_EXCEL_CELDA_MAX = 32000;
 
 /** Filtros de la lista de la matriz de evaluacion. */
 export const DD_MATRIZ_FILTRO_TODOS = "todos";
@@ -2804,6 +2810,13 @@ export const DD_MATRIZ_EVIDENCIAS_VISIBLES = 3;
 
 /** Prefijo de las categorias de evidencia por criterio (`criterio_<codigo>`). */
 export const DD_MATRIZ_CRITERIO_PREFIJO = "criterio_";
+
+/**
+ * «Sustento y observaciones» del vinculo (observacion de SIG): oculto desde que el sustento se
+ * registra en la observacion de cada criterio marcado SI. El campo se conserva (Excel, informe y
+ * datos anteriores); con true vuelve a mostrarse en el editor del vinculo.
+ */
+export const DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE = false;
 
 /** Estados de la automatizacion general de evidencias de un vinculo. */
 export const DD_AUTOMATIZACION_ESTADOS = {

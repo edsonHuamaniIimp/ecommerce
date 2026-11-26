@@ -199,6 +199,7 @@ export function mapDdMatrizExportFilaToDTO(item: DdMatrizExportItem): DdMatrizEv
       ambito: vinculo.ambito,
       pais: vinculo.pais,
       listas: vinculo.listas,
+      listasObservaciones: vinculo.listasObservaciones,
       sig: mapBloque(vinculo.sig),
       reputacional: mapBloque(vinculo.reputacional),
       compliance: mapBloque(vinculo.compliance),

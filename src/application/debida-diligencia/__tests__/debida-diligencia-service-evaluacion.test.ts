@@ -10,6 +10,7 @@ import {
   DD_DOCUMENTO_ESTADOS,
   DD_DOCUMENTOS,
   DD_ESTADOS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_ORIGENES,
   DD_RESULTADOS,
   PERMISSIONS,
@@ -53,6 +54,7 @@ function crearServicio(
     findExpedienteAprobadoVigentePorEmpresaEvento: vi.fn().mockResolvedValue(expediente),
     findEmpresaResumen: vi.fn().mockResolvedValue(empresaId ? EMPRESA : null),
     findEmpresaEstado: vi.fn().mockResolvedValue(estadoExterno),
+    findResultadoFinalMatriz: vi.fn().mockResolvedValue(null),
   } as unknown as IDebidaDiligenciaRepository;
   const authRepo = {
     findEmpresaIdDeUsuario: vi.fn().mockResolvedValue(empresaId),
@@ -67,6 +69,39 @@ function crearServicio(
 }
 
 describe("obtenerMiExpediente", () => {
+  const SESION_CLIENTE = {
+    email: "cliente@iimp.org.pe",
+    roles: [],
+    permissions: [PERMISSIONS.DD_FORMULARIO],
+    eventoId: "evento-1",
+  };
+
+  it("DD cerrada con conclusion SIN RESPUESTA en la matriz: el cliente la ve como cerrada sin respuesta", async () => {
+    const { servicio, repo } = crearServicio({ ...EXPEDIENTE_BASE, estado: DD_ESTADOS.RECHAZADA } as DdExpedienteEntity);
+    (repo.findResultadoFinalMatriz as ReturnType<typeof vi.fn>).mockResolvedValue(DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA);
+
+    const resultado = await servicio.obtenerMiExpediente(SESION_CLIENTE);
+
+    expect(repo.findResultadoFinalMatriz).toHaveBeenCalledWith(EXPEDIENTE_BASE.id);
+    expect(resultado.cerradaSinRespuesta).toBe(true);
+  });
+
+  it("DD rechazada por NO APTO: no es un cierre sin respuesta", async () => {
+    const { servicio, repo } = crearServicio({ ...EXPEDIENTE_BASE, estado: DD_ESTADOS.RECHAZADA } as DdExpedienteEntity);
+    (repo.findResultadoFinalMatriz as ReturnType<typeof vi.fn>).mockResolvedValue(DD_MATRIZ_RESULTADOS_FINALES.NO_APTO);
+
+    expect((await servicio.obtenerMiExpediente(SESION_CLIENTE)).cerradaSinRespuesta).toBe(false);
+  });
+
+  it("DD abierta: no consulta la conclusion de la matriz", async () => {
+    const { servicio, repo } = crearServicio({ ...EXPEDIENTE_BASE, estado: DD_ESTADOS.OBSERVADA } as DdExpedienteEntity);
+
+    const resultado = await servicio.obtenerMiExpediente(SESION_CLIENTE);
+
+    expect(repo.findResultadoFinalMatriz).not.toHaveBeenCalled();
+    expect(resultado.cerradaSinRespuesta).toBe(false);
+  });
+
   it("usa la DD aprobada vigente de otro evento cuando no hay DD en el evento activo", async () => {
     const { servicio, repo } = crearServicio(null);
     const otroEvento = {

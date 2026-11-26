@@ -9,6 +9,8 @@ import {
   DD_DOCUMENTO_ESTADOS,
   DD_ESTADO_LABELS,
   DD_ESTADOS,
+  DD_MATRIZ_RESULTADO_FINAL_LABELS,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_REPUTACION_ESTADO_LABELS,
   DD_REPUTACION_ESTADOS,
 } from "@/lib/shared/constants";
@@ -18,10 +20,13 @@ export function DdEstadoBadge({
   estado,
   sinIniciarLabel = "Sin iniciar",
   declaracionVigenciaEstado = null,
+  cerradaSinRespuesta = false,
 }: {
   estado: string | null | undefined;
   sinIniciarLabel?: string;
   declaracionVigenciaEstado?: string | null;
+  /** Rechazada por SIN RESPUESTA (conclusion de la matriz): se muestra SIN RESPUESTA y no NO APTO. */
+  cerradaSinRespuesta?: boolean;
 }) {
   if (declaracionVigenciaEstado === DD_DECLARACION_VIGENCIA_ESTADOS.NO_ENVIO) {
     return (
@@ -66,6 +71,14 @@ export function DdEstadoBadge({
       <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.SUCCESS}`}>
         <CheckCircle2 className="h-2.5 w-2.5" />
         <span>{label}</span>
+      </Badge>
+    );
+  }
+  if (estado === DD_ESTADOS.RECHAZADA && cerradaSinRespuesta) {
+    return (
+      <Badge className={`pointer-events-none gap-1 text-[10px] ${BADGE_STYLES.NEUTRAL}`}>
+        <Clock className="h-2.5 w-2.5" />
+        <span>{DD_MATRIZ_RESULTADO_FINAL_LABELS[DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA]}</span>
       </Badge>
     );
   }

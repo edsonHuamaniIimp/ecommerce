@@ -6,6 +6,7 @@ import {
   DD_DOCUMENTOS_REQUERIDOS,
   DD_ESTADOS,
   DD_ESTADOS_EVALUACION,
+  DD_MATRIZ_RESULTADOS_FINALES,
   DD_OBSERVACION_AREAS,
   DD_OBSERVACION_ESTADOS,
   DD_OBSERVACION_VINCULO_TIPOS,
@@ -249,6 +250,15 @@ describe("ddUtils.validarDocumentos", () => {
       declaraVerdad: true,
     });
     expect(resultado).toContain("nueva versión");
+  });
+});
+
+describe("ddUtils.cerradaSinRespuesta", () => {
+  it("solo si el expediente esta cerrado y la matriz concluyo SIN RESPUESTA", () => {
+    expect(ddUtils.cerradaSinRespuesta(DD_ESTADOS.RECHAZADA, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA)).toBe(true);
+    expect(ddUtils.cerradaSinRespuesta(DD_ESTADOS.RECHAZADA, DD_MATRIZ_RESULTADOS_FINALES.NO_APTO)).toBe(false);
+    expect(ddUtils.cerradaSinRespuesta(DD_ESTADOS.RECHAZADA, null)).toBe(false);
+    expect(ddUtils.cerradaSinRespuesta(DD_ESTADOS.OBSERVADA, DD_MATRIZ_RESULTADOS_FINALES.SIN_RESPUESTA)).toBe(false);
   });
 });
 

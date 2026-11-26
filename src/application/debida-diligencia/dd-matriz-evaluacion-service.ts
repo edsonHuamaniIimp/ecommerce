@@ -49,6 +49,7 @@ import {
 import {
   comunicacionesAprobadas,
   complianceDesbloqueado,
+  criteriosSiSinObservacion,
   derivarAmbito,
   evaluarBloqueArea,
   limiteObservacionLista,
@@ -58,6 +59,7 @@ import {
   normalizarTextoMatriz,
   resolverPais,
   resultadoFinalEditable,
+  tieneSustentoCriterios,
 } from "@/lib/shared/utils/dd-matriz-evaluacion";
 import { paisDeTexto } from "@/lib/shared/utils/pais";
 
@@ -164,6 +166,30 @@ export class DdMatrizEvaluacionApplicationService {
     if (faltantes.length > 0) {
       throw new DomainError(
         `${DD_MENSAJES.MATRIZ_EVIDENCIA_REQUERIDA} ${faltantes.join(", ")}.`,
+        API_ERROR_CODES.VALIDATION,
+        400,
+      );
+    }
+  }
+
+  /**
+   * Cada criterio marcado SI se sustenta con su observacion (reemplaza al «Sustento y observaciones»
+   * del vinculo). Solo revisa los criterios que llegan en la peticion; el borrador no lo exige.
+   */
+  private validarObservacionListas(
+    enviados: string[],
+    listas: DdMatrizListasValor,
+    observaciones: DdMatrizListasObservacion,
+    vinculo: DdMatrizVinculoEntity,
+    ambito: DdMatrizAmbito,
+  ): void {
+    const aplicables = listasAplicables(vinculo.tipo, ambito, vinculo.tipoDocumento);
+    const revisar = aplicables.map((lista) => lista.codigo).filter((codigo) => enviados.includes(codigo));
+    const faltantes = criteriosSiSinObservacion(revisar, listas, observaciones);
+    if (faltantes.length > 0) {
+      const labels = aplicables.filter((lista) => faltantes.includes(lista.codigo)).map((lista) => lista.label);
+      throw new DomainError(
+        `${DD_MENSAJES.MATRIZ_OBSERVACION_CRITERIO_REQUERIDA} ${labels.join(", ")}.`,
         API_ERROR_CODES.VALIDATION,
         400,
       );
@@ -451,9 +477,21 @@ export class DdMatrizEvaluacionApplicationService {
       cambios.listasObservaciones = this.mapearListasObservaciones(dto.listasObservaciones, vinculo, ambitoEfectivo);
     }
 
+    const listasEfectivas = cambios.listas ?? vinculo.listas;
+    const observacionesEfectivas = cambios.listasObservaciones ?? vinculo.listasObservaciones;
+    if (dto.listas || dto.listasObservaciones) {
+      this.validarObservacionListas(
+        [...Object.keys(dto.listas ?? {}), ...Object.keys(dto.listasObservaciones ?? {})],
+        listasEfectivas,
+        observacionesEfectivas,
+        vinculo,
+        ambitoEfectivo,
+      );
+    }
+
     if (dto.sig) {
       if (!permisos.editarSig) this.prohibido("Sin permiso para registrar la evaluación de SIG");
-      const evaluado = this.evaluar(DD_MATRIZ_AREAS.SIG, vinculo.sig, dto.sig);
+      const evaluado = this.evaluar(DD_MATRIZ_AREAS.SIG, vinculo.sig, dto.sig, tieneSustentoCriterios(listasEfectivas, observacionesEfectivas));
       cambios.sig = { ...evaluado, ...this.sello(dto.sig, ahora, session.email) };
     }
 
@@ -830,16 +868,21 @@ export class DdMatrizEvaluacionApplicationService {
     if (!delCentroDocumental && !permitidoPorArea) this.prohibido("Sin permiso para gestionar este adjunto");
   }
 
-  /** Combina el bloque existente con lo enviado y aplica las reglas del proceso. */
+  /**
+   * Combina el bloque existente con lo enviado y aplica las reglas del proceso. `sustentoCriterios`
+   * (solo SIG): hay criterios marcados SI con su observacion.
+   */
   private evaluar(
     area: (typeof DD_MATRIZ_AREAS)[keyof typeof DD_MATRIZ_AREAS],
     actual: DdMatrizBloque,
     entrada: { resultado?: string | null; observaciones?: string | null; conclusion?: string | null },
+    sustentoCriterios = false,
   ): Pick<DdMatrizBloque, "resultado" | "observaciones" | "conclusion"> {
     const evaluado = evaluarBloqueArea(area, {
       resultado: entrada.resultado !== undefined ? entrada.resultado : actual.resultado,
       observaciones: entrada.observaciones !== undefined ? entrada.observaciones : actual.observaciones,
       conclusion: entrada.conclusion !== undefined ? entrada.conclusion : actual.conclusion,
+      sustentoCriterios,
     });
     if (evaluado.errores.length > 0) {
       throw new DomainError(evaluado.errores.join(". "), API_ERROR_CODES.VALIDATION, 400);
@@ -918,12 +961,12 @@ export class DdMatrizEvaluacionApplicationService {
     if (dto.sig?.observaciones !== undefined) {
       if (!permisos.editarSig) this.prohibido("Sin permiso para registrar la evaluación de SIG");
       const texto = dto.sig.observaciones?.trim() || null;
-      if (!texto && vinculo.sig.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO) {
-        throw new DomainError(
-          "Una evaluación OBSERVADA exige registrar la observación",
-          API_ERROR_CODES.VALIDATION,
-          400,
-        );
+      const sustentoCriterios = tieneSustentoCriterios(
+        cambios.listas ?? vinculo.listas,
+        cambios.listasObservaciones ?? vinculo.listasObservaciones,
+      );
+      if (!texto && !sustentoCriterios && vinculo.sig.resultado === DD_MATRIZ_RESULTADOS.OBSERVADO) {
+        throw new DomainError(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO, API_ERROR_CODES.VALIDATION, 400);
       }
       cambios.sig = { observaciones: texto };
     }

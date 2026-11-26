@@ -218,12 +218,12 @@ export function evidenciasConHallazgo(detalles: DdMatrizEvaluacionDetalleDTO[]):
 }
 
 /**
- * Observaciones de los criterios dados, solo de criterios con resultado SI (los mismos cuyas
- * evidencias se anexan). La empresa titular va primero.
+ * Observaciones de los criterios dados (null = todos), solo de criterios con resultado SI (los
+ * mismos cuyas evidencias se anexan). La empresa titular va primero.
  */
 export function notasPorCriterios(
   detalles: DdMatrizEvaluacionDetalleDTO[],
-  codigos: readonly string[],
+  codigos: readonly string[] | null,
 ): DdInformeNotaCriterio[] {
   const notas: DdInformeNotaCriterio[] = [];
   const ordenados = [...detalles].sort(
@@ -233,7 +233,7 @@ export function notasPorCriterios(
   for (const detalle of ordenados) {
     for (const lista of detalle.listas) {
       const texto = lista.observacion?.trim();
-      if (!texto || lista.valor !== DD_MATRIZ_SI_NO_NA.SI || !codigos.includes(lista.codigo)) continue;
+      if (!texto || lista.valor !== DD_MATRIZ_SI_NO_NA.SI || (codigos && !codigos.includes(lista.codigo))) continue;
       notas.push({
         id: `${detalle.id}-${lista.codigo}`,
         vinculo: detalle.nombre,

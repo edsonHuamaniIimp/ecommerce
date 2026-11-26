@@ -170,6 +170,11 @@ export interface DdMiExpedienteDTO {
   puedeRegularizarDeclaracionVigencia: boolean;
   /** Estado del documento declaracion_vigencia; null si aun no existe. */
   declaracionVigenciaEstado: string | null;
+  /**
+   * La DD se cerro por SIN RESPUESTA (conclusion final de la matriz, manual o por el cierre
+   * automatico): el expediente esta rechazado, pero el cliente debe verlo como SIN RESPUESTA.
+   */
+  cerradaSinRespuesta: boolean;
 }
 
 

@@ -158,6 +158,17 @@ La matriz debe seguir siendo reconocible como Excel aunque use controles web.
 16. **Relación comercial distinta:** nueva DD.
 17. **Cualquier relación `NO APTO` bloquea toda la empresa.**
 18. **La exportación debe conservar las 54 columnas y la estructura AQ–BB.**
+19. **El sustento de SIG va en la observación de cada criterio marcado SI.**
+    - **Guardar evaluación** no guarda si un criterio está en SI sin su observación, y nombra los criterios que faltan. **Guardar borrador** no lo exige.
+    - **Resultado SIG `OBSERVADO`** exige al menos un criterio en SI con su observación. El texto anterior del vínculo, si existe, también vale como sustento.
+    - **«Sustento y observaciones» del vínculo** (`sig.observaciones`) está oculto en el editor (`DD_MATRIZ_SUSTENTO_VINCULO_VISIBLE = false`), pero el campo se conserva:
+      - el editor lo muestra solo para lectura cuando ya tiene texto;
+      - en el Excel, la columna OBSERVACIONES DE SIG reúne ese texto y la observación de cada criterio en SI.
+    - **Dónde se muestra la observación del criterio:**
+      - vista del vínculo en modo lectura;
+      - pestaña Matriz de «Revisar expediente»;
+      - informe en pantalla, en la sección «Observaciones y sustento» y en los controles de cada vínculo;
+      - PDF del informe, por grupo de criterios.
 
 ## 7. Criterios de aceptación
 

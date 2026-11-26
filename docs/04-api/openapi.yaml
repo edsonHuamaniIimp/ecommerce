@@ -2226,6 +2226,8 @@ paths:
         Con `ids` devuelve solo esos vinculos; sin `ids` aplica los mismos filtros de la lista. Cada fila trae
         los datos generales de la empresa y las respuestas de listas del vinculo; el cliente arma el .xlsx con
         las 54 columnas (A-BB) de la matriz oficial. Maximo 5000 vinculos. Queda en auditoria.
+        `vinculo.listasObservaciones` (codigo -> texto) trae la observacion de cada criterio: la columna
+        OBSERVACIONES DE SIG reune el texto anterior del vinculo y las observaciones de los criterios marcados SI.
       requestBody:
         required: true
         content:
@@ -3243,6 +3245,11 @@ components:
             puedeRegularizarDeclaracionVigencia:
               type: boolean
               description: La DD aprobada/vigente de otro evento no tiene declaracion o la tiene observada.
+            cerradaSinRespuesta:
+              type: boolean
+              description: >-
+                La DD se cerro por SIN RESPUESTA (conclusion final de la matriz, manual o por el cierre
+                automatico). El expediente queda rechazado, pero el portal lo muestra como SIN RESPUESTA y no NO APTO.
     DdMisExpedientesResponse:
       type: object
       properties:

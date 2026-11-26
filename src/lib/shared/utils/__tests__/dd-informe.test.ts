@@ -229,6 +229,15 @@ describe("observaciones por criterio en el informe", () => {
     expect(notasPorCriterios([empresa], DD_INFORME_GRUPOS_OBSERVACION.OEFA)).toEqual([]);
   });
 
+  it("sin grupo (null) trae la observacion de todos los criterios en SI (seccion Observaciones y sustento)", () => {
+    const empresa = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "Empresa Uno S.A.C.", [
+      ["oefa", "no", "no debe salir"],
+      ["indecopi", "si", "Reclamo fundado."],
+      ["osce", "si", "Multa firme del TCE."],
+    ]);
+    expect(notasPorCriterios([empresa], null).map((n) => n.texto)).toEqual(["Reclamo fundado.", "Multa firme del TCE."]);
+  });
+
   it("un vinculo con una observacion de criterio entra al informe", () => {
     const con = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "A", [["osce", "no", "algo"]]);
     const sin = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "B", [["osce", "no", null]]);

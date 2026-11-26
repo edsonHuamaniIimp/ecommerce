@@ -636,7 +636,7 @@ describe("DdMatrizEvaluacionApplicationService", () => {
 
     it("exigir evidencia: SI con evidencia del criterio y NO sin evidencia se guardan", async () => {
       const { servicio, repo } = crear(vinculo(), [evidencia("peps_prp_persona")], { exigirEvidencia: true });
-      await servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" } });
+      await servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" }, listasObservaciones: { peps_prp_persona: "Coincidencia confirmada" } });
       expect(repo.actualizarVinculo).toHaveBeenCalledTimes(1);
     });
 
@@ -651,12 +651,47 @@ describe("DdMatrizEvaluacionApplicationService", () => {
 
     it("con la regla apagada, SI sin evidencia se guarda; el borrador nunca la exige", async () => {
       const apagada = crear(vinculo(), [], { exigirEvidencia: false });
-      await apagada.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" } });
+      await apagada.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" }, listasObservaciones: { peps_prp_persona: "Sustento" } });
       expect(apagada.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
 
       const borrador = crear(vinculo(), [], { exigirEvidencia: true });
       await borrador.servicio.guardar(s, { id: "v-1", borrador: true, listas: { peps_prp_persona: "si" } });
       expect(borrador.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+    });
+
+    it("observacion por criterio: un SI sin observacion no se guarda y nombra el criterio; el borrador no la exige", async () => {
+      const sinObservacion = crear(vinculo(), [], { exigirEvidencia: false });
+      await expect(sinObservacion.servicio.guardar(s, { id: "v-1", listas: { peps_prp_persona: "si" } })).rejects.toMatchObject({
+        status: 400,
+        message: expect.stringContaining(DD_MENSAJES.MATRIZ_OBSERVACION_CRITERIO_REQUERIDA),
+      });
+      expect(sinObservacion.repo.actualizarVinculo).not.toHaveBeenCalled();
+
+      /* Tambien al borrar la observacion de un criterio que ya estaba en SI. */
+      const yaEnSi = crear(vinculo({ listas: { peps_prp_persona: "si" }, listasObservaciones: { peps_prp_persona: "Texto" } }), [], { exigirEvidencia: false });
+      await expect(yaEnSi.servicio.guardar(s, { id: "v-1", listasObservaciones: { peps_prp_persona: null } })).rejects.toMatchObject({ status: 400 });
+
+      const borrador = crear(vinculo(), [], { exigirEvidencia: false });
+      await borrador.servicio.guardar(s, { id: "v-1", borrador: true, listas: { peps_prp_persona: "si" } });
+      expect(borrador.repo.actualizarVinculo).toHaveBeenCalledTimes(1);
+    });
+
+    it("resultado SIG OBSERVADO: se sustenta con un criterio en SI con observacion, sin el texto del vinculo", async () => {
+      const sinCriterio = crear(vinculo(), [], { exigirEvidencia: false });
+      await expect(
+        sinCriterio.servicio.guardar(s, { id: "v-1", sig: { resultado: "OBSERVADO", conclusion: "SIN OBSERVACIONES" } }),
+      ).rejects.toMatchObject({ status: 400, message: expect.stringContaining(DD_MENSAJES.MATRIZ_OBSERVADO_SIN_CRITERIO) });
+
+      const conCriterio = crear(vinculo(), [], { exigirEvidencia: false });
+      await conCriterio.servicio.guardar(s, {
+        id: "v-1",
+        listas: { peps_prp_persona: "si" },
+        listasObservaciones: { peps_prp_persona: "Figura como PEP" },
+        sig: { resultado: "OBSERVADO", conclusion: "REQUIERE DEBIDA DILIGENCIA REFORZADA" },
+      });
+      const cambios = conCriterio.repo.actualizarVinculo.mock.calls[0]?.[1] as { sig: { resultado: string; observaciones: string | null } };
+      expect(cambios.sig.resultado).toBe("observado");
+      expect(cambios.sig.observaciones).toBeNull();
     });
 
     it("el asistente de IA solo se habilita con la regla encendida y para SIG", async () => {
