@@ -1263,8 +1263,8 @@ export const DIAS_HABILITACION_SOLICITUD_FACTURA = 30;
 /** Maximo de correos internos que reciben avisos de nuevas solicitudes. */
 export const MAX_RECEPTORES_NOTIFICACIONES_SOLICITUDES = 5;
 
-/** Maximo de stands por operacion de reserva que acepta el API del IIMP. */
-export const MAX_STANDS_IIMP = 50;
+/** Maximo de stands por operacion de reserva que acepta el API del IIMP (ampliado de 50 por pabellones de 80 stands). */
+export const MAX_STANDS_IIMP = 100;
 
 /** Porcentaje total (entero) que deben sumar las cuotas enviadas al IIMP. */
 export const CUOTAS_PORCENTAJE_TOTAL = 100;

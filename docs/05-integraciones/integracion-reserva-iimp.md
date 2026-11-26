@@ -70,7 +70,7 @@ vinculada es opcional y solo enriquece):
 |---|---|
 | `NumeroSolicitud` | Determinista desde `solicitud.id` (`numeroSolicitudIImp()`: `CTRS-` + 25 chars, máx 30). Único: una solicitud, una reserva |
 | `TipEvCod`, `EvenCod` | `evento.tipoEvento` / `evento.codigoEvento` de la versión activa (vía `gess_stand`) |
-| `Stands` | `gess_stand.standApiId` (o `standCode`) de la solicitud; máximo 50 |
+| `Stands` | `gess_stand.standApiId` (o `standCode`) de la solicitud; máximo 100 (`MAX_STANDS_IIMP`; antes 50) |
 | `TipoFacturacion` | `solicitud.datos_facturacion.tipoComprobante` (`factura` → `01`, `boleta` → `03`) |
 | `TipDocFacturacion` | RUC `6` (factura) / DNI `1` (boleta) según `tipoDocumento` |
 | `NumDocFacturacion` | `datos_facturacion.numeroDocumento` (respaldo: `empresa.ruc`) |

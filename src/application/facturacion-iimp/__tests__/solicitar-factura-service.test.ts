@@ -455,6 +455,27 @@ describe("SolicitarFacturaApplicationService", () => {
     });
   });
 
+  describe("tope de stands por operacion", () => {
+    const conStands = (m: ReturnType<typeof mocks>, n: number) => {
+      const stands = Array.from({ length: n }, (_, i) => String(i + 1));
+      vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({ ...datosBase, stands } as typeof datosBase);
+    };
+
+    it("una solicitud de 80 stands (pabellon) se envia al SIE", async () => {
+      const m = mocks();
+      conStands(m, 80);
+      await servicio(m).solicitar("c1", ident, ADJUNTOS);
+      expect(vi.mocked(m.reserva.reservar).mock.calls[0]?.[0].stands).toHaveLength(80);
+    });
+
+    it("mas de 100 stands se rechaza antes de llamar al SIE", async () => {
+      const m = mocks();
+      conStands(m, 101);
+      await expect(servicio(m).solicitar("c1", ident, ADJUNTOS)).rejects.toMatchObject({ status: 400, message: expect.stringContaining("100") });
+      expect(m.reserva.reservar).not.toHaveBeenCalled();
+    });
+  });
+
   it("factura sin empresa vinculada: el snapshot alcanza", async () => {
     const m = mocks();
     vi.mocked(m.auth.findEmpresaIdDeUsuario).mockResolvedValue(null);
