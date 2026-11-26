@@ -1,4 +1,6 @@
 import {
+  DD_INFORME_CRITERIOS_DETALLAR,
+  DD_INFORME_GRUPOS_OBSERVACION,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_CRITERIO_PREFIJO,
   DD_MATRIZ_RESULTADOS,
@@ -53,6 +55,8 @@ export interface DdInformeObservacion {
 /** Observacion de un criterio lista para el informe. */
 export interface DdInformeNotaCriterio {
   id: string;
+  /** Codigo del criterio (lista restrictiva). */
+  codigo: string;
   /** Vinculo al que pertenece el criterio. */
   vinculo: string;
   /** true cuando la nota es de la empresa titular (no hace falta nombrar al vinculo). */
@@ -236,6 +240,7 @@ export function notasPorCriterios(
       if (!texto || lista.valor !== DD_MATRIZ_SI_NO_NA.SI || (codigos && !codigos.includes(lista.codigo))) continue;
       notas.push({
         id: `${detalle.id}-${lista.codigo}`,
+        codigo: lista.codigo,
         vinculo: detalle.nombre,
         esTitular: detalle.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA,
         criterio: lista.label,
@@ -244,6 +249,37 @@ export function notasPorCriterios(
     }
   }
   return notas;
+}
+
+/** Criterios con lugar propio en el informe oficial: grupos de la seccion 6 / 3.1 y los «Detallar». */
+const CODIGOS_CON_SECCION = new Set<string>([
+  ...Object.values(DD_INFORME_GRUPOS_OBSERVACION).flat(),
+  ...Object.values(DD_INFORME_CRITERIOS_DETALLAR),
+]);
+
+/**
+ * Observaciones de los criterios en SI sin seccion propia en el informe oficial (listas
+ * internacionales, bancarizado, central de riesgo de personas...): van en OTROS con su criterio.
+ */
+export function notasCriteriosSinSeccion(detalles: DdMatrizEvaluacionDetalleDTO[]): DdInformeNotaCriterio[] {
+  return notasPorCriterios(detalles, null).filter((nota) => !CODIGOS_CON_SECCION.has(nota.codigo));
+}
+
+/**
+ * Texto del «Detallar» de un criterio en el informe oficial: su observacion con cualquier valor
+ * (SIG puede detallar tambien un NO). La empresa va primero; en las personas se antepone el nombre.
+ */
+export function detalleCriterio(detalles: DdMatrizEvaluacionDetalleDTO[], codigo: string): string | null {
+  const ordenados = [...detalles].sort(
+    (a, b) =>
+      Number(b.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA) - Number(a.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA),
+  );
+  const textos = ordenados.flatMap((detalle) => {
+    const texto = detalle.listas.find((lista) => lista.codigo === codigo)?.observacion?.trim();
+    if (!texto) return [];
+    return [detalle.tipo === DD_MATRIZ_TIPOS_VINCULO.EMPRESA ? texto : `${detalle.nombre}: ${texto}`];
+  });
+  return textos.length > 0 ? textos.join(" ") : null;
 }
 
 export function resumenInforme(detalles: DdMatrizEvaluacionDetalleDTO[]): DdInformeResumen {

@@ -40,6 +40,7 @@ import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { sunatService } from "@/lib/client/api/services/sunat-service";
 import {
   DD_MATRIZ_ADJUNTO_CATEGORIA_LABELS,
+  DD_INFORME_CRITERIOS_DETALLAR,
   DD_INFORME_GRUPOS_OBSERVACION,
   DD_MATRIZ_EVAL_PER_PAGE_MAX,
   DD_MATRIZ_RESULTADO_FINAL_LABELS,
@@ -66,6 +67,8 @@ import {
   evidenciasInforme,
   observacionesInforme,
   notasPorCriterios,
+  notasCriteriosSinSeccion,
+  detalleCriterio,
   type DdInformeNotaCriterio,
   vinculosConObservaciones,
   resumenInforme,
@@ -143,14 +146,18 @@ function responsableArea(
   return responsables.length > 0 ? [...new Set(responsables)].join(", ") : null;
 }
 
-/** Observaciones de criterios dentro del informe; no desborda con textos largos. */
-function NotasEvidencia({ notas }: { notas: DdInformeNotaCriterio[] }) {
+/**
+ * Observaciones de criterios dentro del informe; no desborda con textos largos. `conCriterio` antepone
+ * el nombre del criterio (secciones que reunen varios criterios, como OTROS).
+ */
+function NotasEvidencia({ notas, conCriterio = false }: { notas: DdInformeNotaCriterio[]; conCriterio?: boolean }) {
   if (notas.length === 0) return null;
   return (
     <ol className="list-decimal space-y-1 pl-4">
       {notas.map((nota) => (
         <li key={nota.id} className="whitespace-pre-wrap break-words">
-          {nota.esTitular ? null : <strong>{nota.vinculo}: </strong>}
+          {nota.esTitular ? null : <strong>{nota.vinculo}{conCriterio ? " · " : ": "}</strong>}
+          {conCriterio ? <strong>{nota.criterio}: </strong> : null}
           {nota.texto}
         </li>
       ))}
@@ -267,6 +274,8 @@ export function DdInformeDetalle({ expedienteId }: Props) {
   const anexos = useMemo(() => evidenciasInforme(vinculos), [vinculos]);
   /* El PDF solo incluye los vinculos con observaciones (la vista en pantalla muestra todos). */
   const vinculosPdf = useMemo(() => vinculosConObservaciones(vinculos), [vinculos]);
+  /* PDF, seccion OTROS: criterios en SI sin seccion propia (listas internacionales, bancarizado...). */
+  const notasSinSeccion = useMemo(() => notasCriteriosSinSeccion(vinculosPdf), [vinculosPdf]);
   const anexosPdf = useMemo(() => evidenciasConHallazgo(vinculosPdf), [vinculosPdf]);
   const vinculosVista = soloObservados ? vinculosPdf : vinculos;
   const notasPor = (grupo: DdInformeGrupoObservacion) =>
@@ -340,11 +349,9 @@ export function DdInformeDetalle({ expedienteId }: Props) {
     }
     return null;
   };
-  const detalleRiesgo =
-    vinculos
-      .map((vinculo) => vinculo.reputacional.observaciones?.trim())
-      .filter((texto): texto is string => Boolean(texto))
-      .join(" ") || "--";
+  /* «Detallar» del formato oficial: la observacion del criterio (SIG puede detallar tambien un NO). */
+  const detalleRiesgo = detalleCriterio(vinculos, DD_INFORME_CRITERIOS_DETALLAR.CENTRAL_RIESGO) ?? "--";
+  const detalleConflicto = detalleCriterio(vinculos, DD_INFORME_CRITERIOS_DETALLAR.CONFLICTO_INTERES) ?? "--";
   const handlePrint = () => {
     const tituloAnterior = document.title;
     document.title = `Informe DD - ${exp.empresaRazonSocial}`;
@@ -1024,7 +1031,7 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 <td className="border border-slate-800 px-2 py-1 font-semibold">Conflictos de interés con IIMP</td>
                 <td className="border border-slate-800 px-2 py-1">
                   {renderCheckbox(listaValor("conflicto_interes"), "SI")} {renderCheckbox(listaValor("conflicto_interes"), "NO")}
-                  <span className="ml-4">Detallar: {datosEmpresa.beneficioMutuo ?? "--"}</span>
+                  <span className="ml-4">Detallar: {detalleConflicto}</span>
                 </td>
               </tr>
             </tbody>
@@ -1142,9 +1149,10 @@ export function DdInformeDetalle({ expedienteId }: Props) {
                 <tr><td className="pdf-subsection border border-slate-800 px-2 py-1 font-bold">OTROS</td></tr>
                 <tr><td className="border border-slate-800 px-2 py-1">
                   <NotasEvidencia notas={notasPor("OTROS")} />
+                  <NotasEvidencia notas={notasSinSeccion} conCriterio />
                   {tieneLegal
                     ? `${expediente?.decisionLegal ?? "Pendiente"}${expediente?.motivoLegal ? ` · ${expediente.motivoLegal}` : ""}`
-                    : notasPor("OTROS").length > 0 ? null : "No hay antecedentes"}
+                    : notasPor("OTROS").length > 0 || notasSinSeccion.length > 0 ? null : "No hay antecedentes"}
                 </td></tr>
               </tbody>
             </table>

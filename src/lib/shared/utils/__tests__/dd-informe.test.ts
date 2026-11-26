@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DD_INFORME_CRITERIOS_DETALLAR,
   DD_INFORME_GRUPOS_OBSERVACION,
   DD_MATRIZ_CONCLUSIONES,
   DD_MATRIZ_RESULTADOS,
@@ -11,8 +12,10 @@ import {
 import {
   agruparInformes,
   casosReputacionConObservacion,
+  detalleCriterio,
   detalleTieneObservacion,
   evidenciasConHallazgo,
+  notasCriteriosSinSeccion,
   notasPorCriterios,
   vinculosConObservaciones,
 } from "@/lib/shared/utils/dd-informe";
@@ -227,6 +230,26 @@ describe("observaciones por criterio en el informe", () => {
     const osce = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "Otra", [["osce", "si", "Multa firme del TCE."]]);
     expect(notasPorCriterios([empresa, osce], DD_INFORME_GRUPOS_OBSERVACION.OSCE).map((n) => n.texto)).toEqual(["Multa firme del TCE."]);
     expect(notasPorCriterios([empresa], DD_INFORME_GRUPOS_OBSERVACION.OEFA)).toEqual([]);
+  });
+
+  it("criterios sin seccion propia (listas internacionales, bancarizado) van a OTROS; los de grupo o Detallar no", () => {
+    const empresa = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "Empresa Uno S.A.C.", [
+      ["ofac", "si", "Coincidencia en OFAC."],
+      ["indecopi", "si", "Reclamo fundado."],
+      ["central_riesgo_empresa", "si", "Deuda vencida."],
+      ["bancarizado_empresa", "no", "No sale (NO)."],
+    ]);
+    const persona = detalle(DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE, "Ana Pérez", [["bancarizado_persona", "si", "Sin cuentas."]]);
+    const notas = notasCriteriosSinSeccion([persona, empresa]);
+    expect(notas.map((n) => `${n.codigo}:${n.texto}`)).toEqual(["ofac:Coincidencia en OFAC.", "bancarizado_persona:Sin cuentas."]);
+  });
+
+  it("detalleCriterio: la observacion del criterio con cualquier valor; en personas antepone el nombre", () => {
+    const empresa = detalle(DD_MATRIZ_TIPOS_VINCULO.EMPRESA, "Empresa Uno S.A.C.", [["central_riesgo_empresa", "no", "Sin deudas coactivas."]]);
+    const persona = detalle(DD_MATRIZ_TIPOS_VINCULO.REPRESENTANTE, "Ana Pérez", [["conflicto_interes", "si", "Hermana de un gerente del IIMP."]]);
+    expect(detalleCriterio([persona, empresa], DD_INFORME_CRITERIOS_DETALLAR.CENTRAL_RIESGO)).toBe("Sin deudas coactivas.");
+    expect(detalleCriterio([persona, empresa], DD_INFORME_CRITERIOS_DETALLAR.CONFLICTO_INTERES)).toBe("Ana Pérez: Hermana de un gerente del IIMP.");
+    expect(detalleCriterio([empresa], DD_INFORME_CRITERIOS_DETALLAR.CONFLICTO_INTERES)).toBeNull();
   });
 
   it("sin grupo (null) trae la observacion de todos los criterios en SI (seccion Observaciones y sustento)", () => {

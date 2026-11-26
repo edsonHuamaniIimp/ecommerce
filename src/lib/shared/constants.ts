@@ -2607,6 +2607,15 @@ export const DD_INFORME_GRUPOS_OBSERVACION = {
 } as const satisfies Record<string, readonly string[]>;
 export type DdInformeGrupoObservacion = keyof typeof DD_INFORME_GRUPOS_OBSERVACION;
 
+/**
+ * Criterios cuya observacion va en un «Detallar» del informe oficial (FRM-LOG-104), con cualquier
+ * valor: conflicto de interes (seccion 3) y central de riesgo de la empresa (3.2 Sentinell).
+ */
+export const DD_INFORME_CRITERIOS_DETALLAR = {
+  CONFLICTO_INTERES: "conflicto_interes",
+  CENTRAL_RIESGO: "central_riesgo_empresa",
+} as const;
+
 /** Limites de la matriz. */
 export const DD_MATRIZ_OBSERVACION_MAX = 2000;
 export const DD_MATRIZ_FINAL_COMENTARIO_MAX = 1000;
