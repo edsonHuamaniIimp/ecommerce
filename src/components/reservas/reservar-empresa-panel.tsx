@@ -52,7 +52,7 @@ import { reservasAdminService } from "@/lib/client/api/services/reservas-admin-s
 import { gessService } from "@/lib/client/api/services/gess-service";
 import { empresasService } from "@/lib/client/api/services/empresas-service";
 import { planosService } from "@/lib/client/api/services/planos-service";
-import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MAESTRA_TABLAS, MODOS_DESCUENTO, TIPOS_DESCUENTO, type ModoDescuento, type TipoDescuentoGlobal, MONEDAS, TIPOS_COMPROBANTE, TIPOS_CONTRATO, TIPOS_CONTRATO_LABELS, TIPOS_DOCUMENTO_PERSONA, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante, type TipoContrato } from "@/lib/shared/constants";
+import { ESTADOS_STAND, BADGE_STYLES, DESCUENTO_PORCENTAJE_MAX, DESCUENTO_PORCENTAJE_MIN, DESCUENTO_PORCENTAJE_PASO, MAX_RESERVA_ADMIN_STANDS, MAESTRA_TABLAS, MODOS_DESCUENTO, TIPOS_DESCUENTO, type ModoDescuento, type TipoDescuentoGlobal, MONEDAS, TIPOS_COMPROBANTE, TIPOS_CONTRATO, TIPOS_DOCUMENTO_EMPRESA, TIPOS_CONTRATO_LABELS, TIPOS_DOCUMENTO_PERSONA, TIPO_COMPROBANTE_LABELS, UI_SENTINEL, type TipoComprobante, type TipoContrato } from "@/lib/shared/constants";
 import { aplicarDescuentoMonto, aplicarDescuentoNeto, calcularImportes, descuentoMontoValido, descuentoPorcentajeValido, redondear2 } from "@/lib/shared/utils/importes";
 import { dateUtils } from "@/lib/shared/utils/date";
 import { convertirNeto, formatearMonto, tipoCambioValido } from "@/lib/shared/utils/moneda";
@@ -136,6 +136,13 @@ function badgeEstadoReservaAdmin(estado: string | null | undefined) {
 function etiquetaPreReservaStand(stand: GessStandDTO): string | null {
   const etiqueta = (stand.preReservaRazonSocial ?? stand.preReservaTitulo ?? stand.empresa ?? "").trim();
   return etiqueta || null;
+}
+
+/** Comprobante sugerido por el documento de la empresa: RUC -> factura; RUT/ID extranjero -> boleta. */
+function comprobanteSugerido(empresa: EmpresaAccesoDTO | null): string {
+  if (empresa?.tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.RUC) return TIPOS_COMPROBANTE.FACTURA;
+  if (empresa?.tipoDocumentoEmpresa === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO) return TIPOS_COMPROBANTE.BOLETA;
+  return UI_SENTINEL.SELECCIONAR;
 }
 
 function empresaAccesoDesdeDTO(empresa: EmpresaDTO): EmpresaAccesoDTO {
@@ -1188,7 +1195,7 @@ export function ReservarEmpresaPanel() {
               seleccion={empresa}
               onSeleccion={(value) => {
                 setEmpresa(value);
-                setTipoComprobante(UI_SENTINEL.SELECCIONAR);
+                setTipoComprobante(comprobanteSugerido(value));
               }}
               fuentes={["local"]}
               permitirSinSie

@@ -328,8 +328,36 @@ describe("SolicitarFacturaApplicationService", () => {
     await servicio(m).solicitar("c1", ident, ADJUNTOS);
 
     const enviado = vi.mocked(m.reserva.reservar).mock.calls[0]?.[0];
-    expect(enviado).toMatchObject({ tipDocFacturacion: "0", numDocFacturacion: "76123456K", razonSocial: "EMPRESA CHILE SPA", pais: "CL" });
+    expect(enviado).toMatchObject({ tipoFacturacion: "03", tipDocFacturacion: "0", numDocFacturacion: "76123456K", razonSocial: "EMPRESA CHILE SPA", pais: "CL" });
     expect(enviado?.contactos.contrato).not.toHaveProperty("tipoDocumento");
+  });
+
+  it("boleta de empresa extranjera: va a la EMPRESA (03, tipo 0, razon social y pais), no a su representante", async () => {
+    const m = mocks();
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, ruc: "DE119360948", tipoDocumento: "0", pais: "DE", razonSocial: "MESSE DUSSELDORF GMBH", representanteLegalNombre: "BERLEMANN, MARIUS" } as unknown as EmpresaEntity);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      datosFacturacion: { ...snapshotFactura, tipoComprobante: "boleta", tipoDocumento: "0", numeroDocumento: "DE119360948", razonSocial: "MESSE DUSSELDORF GMBH", contacto: "BERLEMANN, MARIUS" },
+    } as typeof datosBase);
+    await servicio(m).solicitar("c1", ident, ADJUNTOS);
+
+    const enviado = vi.mocked(m.reserva.reservar).mock.calls[0]?.[0];
+    expect(enviado).toMatchObject({ tipoFacturacion: "03", tipDocFacturacion: "0", numDocFacturacion: "DE119360948", razonSocial: "MESSE DUSSELDORF GMBH", pais: "DE" });
+    expect(enviado).not.toHaveProperty("nombresFact");
+    expect(enviado).not.toHaveProperty("apellidoPaternoFact");
+    expect(m.personas.buscarPorDocumento).not.toHaveBeenCalled();
+  });
+
+  it("boleta de empresa extranjera: si el correo de la solicitud no tiene usuario, la empresa se ubica por su documento", async () => {
+    const m = mocks();
+    vi.mocked(m.auth.findEmpresaIdDeUsuario).mockResolvedValue(null);
+    (m.empresas as unknown as { findByRuc: unknown }).findByRuc = vi.fn(async () => ({ ...empresa, ruc: "699035009", tipoDocumento: "0", pais: "CL", razonSocial: "ITALIAN TRADE AGENCY - ICE AGENCIA" }));
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      datosFacturacion: { ...snapshotFactura, tipoComprobante: "boleta", tipoDocumento: "0", numeroDocumento: "699035009", razonSocial: "ITALIAN TRADE AGENCY - ICE AGENCIA" },
+    } as typeof datosBase);
+    await servicio(m).solicitar("c1", ident, ADJUNTOS);
+    expect(vi.mocked(m.reserva.reservar).mock.calls[0]?.[0]).toMatchObject({ tipoFacturacion: "03", tipDocFacturacion: "0", pais: "CL" });
   });
 
   it("empresa extranjera sin pais: 400 antes de llamar al SIE", async () => {

@@ -196,7 +196,11 @@ export class SolicitarFacturaApplicationService {
     const snapshot = datos.datosFacturacion;
     /* Empresa vinculada: opcional (enriquece y cubre solicitudes sin snapshot). */
     const empresaId = datos.email ? await this.auth.findEmpresaIdDeUsuario(datos.email).catch(() => null) : null;
-    const empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    let empresa = empresaId ? await this.empresas.findById(empresaId) : null;
+    /* Empresa extranjera: si el correo de la solicitud no pertenece a un usuario vinculado, se ubica por su documento (RUT/ID). */
+    if (!empresa && snapshot?.tipoDocumento?.trim() === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO && snapshot.numeroDocumento) {
+      empresa = await this.empresas.findByRuc(normalizarDocumentoEmpresa(snapshot.numeroDocumento)).catch(() => null);
+    }
     if (!snapshot && !empresa) {
       throw new DomainError(
         "La solicitud no tiene datos de facturacion; registra la empresa en Empresas o vuelve a reservar",
@@ -498,7 +502,12 @@ export class SolicitarFacturaApplicationService {
     if (comprobante !== TIPOS_COMPROBANTE.FACTURA && comprobante !== TIPOS_COMPROBANTE.BOLETA) {
       throw new DomainError("El tipo de comprobante de la solicitud no es valido (factura|boleta)", API_ERROR_CODES.VALIDATION, 400);
     }
-    const esBoleta = comprobante === TIPOS_COMPROBANTE.BOLETA;
+    /* Empresa extranjera (RUT/ID, tipo 0): el comprobante va a la EMPRESA como boleta (03) con TipDocFacturacion 0
+       (doc IIMP 2.4), nunca a su representante. Un RUC peruano valido sigue el camino normal. */
+    const tipoDocumentoFuente = (snapshot?.tipoDocumento?.trim() || empresa?.tipoDocumento?.trim() || "");
+    const documentoFuente = normalizarDocumentoEmpresa(snapshot?.numeroDocumento || empresa?.ruc);
+    const esEmpresaExtranjera = tipoDocumentoFuente === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO && !REGEX_RUC.test(documentoFuente);
+    const esBoleta = comprobante === TIPOS_COMPROBANTE.BOLETA && !esEmpresaExtranjera;
     const direccion = snapshot?.direccion?.trim() || empresa?.direccionFiscal?.trim() || "";
     if (!direccion) {
       throw new DomainError("Falta la direccion fiscal del cliente en la solicitud", API_ERROR_CODES.VALIDATION, 400);
@@ -571,7 +580,8 @@ export class SolicitarFacturaApplicationService {
     const documentoExtranjero = normalizarDocumentoEmpresa(snapshot?.numeroDocumento || empresa?.ruc);
     const esExtranjera =
       !REGEX_RUC.test(ruc) &&
-      resolverTipoDocumentoEmpresa(snapshot?.tipoDocumento || empresa?.tipoDocumento, documentoExtranjero) === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO &&
+      (esEmpresaExtranjera ||
+        resolverTipoDocumentoEmpresa(snapshot?.tipoDocumento || empresa?.tipoDocumento, documentoExtranjero) === TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO) &&
       validarDocumentoEmpresa(TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO, documentoExtranjero) === null;
     if (!esExtranjera && !REGEX_RUC.test(ruc)) {
       throw new DomainError("La factura requiere un RUC de 11 digitos (revisa los datos de la solicitud)", API_ERROR_CODES.VALIDATION, 400);
@@ -589,7 +599,8 @@ export class SolicitarFacturaApplicationService {
 
     return {
       ...base,
-      tipoFacturacion: FACTURACION_IIMP.FACTURA,
+      /* Empresa extranjera: boleta (03) a la empresa con tipo de documento 0; empresa con RUC: factura (01). */
+      tipoFacturacion: esExtranjera ? FACTURACION_IIMP.BOLETA : FACTURACION_IIMP.FACTURA,
       tipDocFacturacion: esExtranjera ? TIPOS_DOCUMENTO_FACTURACION_IIMP.EXTRANJERA : TIPOS_DOCUMENTO_FACTURACION_IIMP.RUC,
       numDocFacturacion: esExtranjera ? documentoExtranjero : ruc,
       razonSocial,

@@ -58,14 +58,25 @@ describe("validarEmpresaReservaAdministrativa", () => {
       TIPOS_COMPROBANTE.BOLETA,
       "USD",
     );
+    /* Empresa con RUC: la boleta va a la persona, por eso se valida el documento del representante. */
     const dni = validarEmpresaReservaAdministrativa(
-      empresa({ representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI, representanteLegalDni: "1234567" }),
+      empresa({ tipoDocumento: TIPOS_DOCUMENTO_EMPRESA.RUC, ruc: "20100171814", representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI, representanteLegalDni: "1234567" }),
       TIPOS_COMPROBANTE.BOLETA,
       "USD",
     );
 
     expect(carne.ok).toBe(true);
     expect(dni.faltantesRepresentante).toContain("DNI de 8 dígitos para la boleta");
+  });
+
+  it("empresa extranjera: la boleta va a la empresa, no se valida el documento del representante como titular", () => {
+    const resultado = validarEmpresaReservaAdministrativa(
+      empresa({ representanteLegalTipoDocumento: TIPOS_DOCUMENTO_PERSONA.DNI, representanteLegalDni: "1234567" }),
+      TIPOS_COMPROBANTE.BOLETA,
+      "USD",
+    );
+
+    expect(resultado.faltantesRepresentante).not.toContain("DNI de 8 dígitos para la boleta");
   });
 
   it("no exige cuenta vinculada del representante", () => {

@@ -1,6 +1,7 @@
 import {
   MONEDAS,
   TIPOS_COMPROBANTE,
+  TIPOS_DOCUMENTO_EMPRESA,
   TIPOS_DOCUMENTO_PERSONA,
   type TipoComprobante,
 } from "@/lib/shared/constants";
@@ -74,7 +75,11 @@ export function validarEmpresaReservaAdministrativa(
   if (!texto(empresa.representanteLegalNombre)) faltantesRepresentante.push("nombre");
   if (!dni) {
     faltantesRepresentante.push("documento");
-  } else if (tipoComprobante === TIPOS_COMPROBANTE.BOLETA && validarDocumentoPersona(tipoDocumentoRepresentante, dni)) {
+  } else if (
+    tipoComprobante === TIPOS_COMPROBANTE.BOLETA &&
+    tipoDocumento !== TIPOS_DOCUMENTO_EMPRESA.NO_DOMICILIADO && /* empresa extranjera: la boleta va a la empresa, no al representante */
+    validarDocumentoPersona(tipoDocumentoRepresentante, dni)
+  ) {
     /* La boleta admite DNI (8 digitos), carne de extranjeria o pasaporte (alfanumerico). */
     faltantesRepresentante.push(
       tipoDocumentoRepresentante === TIPOS_DOCUMENTO_PERSONA.DNI
