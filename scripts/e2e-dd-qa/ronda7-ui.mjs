@@ -158,17 +158,19 @@ async function main() {
     const preguntar = async (page, codigo, modo, prompt) => {
       await page.getByRole("button", { name: modo }).first().click();
       await page.getByRole("textbox", { name: "Indicación para el asistente" }).first().fill(prompt);
-      await page.getByRole("button", { name: "Enviar" }).first().click();
       const observacion = page.getByRole("textbox", { name: `Observación de ${label(codigo)}` }).first();
+      /* La observacion puede traer texto previo: la respuesta se agrega debajo, se espera a que cambie. */
+      const previo = await observacion.inputValue();
+      await page.getByRole("button", { name: "Enviar" }).first().click();
       const limite = Date.now() + 90000;
-      let texto = "";
-      while (Date.now() < limite && !texto.trim()) {
+      let texto = previo;
+      while (Date.now() < limite && texto === previo) {
         await esperar(page, 1000);
         texto = await observacion.inputValue();
       }
-      if (!texto.trim()) throw new Error("la observacion quedo vacia");
+      if (texto === previo) throw new Error("la respuesta no llego a la observacion");
       await page.getByText(DD_ASISTENTE_MENSAJES.REVISAR).first().waitFor();
-      return texto;
+      return texto.slice(previo.length).trim() || texto;
     };
     await caso("U2", "OCR + prompt: la respuesta llena la observación del criterio", sig.page, async () => {
       const texto = await preguntar(sig.page, "indecopi", ETIQUETAS.ocr, "Solo dime el RUC de la empresa.");

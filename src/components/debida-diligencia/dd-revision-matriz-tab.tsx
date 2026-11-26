@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Button, Skeleton } from "@nrivera-iimp/ui-kit-iimp";
 import { ExternalLink } from "lucide-react";
 import type {
@@ -16,6 +16,8 @@ import {
   type DdMatrizTipoVinculo,
 } from "@/lib/shared/constants";
 import { dateUtils } from "@/lib/shared/utils/date";
+import { notasPorCriterios, type DdInformeNotaCriterio } from "@/lib/shared/utils/dd-informe";
+import { ddMatrizEvaluacionService } from "@/lib/client/api/services/dd-matriz-evaluacion-service";
 import {
   DdMatrizAmbitoBadge,
   DdMatrizConclusionBadge,
@@ -116,13 +118,47 @@ function EstadoVinculo({
   );
 }
 
+/**
+ * Observacion de los criterios marcados SI de cada vinculo (sustento de SIG). La lista de la matriz no
+ * la trae: se lee el detalle de cada vinculo. La empresa (`detalle`) no se repite: sus observaciones
+ * salen en «Listas restrictivas».
+ */
+function useNotasCriterios(
+  vinculos: DdMatrizEvaluacionFilaDTO[],
+  detalle: DdMatrizEvaluacionDetalleDTO,
+): Record<string, DdInformeNotaCriterio[]> {
+  const [notas, setNotas] = useState<Record<string, DdInformeNotaCriterio[]>>({});
+  const ids = vinculos.map((vinculo) => vinculo.id).filter((id) => id !== detalle.id).join(",");
+  useEffect(() => {
+    let activo = true;
+    const lista = ids ? ids.split(",") : [];
+    void Promise.all(
+      lista.map((id) =>
+        ddMatrizEvaluacionService
+          .detalle(id)
+          .then((d) => [id, notasPorCriterios([d], null)] as const)
+          .catch(() => [id, [] as DdInformeNotaCriterio[]] as const),
+      ),
+    ).then((pares) => {
+      if (activo) setNotas(Object.fromEntries(pares));
+    });
+    return () => {
+      activo = false;
+    };
+  }, [ids]);
+  return notas;
+}
+
 function VinculosMatriz({
   vinculos,
+  detalle,
   returnTo,
 }: {
   vinculos: DdMatrizEvaluacionFilaDTO[];
+  detalle: DdMatrizEvaluacionDetalleDTO;
   returnTo: string;
 }) {
+  const notas = useNotasCriterios(vinculos, detalle);
   if (vinculos.length === 0) return null;
   return (
     <SeccionMatriz
@@ -168,6 +204,17 @@ function VinculosMatriz({
                 fecha={vinculo.cmpFecha}
               />
             </div>
+            {(notas[vinculo.id] ?? []).length > 0 ? (
+              <div className="mt-3 space-y-1.5 border-t border-border pt-3">
+                <p className="text-[10px] font-medium uppercase text-muted-foreground">Observación de los criterios marcados SI</p>
+                {(notas[vinculo.id] ?? []).map((nota) => (
+                  <div key={nota.id}>
+                    <p className="text-[10px] font-semibold text-foreground">{nota.criterio}</p>
+                    <p className="max-h-28 overflow-y-auto whitespace-pre-wrap text-[11px] text-foreground [overflow-wrap:anywhere]">{nota.texto}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>
@@ -237,7 +284,7 @@ export function DdRevisionMatrizTab({ detalle, vinculos, loading, error, matrizI
         </Button>
       </div>
 
-      <VinculosMatriz vinculos={vinculos} returnTo={returnTo} />
+      <VinculosMatriz vinculos={vinculos} detalle={detalle} returnTo={returnTo} />
 
       <SeccionMatriz titulo="Datos de la matriz" descripcion="Información registrada en la matriz que no forma parte del resumen del expediente.">
         <div className="grid gap-3 sm:grid-cols-2">
