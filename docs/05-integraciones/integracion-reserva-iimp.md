@@ -74,7 +74,8 @@ vinculada es opcional y solo enriquece):
 | `TipoFacturacion` | `solicitud.datos_facturacion.tipoComprobante` (`factura` → `01`, `boleta` → `03`) |
 | `TipDocFacturacion` | RUC `6` (factura) / DNI `1` (boleta) según `tipoDocumento` |
 | `NumDocFacturacion` | `datos_facturacion.numeroDocumento` (respaldo: `empresa.ruc`) |
-| `RazonSocial` | `datos_facturacion.razonSocial` (respaldo: `empresa.razonSocial`); no se envía en boleta |
+| `RazonSocial` | `datos_facturacion.razonSocial` (respaldo: `empresa.razonSocial`); no se envía en boleta a persona natural. En **boleta a empresa extranjera** (`TipDocFacturacion` `0`) sí se envía: la boleta va a la empresa |
+| `Pais` | Solo empresa extranjera (`TipDocFacturacion` `0`): **código numérico del catálogo de ubigeo del SIE** (`GET /ubigeo/paises` de servicio-persona; Alemania = 5, Irlanda = 134). El SIE rechaza el ISO con «debe ser un numero». Se resuelve desde el país ISO de la empresa; si el catálogo no responde o no trae el país, no se envía |
 | `ApellidoPaternoFact`/`MaternoFact`/`NombresFact` | Boleta: desde servicio-persona (`searchpersonv00`) por DNI |
 | `DirFacturacion` | `datos_facturacion.direccion` (respaldo: `empresa.direccionFiscal`) |
 | `Web`, `Telefono` | `empresa.sitioWeb`, `datos_facturacion.telefono` o `empresa.telefono` |
@@ -230,8 +231,17 @@ Variables solo de servidor (el cliente corre en `src/infrastructure/external`).
     sin presigned). El backend normaliza links relativos con `APP_URL` antes de enviarlos;
     no usar URLs prefirmadas (caducan y el IIMP no podría descargarlas después).
 - **Alcance actual**: factura a empresa con RUC y **boleta a persona natural con DNI**
-  (nombres/apellidos desde servicio-persona). Empresa extranjera (`TipDocumento` `0`),
-  CE y pasaporte no están soportados en la UI.
+  (nombres/apellidos desde servicio-persona). **Empresa extranjera** (`TipDocFacturacion` `0`,
+  RUT/ID alfanumérico): se envía **boleta (`03`) a la empresa** con su razón social y `Pais`
+  (código numérico de ubigeo), **nunca al representante legal**; no se envía el documento del
+  representante. CE y pasaporte de persona natural no están soportados en la UI.
+- **Idempotencia y anulaciones:** `NumeroSolicitud` es la llave del SIE (una solicitud = una reserva).
+  Un contrato anulado en el SIE **sigue ocupando** ese número y el reenvío responde `409`
+  ("ya tiene la reserva ... No se reservo de nuevo") hasta que el SIE **libere/borre la reserva**.
+- **Consulta de la solicitud vigente (solo lectura, para el SIE):** si los datos cambian en
+  ContratosStands después de reservar (p. ej. el cliente facturado se corrige de persona a empresa),
+  el SIE los lee con `GET /api/integracion/solicitud` y actualiza su registro; no se regenera ni se
+  reenvía la reserva. Guía: `api-solicitud-vigente.md`.
 - Los porcentajes del plan del contrato se redondean a enteros; la última cuota absorbe el
   ajuste para sumar exactamente 100 (requisito del IIMP).
 - Solicitudes creadas antes de `0039` no tienen snapshot: caen al respaldo de la empresa

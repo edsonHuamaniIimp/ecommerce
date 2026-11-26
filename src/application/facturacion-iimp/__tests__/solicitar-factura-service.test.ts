@@ -370,6 +370,24 @@ describe("SolicitarFacturaApplicationService", () => {
     expect(typeof enviado?.pais).toBe("number");
   });
 
+  it("empresa extranjera con IVA de 11 digitos (p. ej. Italia): NO se confunde con un RUC peruano", async () => {
+    const m = mocks();
+    vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, ruc: "IT02416280390", tipoDocumento: "0", pais: "IT", razonSocial: "DIEMME FILTRATION SRL" } as unknown as EmpresaEntity);
+    vi.mocked(m.solicitudes.datosReservaIImp).mockResolvedValue({
+      ...datosBase,
+      datosFacturacion: { ...snapshotFactura, tipoComprobante: "boleta", tipoDocumento: "0", numeroDocumento: "IT02416280390", razonSocial: "DIEMME FILTRATION SRL" },
+    } as typeof datosBase);
+    await servicio(m).solicitar("c1", ident, ADJUNTOS);
+
+    expect(vi.mocked(m.reserva.reservar).mock.calls[0]?.[0]).toMatchObject({
+      tipoFacturacion: "03",
+      tipDocFacturacion: "0",
+      numDocFacturacion: "IT02416280390",
+      razonSocial: "DIEMME FILTRATION SRL",
+      pais: 81,
+    });
+  });
+
   it("empresa extranjera: si el pais no figura en el catalogo del SIE no se envia y se explica", async () => {
     const m = mocks();
     vi.mocked(m.empresas.findById).mockResolvedValue({ ...empresa, ruc: "JP123456789", tipoDocumento: "0", pais: "JP", razonSocial: "EMPRESA JAPON KK" } as unknown as EmpresaEntity);

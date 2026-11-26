@@ -616,7 +616,9 @@ export class SolicitarFacturaApplicationService {
       };
     }
 
-    const ruc = [digitos(snapshot?.numeroDocumento), digitos(empresa?.ruc)].find((v) => REGEX_RUC.test(v)) ?? "";
+    /* Si la solicitud declara empresa extranjera (tipo 0, documento no numerico), NO se extraen digitos:
+       un IVA como IT02416280390 tiene 11 digitos y se confundiria con un RUC peruano. */
+    const ruc = esEmpresaExtranjera ? "" : ([digitos(snapshot?.numeroDocumento), digitos(empresa?.ruc)].find((v) => REGEX_RUC.test(v)) ?? "");
     /* Empresa extranjera (no domiciliada): documento RUT/ID alfanumerico; el SIE la factura como
        exportacion con `TipDocFacturacion = 0` y su pais. Un RUC peruano valido sigue el camino normal. */
     const documentoExtranjero = normalizarDocumentoEmpresa(snapshot?.numeroDocumento || empresa?.ruc);
