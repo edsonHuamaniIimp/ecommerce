@@ -1561,6 +1561,25 @@ export const DD_RUTAS = {
   CONFIGURACION: "/dashboard/debida-diligencia/configuracion",
 } as const;
 
+/** Prefijo de las APIs del modulo de Debida Diligencia. */
+export const DD_API_BASE = "/api/debida-diligencia";
+
+/* ================================================================
+   Sesion terminada en el cliente (internalApi)
+   ================================================================ */
+export const SESION_EXPIRADA = {
+  /** Status con el que una API responde sin sesion valida. */
+  STATUS: 401,
+  /** Pantalla de inicio de sesion y parametro de regreso (mismos que usa el proxy). */
+  RUTA_LOGIN: "/auth/login",
+  PARAM_RETURN_TO: "returnTo",
+  /** Pantallas donde nunca se redirige (evita ciclos en login, recuperar, etc.). */
+  PREFIJO_RUTAS_AUTH: "/auth/",
+  /** APIs cuyo 401 manda al login (las demas conservan su manejo actual). */
+  APIS_AL_LOGIN: [DD_API_BASE],
+  MENSAJE: "Tu sesión terminó. Inicia sesión nuevamente.",
+} as const;
+
 /** Etiqueta para empresas sin expediente de debida diligencia. */
 export const DD_ESTADO_SIN_INICIAR_LABEL = "Sin iniciar";
 export const DD_ESTADO_SIN_INICIAR_EVENTO_LABEL = "Sin iniciar en este evento";

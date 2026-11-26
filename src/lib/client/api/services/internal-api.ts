@@ -1,7 +1,8 @@
 import 'client-only';
 
 import type { ApiResult } from "@/lib/shared/api-types";
-import { API_ERROR_CODES } from "@/lib/shared/constants";
+import { API_ERROR_CODES, SESION_EXPIRADA } from "@/lib/shared/constants";
+import { sesionExpiradaUtils } from "@/lib/shared/utils/sesion-expirada";
 
 /** Error HTTP del API interno: conserva codigo y status para mapeo/trazabilidad. */
 export class ApiClientError extends Error {
@@ -13,6 +14,20 @@ export class ApiClientError extends Error {
     super(message);
     this.name = "ApiClientError";
   }
+}
+
+/* Varias peticiones en paralelo pueden recibir el 401: se redirige una sola vez. */
+let redirigiendoAlLogin = false;
+
+/** Sesion terminada con la pantalla abierta (APIs de DD): lleva al login y vuelve aqui al ingresar. */
+function irAlLoginSiSesionTerminada(url: string, status: number): boolean {
+  if (typeof window === "undefined") return false;
+  if (!sesionExpiradaUtils.debeIrAlLogin(url, status, window.location.pathname)) return false;
+  if (!redirigiendoAlLogin) {
+    redirigiendoAlLogin = true;
+    window.location.assign(sesionExpiradaUtils.urlLogin(`${window.location.pathname}${window.location.search}`));
+  }
+  return true;
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -28,6 +43,9 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   });
   const json = await res.json().catch(() => ({})) as ApiResult<T> | { error?: string } | null;
   if (!res.ok) {
+    if (irAlLoginSiSesionTerminada(url, res.status)) {
+      throw new ApiClientError(SESION_EXPIRADA.MENSAJE, API_ERROR_CODES.UNAUTHORIZED, res.status);
+    }
     if (json && typeof json === "object" && "success" in json && json.success === false && "error" in json) {
       const detalle = (json as ApiResult<T> & { success: false }).error;
       throw new ApiClientError(detalle.message, String(detalle.code ?? API_ERROR_CODES.INTERNAL), res.status);
